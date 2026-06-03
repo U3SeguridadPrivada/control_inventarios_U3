@@ -29,6 +29,7 @@
     "@hey-api/client-fetch": "^0.13.1",
     "@hey-api/openapi-ts": "^0.94.5",
     "@tailwindcss/vite": "^4.2.2",
+    "tailwindcss": "^4.2.2",
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
