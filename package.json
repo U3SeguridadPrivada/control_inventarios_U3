@@ -1,0 +1,13 @@
+{
+  "name": "secure-uniform-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter \"./apps/**\" run dev",
+    "build": "pnpm --filter \"./apps/**\" run build",
+    "start": "pnpm --filter \"./apps/**\" run start"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

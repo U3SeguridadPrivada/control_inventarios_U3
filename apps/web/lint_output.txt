@@ -1,0 +1,106 @@
+
+> web@0.0.0 lint D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web
+> eslint .
+
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\components\ui\input.tsx
+  4:18  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\components\ui\select.tsx
+  4:18  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\components\ui\textarea.tsx
+  4:18  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\context\AuthContext.tsx
+  95:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\pages\Entradas.tsx
+  48:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\pages\Entradas.tsx:48:7
+  46 |   useEffect(() => {
+  47 |     if (isModalOpen) {
+> 48 |       setFecha(new Date().toISOString().split('T')[0]);
+     |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  49 |       setArticulo(ARTICULOS[0]);
+  50 |       setTalla('');
+  51 |       setCantidad(1);  react-hooks/set-state-in-effect
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\pages\Salidas.tsx
+  104:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\pages\Salidas.tsx:104:7
+  102 |     if (isModalOpen) {
+  103 |       refetchDetalle();
+> 104 |       setFecha(new Date().toISOString().split('T')[0]);
+      |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  105 |       setConcepto('Uniforme en Campo');
+  106 |       setGuardiaId('');
+  107 |       setArticulo('');                                                                                   react-hooks/set-state-in-effect
+  115:6   warning  React Hook useEffect has a missing dependency: 'refetchDetalle'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    react-hooks/exhaustive-deps
+  119:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\pages\Salidas.tsx:119:5
+  117 |   // Reset article/talla/cantidad when concepto changes
+  118 |   useEffect(() => {
+> 119 |     setSeleccion({});
+      |     ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  120 |     setArticulo('');
+  121 |     setTalla('');
+  122 |     setCantidad(1);                                                                                                                  react-hooks/set-state-in-effect
+  127:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\pages\Salidas.tsx:127:5
+  125 |   // Reset talla when article changes
+  126 |   useEffect(() => {
+> 127 |     setTalla('');
+      |     ^^^^^^^^ Avoid calling setState() directly within an effect
+  128 |     setCantidad(1);
+  129 |   }, [articulo]);
+  130 |                                                                                                                                                                 react-hooks/set-state-in-effect
+  133:19  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\Control de inventario\CONTROL_DE_INVENTARIOS_U3\apps\web\src\pages\Salidas.tsx:133:19
+  131 |   // Reset seleccion when guardia changes (para Reposición/Extravío los ítems dependen del guardia)
+  132 |   useEffect(() => {
+> 133 |     if (!isCampo) setSeleccion({});
+      |                   ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  134 |   }, [guardiaId]);
+  135 |
+  136 |   // ── Mutations ────────────────────────────────────────────────────────────  react-hooks/set-state-in-effect
+  134:6   warning  React Hook useEffect has a missing dependency: 'isCampo'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           react-hooks/exhaustive-deps
+
+✖ 11 problems (9 errors, 2 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.
