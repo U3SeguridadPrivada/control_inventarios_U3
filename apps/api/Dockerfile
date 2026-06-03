@@ -6,4 +6,5 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm run build
 EXPOSE 3001
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "npx drizzle-kit push && node dist/index.js"]
+

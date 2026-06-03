@@ -5,4 +5,5 @@ nixPkgs = ['nodejs_20', 'pnpm-9_x']
 cmds = ['pnpm run build']
 
 [start]
-cmd = 'node dist/index.js'
+cmd = 'npx drizzle-kit push && node dist/index.js'
+
