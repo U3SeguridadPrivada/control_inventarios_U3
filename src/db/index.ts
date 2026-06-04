@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS bajas (
 
 function initDb(): DrizzleDB {
   if (_db) return _db;
-  const dbPath = path.join(process.cwd(), 'db', 'app.db');
+  const dbPath = process.env.SQLITE_DB_PATH || path.join(process.cwd(), 'db', 'app.db');
   const dir = path.dirname(dbPath);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const sqlite = new Database(dbPath);
