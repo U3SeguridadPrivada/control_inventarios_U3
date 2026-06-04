@@ -7,6 +7,13 @@ node_modules/
 dist/
 dist-ssr/
 build/
+.next/
+next-env.d.ts
+
+# SQLite database (persists via Railway Volume)
+db/*.db
+db/*.db-shm
+db/*.db-wal
 
 # Environment variables — NEVER commit these
 .env

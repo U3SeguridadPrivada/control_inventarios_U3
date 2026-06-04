@@ -1,13 +1,44 @@
 {
-  "name": "secure-uniform-monorepo",
+  "name": "control-de-inventarios-u3",
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter \"./apps/**\" run dev",
-    "build": "pnpm --filter \"./apps/**\" run build",
-    "start": "pnpm --filter \"./apps/**\" run start"
+    "dev": "next dev",
+    "build": "next build",
+    "build:local": "cross-env NODE_OPTIONS=\"--require ./exfat-patch.cjs\" next build --turbopack",
+    "start": "next start",
+    "create-admin": "node scripts/create-admin.mjs"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "^133.0.0",
+    "@tanstack/react-query": "^5.95.2",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^11.10.0",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.40.0",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^0.511.0",
+    "next": "^15.3.3",
+    "puppeteer-core": "^24.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^3.8.1",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "wouter": "^3.9.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "@tailwindcss/postcss": "^4.1.8",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20.12.7",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "cross-env": "^10.1.0",
+    "drizzle-kit": "^0.30.0",
+    "tailwindcss": "^4.1.8",
+    "typescript": "^5.4.5"
   }
 }
