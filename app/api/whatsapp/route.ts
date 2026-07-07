@@ -54,19 +54,56 @@ function getAdminUserId(): number {
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Validar Token de Seguridad Opcional (si se configura)
-    const token = req.nextUrl.searchParams.get('token');
+    // 1. Validar Token de Seguridad (Soporta Header o Query Parameter)
     const webhookToken = process.env.WASENDER_WEBHOOK_TOKEN;
-    if (webhookToken && token !== webhookToken) {
-      return Response.json({ error: 'No autorizado' }, { status: 401 });
+    if (webhookToken) {
+      const headerSig = req.headers.get('x-webhook-signature') || req.headers.get('X-Webhook-Signature');
+      const paramSig = req.nextUrl.searchParams.get('token');
+      const sigToCompare = headerSig || paramSig;
+      if (sigToCompare !== webhookToken) {
+        console.warn('Firma de webhook inválida. Recibida:', sigToCompare);
+        return Response.json({ error: 'No autorizado' }, { status: 401 });
+      }
     }
 
-    // 2. Extraer datos del payload de WASender de forma segura (soporta varios formatos)
+    // 2. Extraer datos del payload de WASender de forma segura
     const body = await req.json();
-    const rawPhone = body.phone || body.sender || body.from || body.message?.from;
-    const incomingText = body.message || body.text || body.message?.text || body.content;
+    console.log('Webhook recibido:', JSON.stringify(body));
+
+    // Si es un evento de prueba del simulador de WaSender, responder exitoso inmediatamente
+    if (body.event === 'webhook.test' || body.test === true || body.data?.test === true) {
+      return Response.json({ status: 'success', message: 'Webhook test verified successfully' });
+    }
+
+    let rawPhone = body.phone || body.sender || body.from || body.message?.from;
+    let incomingText = body.message || body.text || body.message?.text || body.content;
+
+    // Soporte para estructura anidada de WaSender (body.data.*)
+    if (body.data) {
+      const d = body.data;
+      if (d.key?.remoteJid) {
+        rawPhone = d.key.remoteJid;
+      } else if (d.sender) {
+        rawPhone = d.sender;
+      } else if (d.from) {
+        rawPhone = d.from;
+      }
+
+      if (d.message) {
+        if (typeof d.message === 'string') {
+          incomingText = d.message;
+        } else {
+          incomingText = d.message.conversation || d.message.extendedTextMessage?.text || d.message.text || '';
+        }
+      } else if (d.text) {
+        incomingText = d.text;
+      } else if (d.body) {
+        incomingText = d.body;
+      }
+    }
 
     if (!rawPhone || !incomingText || typeof incomingText !== 'string') {
+      console.warn('Payload incompleto. Teléfono:', rawPhone, 'Mensaje:', incomingText);
       return Response.json({ error: 'Payload incompleto o inválido' }, { status: 400 });
     }
 

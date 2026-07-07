@@ -39,7 +39,13 @@ export function tocarChat(telefono: string, opts?: { incrementarNoLeidos?: boole
 
 // Envía un mensaje de texto vía WASender API
 export async function enviarMensajeWASender(to: string, messageText: string): Promise<{ ok: boolean; error?: string }> {
-  const url = process.env.WASENDER_API_URL || 'https://api.wasender.com/v1/messages/send';
+  let url = process.env.WASENDER_API_URL || 'https://www.wasenderapi.com/api/send-message';
+
+  // Autocorrección del endpoint si viene con el formato anterior/obsoleto
+  if (url === 'https://api.wasender.com/v1/messages/send') {
+    url = 'https://www.wasenderapi.com/api/send-message';
+  }
+
   const apiKey = process.env.WASENDER_API_KEY;
 
   if (!apiKey) {
