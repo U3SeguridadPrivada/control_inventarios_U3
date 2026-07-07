@@ -1,6 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getRoleByEmail, Role } from '@/src/utils/roleMapping';
+import { getRoleByEmail, Role } from '@/src/utils/roleMapping';
 
 export interface AuthUser {
   id: number;
@@ -98,10 +99,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...state,
       login,
       logout,
+      // roles basados en el email institucional
+      userRole: getRoleByEmail(state.user?.email),
       isAdmin: state.user?.role === 'admin',
       isEditor: state.user?.role === 'admin' || state.user?.role === 'editor',
-      // Custom role derived from email
-      userRole: getRoleByEmail(state.user?.email),
       isAdministrativos: getRoleByEmail(state.user?.email) === 'administrativos',
       isVentas: getRoleByEmail(state.user?.email) === 'ventas',
       isVisualizador: getRoleByEmail(state.user?.email) === 'visualizador',

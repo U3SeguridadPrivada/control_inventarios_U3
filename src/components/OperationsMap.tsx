@@ -2,6 +2,9 @@
 import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+
+// Coordenadas fijas de la Ciudad de México
+const CDMX_CENTER: [number, number] = [19.4326, -99.1332];
 import 'leaflet/dist/leaflet.css';
 import { Trash2 } from 'lucide-react';
 
@@ -12,7 +15,8 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-const CDMX_CENTER: [number, number] = [19.4326, -99.1332];
+// Usa el centro de CDMX directamente
+const center: [number, number] = CDMX_CENTER;
 
 export interface ServicioGuardia {
   id: number;
@@ -52,7 +56,7 @@ interface Props {
 
 export default function OperationsMap({ servicios, addingMode, canEdit, onMapClick, onMarkerDragEnd, onManage, onDelete, onRemoveGuardia }: Props) {
   return (
-    <MapContainer center={CDMX_CENTER} zoom={11} style={{ height: '100%', width: '100%' }} className={addingMode ? 'cursor-crosshair' : ''}>
+    <MapContainer center={center} zoom={11} style={{ height: '100%', width: '100%' }} className={addingMode ? 'cursor-crosshair' : ''}>
       <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <ClickCapture active={addingMode} onClick={onMapClick} />
       {servicios.map((s) => (

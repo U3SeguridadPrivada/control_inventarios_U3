@@ -5,6 +5,7 @@ export type Role =
   | 'supervisor'
   | 'director'
   | 'marketing'
+  | 'guardia'
   | 'unknown';
 
 /**
