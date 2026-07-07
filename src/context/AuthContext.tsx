@@ -1,5 +1,6 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getRoleByEmail, Role } from '@/src/utils/roleMapping';
 
 export interface AuthUser {
   id: number;
@@ -19,6 +20,14 @@ interface AuthContextValue extends AuthState {
   logout: () => void;
   isAdmin: boolean;
   isEditor: boolean;
+  // Custom role booleans
+  isAdministrativos: boolean;
+  isVentas: boolean;
+  isVisualizador: boolean;
+  isSupervisor: boolean;
+  isDirector: boolean;
+  isMarketing: boolean;
+  userRole: Role | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -91,6 +100,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       isAdmin: state.user?.role === 'admin',
       isEditor: state.user?.role === 'admin' || state.user?.role === 'editor',
+      // Custom role derived from email
+      userRole: getRoleByEmail(state.user?.email),
+      isAdministrativos: getRoleByEmail(state.user?.email) === 'administrativos',
+      isVentas: getRoleByEmail(state.user?.email) === 'ventas',
+      isVisualizador: getRoleByEmail(state.user?.email) === 'visualizador',
+      isSupervisor: getRoleByEmail(state.user?.email) === 'supervisor',
+      isDirector: getRoleByEmail(state.user?.email) === 'director',
+      isMarketing: getRoleByEmail(state.user?.email) === 'marketing',
     }}>
       {children}
     </AuthContext.Provider>

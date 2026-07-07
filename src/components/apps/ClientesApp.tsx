@@ -27,6 +27,10 @@ interface Cliente {
 const FORM_INICIAL = { nombre: '', tipo: 'Prospecto', empresa: '', email: '', telefono: '', direccion: '', notas: '' };
 
 export default function ClientesApp() {
+  const { isVentas, isAdministrativos } = useAuth();
+  if (!isVentas && !isAdministrativos) {
+    return <div className="p-4 text-muted-foreground">No tiene permiso para ver esta sección.</div>;
+  }
   const { isEditor, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
