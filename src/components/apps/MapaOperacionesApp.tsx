@@ -3,6 +3,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/src/lib/api';
+import { useAuth } from '@/src/context/AuthContext';
 
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
