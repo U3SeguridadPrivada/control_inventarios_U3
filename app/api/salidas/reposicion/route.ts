@@ -3,7 +3,7 @@ import { db } from '@/src/db';
 import { salidas, entradas, guardias } from '@/src/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { verifyAuth, unauthorized } from '@/src/lib/auth';
-import { calcularStockDisponible } from '@/src/lib/stock';
+import { validarStockLote } from '@/src/lib/stock';
 
 export async function POST(req: NextRequest) {
   const authUser = verifyAuth(req);
@@ -19,17 +19,8 @@ export async function POST(req: NextRequest) {
 
     const guardia = db.select().from(guardias).where(eq(guardias.id, guardiaId)).get();
 
-    const solicitadoPorEstado: Record<string, number> = {};
-    for (const item of items) {
-      const estadoE = item.estado_fisico || estadoEntregado || 'Nuevo';
-      const key = `${item.articulo}|||${item.talla || ''}|||${estadoE}`;
-      solicitadoPorEstado[key] = (solicitadoPorEstado[key] ?? 0) + Number(item.cantidad);
-    }
-    for (const [key, qty] of Object.entries(solicitadoPorEstado)) {
-      const [art, tallaRaw, estadoE] = key.split('|||');
-      const almacen = calcularStockDisponible(art, tallaRaw || undefined, estadoE);
-      if (qty > almacen) return Response.json({ error: `Stock insuficiente para "${art}" [${estadoE}]. Disponible: ${almacen}` }, { status: 400 });
-    }
+    const errorStock = validarStockLote(items, estadoEntregado || 'Nuevo');
+    if (errorStock) return Response.json({ error: errorStock }, { status: 400 });
 
     db.transaction((tx) => {
       for (const item of items) {
@@ -43,7 +34,7 @@ export async function POST(req: NextRequest) {
 
         const oldRows = tx.select({ id: salidas.id }).from(salidas).where(and(...conds)).orderBy(desc(salidas.fecha), desc(salidas.id)).limit(qty).all();
         for (const row of oldRows) {
-          tx.update(salidas).set({ estado_asignacion: 'Devuelto', estado_devuelto: itemEstadoDevuelto }).where(eq(salidas.id, row.id)).run();
+          tx.update(salidas).set({ estado_asignacion: 'Devuelto', estado_devuelto: itemEstadoDevuelto, estado_actualizado_en: fecha }).where(eq(salidas.id, row.id)).run();
         }
 
         const estadoEntranteFisico = (itemEstadoDevuelto === 'Para Baja' || itemEstadoDevuelto === 'Inutilizable') ? 'Inutilizable' : itemEstadoDevuelto;

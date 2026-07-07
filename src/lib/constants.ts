@@ -33,6 +33,12 @@ export function requiereTalla(articulo: string): boolean {
   return articulo in TALLAS_POR_ARTICULO;
 }
 
+/** Mensaje de error si falta una talla requerida, o `null` si el artículo/talla es válido. */
+export function validarTalla(articulo: string, talla: string | null | undefined, articuloLabel?: string): string | null {
+  if (requiereTalla(articulo) && !talla) return `Selecciona la talla${articuloLabel ? ` para: ${articuloLabel}` : ''}`;
+  return null;
+}
+
 export const CONCEPTOS_SALIDA = [
   {
     value: "Uniforme en Campo",

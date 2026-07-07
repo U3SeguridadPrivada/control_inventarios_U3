@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from '@/src/components/providers';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Control de Inventario U3',
   description: 'Sistema de control de uniformes y dotaciones — U3 Seguridad Privada',

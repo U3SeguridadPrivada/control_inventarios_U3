@@ -21,18 +21,22 @@ export async function POST(req: NextRequest) {
 
     db.transaction((tx) => {
       for (const item of items) {
-        const { articulo, talla, cantidad, fecha, nombre_guardia, observaciones } = item;
+        const { articulo, talla, cantidad, fecha, observaciones } = item;
         const qty = Number(cantidad);
 
         const conds: any[] = [eq(salidas.guardia_id, guardiaId), eq(salidas.articulo, articulo), eq(salidas.estado_asignacion, 'Uniforme en Campo')];
         if (talla) conds.push(eq(salidas.talla, talla));
 
         const oldRows = tx.select({ id: salidas.id }).from(salidas).where(and(...conds)).orderBy(desc(salidas.fecha), desc(salidas.id)).limit(qty).all();
+        // Re-etiqueta las filas de asignación original en vez de insertar una fila sintética
+        // adicional para el mismo evento: antes esta ruta hacía ambas cosas (UPDATE + INSERT
+        // duplicado), lo que dejaba dos representaciones distintas de un mismo extravío y fue la
+        // causa raíz de un bug de conteo de stock (ver bajas/[id]/process/route.ts). `fecha` de la
+        // fila original conserva la fecha de la asignación; `estado_actualizado_en` registra cuándo
+        // se reportó el extravío, sin perder ninguna de las dos fechas.
         for (const row of oldRows) {
-          tx.update(salidas).set({ estado_asignacion: 'Extraviado' }).where(eq(salidas.id, row.id)).run();
+          tx.update(salidas).set({ estado_asignacion: 'Extraviado', estado_actualizado_en: fecha, observaciones: observaciones || null }).where(eq(salidas.id, row.id)).run();
         }
-
-        tx.insert(salidas).values({ fecha, concepto: 'Extravío', articulo, talla: talla || null, cantidad: qty, nombre_guardia: nombre_guardia || null, guardia_id: guardiaId, estado_asignacion: 'N/A', observaciones: observaciones || null, registrado_por: authUser.username }).run();
       }
     });
 

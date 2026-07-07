@@ -11,7 +11,8 @@ const projectRoot = path.resolve(__dirname, '..');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 
-const dbPath = path.join(projectRoot, 'db', 'app.db');
+// Respeta SQLITE_DB_PATH (volumen persistente en Railway); si no, usa la ruta local
+const dbPath = process.env.SQLITE_DB_PATH || path.join(projectRoot, 'db', 'app.db');
 const dir = path.dirname(dbPath);
 if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 

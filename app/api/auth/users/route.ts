@@ -8,6 +8,6 @@ export async function GET(req: NextRequest) {
   if (!authUser) return unauthorized();
   if (authUser.role !== 'admin') return forbidden();
 
-  const result = db.select({ id: users.id, username: users.username, email: users.email, role: users.role, created_at: users.created_at }).from(users).orderBy(users.created_at).all();
+  const result = db.select({ id: users.id, username: users.username, email: users.email, role: users.role, role_personalizado_id: users.role_personalizado_id, created_at: users.created_at }).from(users).orderBy(users.created_at).all();
   return Response.json(result);
 }

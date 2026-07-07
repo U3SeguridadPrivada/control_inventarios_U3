@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "@/src/lib/utils"
 
-export function Dialog({ open, onOpenChange, children }: { open: boolean, onOpenChange: (open: boolean) => void, children: React.ReactNode }) {
+export function Dialog({ open, onOpenChange, children, className }: { open: boolean, onOpenChange: (open: boolean) => void, children: React.ReactNode, className?: string }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/45 backdrop-blur-sm print:static print:block print:p-0 print:bg-transparent print:backdrop-blur-none">
@@ -9,7 +9,7 @@ export function Dialog({ open, onOpenChange, children }: { open: boolean, onOpen
         className="fixed inset-0 z-[-1] print:hidden"
         onClick={() => onOpenChange(false)}
       />
-      <div id="dialog-print-wrapper" className="z-50 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden print:max-w-none print:w-full print:rounded-none print:border-none print:shadow-none print:p-0 print:overflow-visible print:bg-white">
+      <div id="dialog-print-wrapper" className={cn("z-50 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden print:max-w-none print:w-full print:rounded-none print:border-none print:shadow-none print:p-0 print:overflow-visible print:bg-white", className)}>
         {children}
       </div>
     </div>

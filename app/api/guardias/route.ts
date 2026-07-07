@@ -14,8 +14,8 @@ export async function POST(req: NextRequest) {
   if (authUser.role === 'viewer') return Response.json({ error: 'Sin permisos' }, { status: 403 });
 
   try {
-    const { numero_elemento, nombre, fecha_alta } = await req.json();
-    const newGuardia = db.insert(guardias).values({ numero_elemento, nombre, fecha_alta, estado: 'Activo' }).returning().get();
+    const { numero_elemento, nombre, fecha_alta, telefono, direccion } = await req.json();
+    const newGuardia = db.insert(guardias).values({ numero_elemento, nombre, fecha_alta, telefono, direccion, estado: 'Activo' }).returning().get();
     return Response.json(newGuardia, { status: 201 });
   } catch (err: any) {
     if (err.message?.includes('UNIQUE')) return Response.json({ error: 'El número de elemento ya existe' }, { status: 409 });

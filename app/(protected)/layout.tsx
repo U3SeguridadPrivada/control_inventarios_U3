@@ -1,12 +1,16 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/src/context/AuthContext';
-import { Layout } from '@/src/components/Layout';
+import { useEventNotifications } from '@/src/hooks/useEventNotifications';
+import Sidebar from '@/src/components/Sidebar';
+import Header from '@/src/components/Header';
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  useEventNotifications();
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -24,5 +28,13 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   if (!user) return null;
 
-  return <Layout>{children}</Layout>;
+  return (
+    <div className="flex min-h-screen bg-background">
+      <Sidebar mobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} />
+      <div className="flex-1 min-w-0 flex flex-col">
+        <Header onOpenMobileNav={() => setMobileNavOpen(true)} />
+        <main className="flex-1 p-6 lg:p-8 max-w-[1600px] w-full mx-auto">{children}</main>
+      </div>
+    </div>
+  );
 }

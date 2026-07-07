@@ -11,12 +11,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id: idStr } = await params;
   const id = Number(idStr);
-  const { role } = await req.json();
+  const body = await req.json();
 
-  if (!['admin', 'editor', 'viewer'].includes(role)) return Response.json({ error: 'Rol inválido' }, { status: 400 });
-  if (id === authUser.id && role !== 'admin') return Response.json({ error: 'No puedes cambiar tu propio rol' }, { status: 400 });
+  const updates: { role?: string; role_personalizado_id?: number | null } = {};
 
-  const updated = db.update(users).set({ role }).where(eq(users.id, id)).returning({ id: users.id, username: users.username, email: users.email, role: users.role }).get();
+  if (body.role !== undefined) {
+    if (!['admin', 'editor', 'viewer'].includes(body.role)) return Response.json({ error: 'Rol inválido' }, { status: 400 });
+    if (id === authUser.id && body.role !== 'admin') return Response.json({ error: 'No puedes cambiar tu propio rol' }, { status: 400 });
+    updates.role = body.role;
+  }
+  if (body.role_personalizado_id !== undefined) {
+    updates.role_personalizado_id = body.role_personalizado_id ? Number(body.role_personalizado_id) : null;
+  }
+  if (Object.keys(updates).length === 0) return Response.json({ error: 'Nada que actualizar' }, { status: 400 });
+
+  const updated = db.update(users).set(updates).where(eq(users.id, id)).returning({ id: users.id, username: users.username, email: users.email, role: users.role, role_personalizado_id: users.role_personalizado_id }).get();
   if (!updated) return Response.json({ error: 'Usuario no encontrado' }, { status: 404 });
   return Response.json(updated);
 }

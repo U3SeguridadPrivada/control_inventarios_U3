@@ -23,15 +23,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const item = { ...checklist[itemIndex] };
 
+    const hoy = new Date().toISOString().split('T')[0];
+
     if (accion === 'Devuelto') {
       item.cantidad_devuelta = cantidadItem;
       item.estado = 'Devuelto';
-      db.update(salidas).set({ estado_asignacion: 'Devuelto' }).where(eq(salidas.id, salida_id)).run();
-      db.insert(entradas).values({ fecha: new Date().toISOString().split('T')[0], articulo: item.articulo, talla: item.talla, cantidad: cantidadItem, estado: estadoFisicoDevolucion || 'Usado', motivo: 'Devolución de Equipo', origen_devolucion: bajaRecord.nombre_guardia, registrado_por: 'Sistema (Baja)' }).run();
+      db.update(salidas).set({ estado_asignacion: 'Devuelto', estado_actualizado_en: hoy }).where(eq(salidas.id, salida_id)).run();
+      db.insert(entradas).values({ fecha: hoy, articulo: item.articulo, talla: item.talla, cantidad: cantidadItem, estado: estadoFisicoDevolucion || 'Usado', motivo: 'Devolución de Equipo', origen_devolucion: bajaRecord.nombre_guardia, registrado_por: 'Sistema (Baja)' }).run();
     } else if (accion === 'Extraviado') {
       item.cantidad_extraviada = cantidadItem;
       item.estado = 'Extraviado';
-      db.update(salidas).set({ concepto: 'Extravío', estado_asignacion: 'N/A' }).where(eq(salidas.id, salida_id)).run();
+      // Mismo estado terminal que usa `salidas/extravio/route.ts` (Uniformes en Campo), para que
+      // ambos orígenes de extravío resten del almacén exactamente una vez vía el bucket 'extraviados'
+      // de `calcularStockDisponible` (ver src/lib/stock.ts). Antes esta ruta usaba concepto='Extravío'
+      // + estado_asignacion='N/A', combinación que ese cálculo no contemplaba y dejaba el artículo
+      // contando como disponible en almacén aunque en realidad se hubiera perdido en una baja.
+      db.update(salidas).set({ estado_asignacion: 'Extraviado', estado_actualizado_en: hoy }).where(eq(salidas.id, salida_id)).run();
     }
 
     checklist[itemIndex] = item;

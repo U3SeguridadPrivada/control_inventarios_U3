@@ -1,0 +1,79 @@
+import { db } from '@/src/db';
+import { whatsapp_chats } from '@/src/db/schema';
+import { eq, sql } from 'drizzle-orm';
+
+// Limpia números de teléfono a solo dígitos (remueve @c.us y símbolos)
+export function cleanPhoneNumber(phone: string): string {
+  if (!phone) return '';
+  let cleaned = phone.split('@')[0];
+  cleaned = cleaned.replace(/\D/g, '');
+  return cleaned;
+}
+
+// Match por los últimos dígitos para tolerar prefijos de país (+52, +52 1)
+export function phoneMatches(dbPhone: string | null, incoming: string): boolean {
+  if (!dbPhone) return false;
+  const cleanDb = cleanPhoneNumber(dbPhone);
+  const minLen = Math.min(cleanDb.length, incoming.length);
+  if (minLen < 7) return false;
+  return cleanDb.slice(-minLen) === incoming.slice(-minLen);
+}
+
+// Asegura que exista la fila del chat y actualiza su última actividad
+export function tocarChat(telefono: string, opts?: { incrementarNoLeidos?: boolean }) {
+  const ahora = new Date().toISOString();
+  const existente = db.select().from(whatsapp_chats).where(eq(whatsapp_chats.telefono, telefono)).get();
+  if (existente) {
+    db.update(whatsapp_chats).set({
+      ultima_actividad: ahora,
+      ...(opts?.incrementarNoLeidos ? { no_leidos: sql`${whatsapp_chats.no_leidos} + 1` } : {}),
+    }).where(eq(whatsapp_chats.telefono, telefono)).run();
+    return existente;
+  }
+  return db.insert(whatsapp_chats).values({
+    telefono,
+    ultima_actividad: ahora,
+    no_leidos: opts?.incrementarNoLeidos ? 1 : 0,
+  }).returning().get();
+}
+
+// Envía un mensaje de texto vía WASender API
+export async function enviarMensajeWASender(to: string, messageText: string): Promise<{ ok: boolean; error?: string }> {
+  const url = process.env.WASENDER_API_URL || 'https://api.wasender.com/v1/messages/send';
+  const apiKey = process.env.WASENDER_API_KEY;
+
+  if (!apiKey) {
+    console.warn('Advertencia: WASENDER_API_KEY no está configurado. No se envió el mensaje.');
+    return { ok: false, error: 'WASENDER_API_KEY no está configurado en el servidor' };
+  }
+
+  try {
+    const payload = {
+      to: to,
+      recipient: to,
+      number: to,
+      message: messageText,
+      text: messageText,
+      type: 'text',
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Error de API de WASender (Status ${res.status}):`, errText);
+      return { ok: false, error: `WASender respondió ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err: any) {
+    console.error('Error al realizar fetch a WASender:', err);
+    return { ok: false, error: err.message };
+  }
+}
