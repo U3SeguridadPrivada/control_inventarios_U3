@@ -253,11 +253,17 @@ async function procesarWebhookMeta(body: any, req: NextRequest, rawBodyText: str
 
 // Procesa el webhook nativo de Kapso
 async function procesarWebhookKapso(body: any, req: NextRequest, rawBodyText: string): Promise<Response> {
+  const logPath = process.env.SQLITE_DB_PATH
+    ? path.join(path.dirname(process.env.SQLITE_DB_PATH), 'webhook_logs.txt')
+    : path.join(process.cwd(), 'db', 'webhook_logs.txt');
+
   const appSecret = process.env.META_APP_SECRET;
   if (appSecret) {
     const sig = req.headers.get('x-webhook-signature') || req.headers.get('X-Webhook-Signature') || '';
     const esperado = createHmac('sha256', appSecret).update(rawBodyText).digest('hex');
     if (sig !== esperado) {
+      const errSigLine = `[${new Date().toISOString()}] [ERROR FIRMA KAPSO] Recibida: ${sig} | Esperada: ${esperado}\n`;
+      try { appendFileSync(logPath, errSigLine); } catch (fsErr) {}
       console.warn('Firma de Kapso inválida. Esperada:', esperado, 'Recibida:', sig);
       return Response.json({ error: 'No autorizado' }, { status: 401 });
     }
@@ -291,6 +297,8 @@ async function procesarWebhookKapso(body: any, req: NextRequest, rawBodyText: st
 
     return Response.json({ status: 'success', processed: resultados });
   } catch (error: any) {
+    const errExcLine = `[${new Date().toISOString()}] [EXCEPTION KAPSO] ${error.message}\nStack: ${error.stack}\n`;
+    try { appendFileSync(logPath, errExcLine); } catch (fsErr) {}
     console.error('Error procesando webhook nativo de Kapso:', error);
     return Response.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
   }
