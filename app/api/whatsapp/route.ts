@@ -83,6 +83,11 @@ export async function POST(req: NextRequest) {
       return await procesarWebhookMeta(body, req, rawBodyText);
     }
 
+    // === Kapso Webhook Nativo ===
+    if (body.type?.startsWith('whatsapp.') || body.type === 'message.received' || body.batch === true) {
+      return await procesarWebhookKapso(body, req, rawBodyText);
+    }
+
     // === WASender (no oficial) ===
     // 1. Validar Token de Seguridad (Soporta Header o Query Parameter)
     const webhookToken = process.env.WASENDER_WEBHOOK_TOKEN;
@@ -242,6 +247,51 @@ async function procesarWebhookMeta(body: any, req: NextRequest, rawBodyText: str
     return Response.json({ status: 'success', response: responseText });
   } catch (error: any) {
     console.error('Error procesando webhook Meta:', error);
+    return Response.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
+  }
+}
+
+// Procesa el webhook nativo de Kapso
+async function procesarWebhookKapso(body: any, req: NextRequest, rawBodyText: string): Promise<Response> {
+  const appSecret = process.env.META_APP_SECRET;
+  if (appSecret) {
+    const sig = req.headers.get('x-webhook-signature') || req.headers.get('X-Webhook-Signature') || '';
+    const esperado = createHmac('sha256', appSecret).update(rawBodyText).digest('hex');
+    if (sig !== esperado) {
+      console.warn('Firma de Kapso inválida. Esperada:', esperado, 'Recibida:', sig);
+      return Response.json({ error: 'No autorizado' }, { status: 401 });
+    }
+  }
+
+  try {
+    if (body.type !== 'whatsapp.message.received' && body.type !== 'message.received') {
+      return Response.json({ status: 'ignored_event', type: body.type });
+    }
+
+    const messages = body.data || [];
+    if (!messages.length) {
+      return Response.json({ status: 'no_messages_in_batch' });
+    }
+
+    const resultados = [];
+    for (const item of messages) {
+      const msg = item.message;
+      if (!msg) continue;
+
+      if (msg.kapso?.direction === 'outbound') continue;
+
+      const cleanIncoming = cleanPhoneNumber(msg.from);
+      const incomingText = msg.text?.body || msg.kapso?.content || '';
+
+      if (!cleanIncoming || !incomingText) continue;
+
+      const responseText = await procesarMensajeEntrante(cleanIncoming, incomingText);
+      resultados.push({ telefono: cleanIncoming, respuesta: responseText });
+    }
+
+    return Response.json({ status: 'success', processed: resultados });
+  } catch (error: any) {
+    console.error('Error procesando webhook nativo de Kapso:', error);
     return Response.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
   }
 }
