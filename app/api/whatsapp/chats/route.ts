@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { db } from '@/src/db';
 import { whatsapp_chats, whatsapp_conversaciones, guardias, clientes, candidatos } from '@/src/db/schema';
 import { desc, eq } from 'drizzle-orm';
-import { verifyAuth, unauthorized } from '@/src/lib/auth';
+import { verifyAuth, unauthorized, forbidden } from '@/src/lib/auth';
 import { phoneMatches } from '@/src/lib/whatsapp';
 
 // Identifica quién es el contacto detrás de un teléfono
@@ -51,3 +51,19 @@ export async function GET(req: NextRequest) {
 
   return Response.json(resultado);
 }
+
+// Elimina todos los mensajes y chats de WhatsApp del ERP
+export async function DELETE(req: NextRequest) {
+  const authUser = verifyAuth(req);
+  if (!authUser) return unauthorized();
+  if (authUser.role !== 'admin') return forbidden();
+
+  try {
+    db.delete(whatsapp_conversaciones).run();
+    db.delete(whatsapp_chats).run();
+    return Response.json({ success: true, message: 'Todos los mensajes y chats de WhatsApp han sido eliminados.' });
+  } catch (error: any) {
+    return Response.json({ error: 'Error al limpiar los chats', details: error.message }, { status: 500 });
+  }
+}
+
