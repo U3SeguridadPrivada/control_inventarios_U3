@@ -125,10 +125,56 @@ export async function enviarMensajeMeta(to: string, messageText: string): Promis
   }
 }
 
-// Envía por el proveedor activo (WHATSAPP_PROVIDER=meta usa la API oficial; por defecto WASender)
+// Envía un mensaje de texto vía Kapso API (proxy oficial de Meta)
+export async function enviarMensajeKapso(to: string, messageText: string): Promise<{ ok: boolean; error?: string }> {
+  const phoneNumberId = process.env.KAPSO_PHONE_NUMBER_ID;
+  const apiKey = process.env.KAPSO_API_KEY;
+  const version = process.env.KAPSO_VERSION || 'v24.0';
+
+  if (!phoneNumberId || !apiKey) {
+    console.warn('Advertencia: faltan KAPSO_PHONE_NUMBER_ID o KAPSO_API_KEY. No se envió el mensaje.');
+    return { ok: false, error: 'Faltan credenciales de Kapso (KAPSO_PHONE_NUMBER_ID / KAPSO_API_KEY)' };
+  }
+
+  const url = `https://api.kapso.ai/meta/whatsapp/${version}/${phoneNumberId}/messages`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'text',
+        text: { preview_url: false, body: messageText },
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Error de Kapso API (Status ${res.status}):`, errText);
+      return { ok: false, error: `Kapso respondió ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err: any) {
+    console.error('Error al realizar fetch a Kapso API:', err);
+    return { ok: false, error: err.message };
+  }
+}
+
+// Envía por el proveedor activo (WHATSAPP_PROVIDER=meta, wasender o kapso)
 export async function enviarMensajeWhatsApp(to: string, messageText: string): Promise<{ ok: boolean; error?: string }> {
   const provider = (process.env.WHATSAPP_PROVIDER || 'wasender').toLowerCase();
-  return provider === 'meta'
-    ? enviarMensajeMeta(to, messageText)
-    : enviarMensajeWASender(to, messageText);
+  if (provider === 'meta') {
+    return enviarMensajeMeta(to, messageText);
+  } else if (provider === 'kapso') {
+    return enviarMensajeKapso(to, messageText);
+  } else {
+    return enviarMensajeWASender(to, messageText);
+  }
 }
+
