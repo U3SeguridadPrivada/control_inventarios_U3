@@ -3,7 +3,7 @@ import { db } from '@/src/db';
 import { whatsapp_chats, whatsapp_conversaciones } from '@/src/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { verifyAuth, unauthorized, forbidden } from '@/src/lib/auth';
-import { cleanPhoneNumber, tocarChat, enviarMensajeWASender } from '@/src/lib/whatsapp';
+import { cleanPhoneNumber, tocarChat, enviarMensajeWhatsApp } from '@/src/lib/whatsapp';
 
 // Mensajes de un chat; al abrirlo se marcan como leídos
 export async function GET(req: NextRequest, { params }: { params: Promise<{ telefono: string }> }) {
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tel
     const { mensaje, pausar_bot } = await req.json();
     if (!mensaje?.trim()) return Response.json({ error: 'El mensaje está vacío' }, { status: 400 });
 
-    const envio = await enviarMensajeWASender(tel, mensaje.trim());
+    const envio = await enviarMensajeWhatsApp(tel, mensaje.trim());
     if (!envio.ok) return Response.json({ error: envio.error || 'No se pudo enviar el mensaje' }, { status: 502 });
 
     // rol 'model' para que el bot lo vea como mensaje propio en su memoria

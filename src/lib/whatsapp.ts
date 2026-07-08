@@ -83,3 +83,52 @@ export async function enviarMensajeWASender(to: string, messageText: string): Pr
     return { ok: false, error: err.message };
   }
 }
+
+// Envía un mensaje de texto vía WhatsApp Cloud API (oficial de Meta)
+export async function enviarMensajeMeta(to: string, messageText: string): Promise<{ ok: boolean; error?: string }> {
+  const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
+  const token = process.env.META_ACCESS_TOKEN;
+  const version = process.env.META_GRAPH_VERSION || 'v21.0';
+
+  if (!phoneNumberId || !token) {
+    console.warn('Advertencia: faltan META_PHONE_NUMBER_ID o META_ACCESS_TOKEN. No se envió el mensaje.');
+    return { ok: false, error: 'Faltan credenciales de Meta (META_PHONE_NUMBER_ID / META_ACCESS_TOKEN)' };
+  }
+
+  const url = `https://graph.facebook.com/${version}/${phoneNumberId}/messages`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'text',
+        text: { preview_url: false, body: messageText },
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Error de Meta Cloud API (Status ${res.status}):`, errText);
+      return { ok: false, error: `Meta respondió ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err: any) {
+    console.error('Error al realizar fetch a Meta Cloud API:', err);
+    return { ok: false, error: err.message };
+  }
+}
+
+// Envía por el proveedor activo (WHATSAPP_PROVIDER=meta usa la API oficial; por defecto WASender)
+export async function enviarMensajeWhatsApp(to: string, messageText: string): Promise<{ ok: boolean; error?: string }> {
+  const provider = (process.env.WHATSAPP_PROVIDER || 'wasender').toLowerCase();
+  return provider === 'meta'
+    ? enviarMensajeMeta(to, messageText)
+    : enviarMensajeWASender(to, messageText);
+}

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { appendFileSync } from 'fs';
+import { createHmac } from 'crypto';
 import path from 'path';
 import { db } from '@/src/db';
 import {
@@ -9,7 +10,7 @@ import {
 import { eq, desc } from 'drizzle-orm';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getConfig } from '@/src/lib/mailer';
-import { cleanPhoneNumber, phoneMatches, tocarChat, enviarMensajeWASender } from '@/src/lib/whatsapp';
+import { cleanPhoneNumber, phoneMatches, tocarChat, enviarMensajeWhatsApp } from '@/src/lib/whatsapp';
 
 // Inicializar el SDK de Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -75,6 +76,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const body = JSON.parse(rawBodyText || '{}');
+
+    // === Meta WhatsApp Cloud API (oficial): tiene su propio formato y seguridad ===
+    if (body.object === 'whatsapp_business_account') {
+      return await procesarWebhookMeta(body, req, rawBodyText);
+    }
+
+    // === WASender (no oficial) ===
     // 1. Validar Token de Seguridad (Soporta Header o Query Parameter)
     const webhookToken = process.env.WASENDER_WEBHOOK_TOKEN;
     if (webhookToken) {
@@ -89,7 +98,6 @@ export async function POST(req: NextRequest) {
 
     // 2. Solo procesar el evento principal 'messages.upsert' y el evento de test.
     // Esto previene que procesemos eventos duplicados de WaSender (messages.received, messages-personal.received, etc.)
-    const body = JSON.parse(rawBodyText || '{}');
     const event = body.event || '';
     if (event !== 'messages.upsert' && event !== 'webhook.test' && body.event !== 'webhook.test') {
       return Response.json({ status: 'ignored_event', event });
@@ -183,55 +191,102 @@ export async function POST(req: NextRequest) {
       return Response.json({ status: 'from_me_synced' });
     }
 
-    // 3. Identificar al remitente: guardia, cliente o candidato/desconocido
-    const allGuardias = db.select().from(guardias).all();
-    const matchedGuardia = allGuardias.find((g) => phoneMatches(g.telefono, cleanIncoming));
-
-    let matchedCliente = null;
-    if (!matchedGuardia) {
-      const allClientes = db.select().from(clientes).all();
-      matchedCliente = allClientes.find((c) => phoneMatches(c.telefono, cleanIncoming)) || null;
-    }
-
-    let matchedCandidato = null;
-    if (!matchedGuardia && !matchedCliente) {
-      const allCandidatos = db.select().from(candidatos).all();
-      matchedCandidato = allCandidatos.find((c) => phoneMatches(c.telefono, cleanIncoming)) || null;
-    }
-
-    // 4. Registrar actividad del chat y respetar la pausa del bot
-    const estadoChat = tocarChat(cleanIncoming, { incrementarNoLeidos: true });
-    const historial = cargarHistorial(cleanIncoming);
-    guardarMensaje(cleanIncoming, 'user', incomingText, 'contacto');
-
-    // Si un humano tomó el control del chat, solo se guarda el mensaje entrante
-    if (estadoChat.bot_activo === 0) {
-      return Response.json({ status: 'bot_paused' });
-    }
-
-    let responseText = '';
-    if (matchedGuardia || matchedCliente) {
-      responseText = await chatUsuarioInterno(
-        incomingText, historial,
-        matchedGuardia ? 'Guardia' : 'Cliente',
-        matchedGuardia ? matchedGuardia.nombre : matchedCliente!.nombre,
-        matchedGuardia ? matchedGuardia.id : matchedCliente!.id,
-        cleanIncoming,
-      );
-    } else {
-      responseText = await chatReclutamiento(incomingText, historial, matchedCandidato, cleanIncoming);
-    }
-
-    guardarMensaje(cleanIncoming, 'model', responseText, 'bot');
-
-    // 5. Enviar mensaje de vuelta al número mediante WASender
-    await enviarMensajeWASender(cleanIncoming, responseText);
-
+    // 3. Procesar el mensaje (identifica remitente, responde con el bot y envía por el proveedor activo)
+    const responseText = await procesarMensajeEntrante(cleanIncoming, incomingText);
+    if (responseText === null) return Response.json({ status: 'bot_paused' });
     return Response.json({ status: 'success', response: responseText });
   } catch (error: any) {
     console.error('Error procesando webhook de WhatsApp:', error);
     return Response.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
   }
+}
+
+// Verificación del webhook de Meta (handshake GET inicial que hace Meta al configurar la URL)
+export async function GET(req: NextRequest) {
+  const params = req.nextUrl.searchParams;
+  const mode = params.get('hub.mode');
+  const token = params.get('hub.verify_token');
+  const challenge = params.get('hub.challenge');
+  if (mode === 'subscribe' && token && token === process.env.META_VERIFY_TOKEN) {
+    return new Response(challenge || '', { status: 200 });
+  }
+  return new Response('Forbidden', { status: 403 });
+}
+
+// Procesa el webhook con el formato de Meta Cloud API
+async function procesarWebhookMeta(body: any, req: NextRequest, rawBodyText: string): Promise<Response> {
+  // Validación opcional de firma (X-Hub-Signature-256) si se configura META_APP_SECRET
+  const appSecret = process.env.META_APP_SECRET;
+  if (appSecret) {
+    const sig = req.headers.get('x-hub-signature-256') || '';
+    const esperado = 'sha256=' + createHmac('sha256', appSecret).update(rawBodyText).digest('hex');
+    if (sig !== esperado) {
+      console.warn('Firma de Meta inválida.');
+      return Response.json({ error: 'No autorizado' }, { status: 401 });
+    }
+  }
+
+  try {
+    const value = body.entry?.[0]?.changes?.[0]?.value;
+    const msg = value?.messages?.[0];
+    // Meta también envía estados de entrega (statuses) y otros eventos que ignoramos
+    if (!msg) return Response.json({ status: 'ignored_no_message' });
+    if (msg.type !== 'text') return Response.json({ status: 'ignored_non_text', type: msg.type });
+
+    const cleanIncoming = cleanPhoneNumber(msg.from);
+    const incomingText = msg.text?.body || '';
+    if (!cleanIncoming || !incomingText) return Response.json({ status: 'ignored_empty' });
+
+    const responseText = await procesarMensajeEntrante(cleanIncoming, incomingText);
+    if (responseText === null) return Response.json({ status: 'bot_paused' });
+    return Response.json({ status: 'success', response: responseText });
+  } catch (error: any) {
+    console.error('Error procesando webhook Meta:', error);
+    return Response.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
+  }
+}
+
+// Núcleo compartido por ambos proveedores: identifica al remitente, genera la respuesta
+// del bot y la envía. Devuelve el texto enviado, o null si el bot está pausado en ese chat.
+async function procesarMensajeEntrante(cleanIncoming: string, incomingText: string): Promise<string | null> {
+  const allGuardias = db.select().from(guardias).all();
+  const matchedGuardia = allGuardias.find((g) => phoneMatches(g.telefono, cleanIncoming));
+
+  let matchedCliente = null;
+  if (!matchedGuardia) {
+    const allClientes = db.select().from(clientes).all();
+    matchedCliente = allClientes.find((c) => phoneMatches(c.telefono, cleanIncoming)) || null;
+  }
+
+  let matchedCandidato = null;
+  if (!matchedGuardia && !matchedCliente) {
+    const allCandidatos = db.select().from(candidatos).all();
+    matchedCandidato = allCandidatos.find((c) => phoneMatches(c.telefono, cleanIncoming)) || null;
+  }
+
+  const estadoChat = tocarChat(cleanIncoming, { incrementarNoLeidos: true });
+  const historial = cargarHistorial(cleanIncoming);
+  guardarMensaje(cleanIncoming, 'user', incomingText, 'contacto');
+
+  // Si un humano tomó el control del chat, solo se guarda el mensaje entrante
+  if (estadoChat.bot_activo === 0) return null;
+
+  let responseText = '';
+  if (matchedGuardia || matchedCliente) {
+    responseText = await chatUsuarioInterno(
+      incomingText, historial,
+      matchedGuardia ? 'Guardia' : 'Cliente',
+      matchedGuardia ? matchedGuardia.nombre : matchedCliente!.nombre,
+      matchedGuardia ? matchedGuardia.id : matchedCliente!.id,
+      cleanIncoming,
+    );
+  } else {
+    responseText = await chatReclutamiento(incomingText, historial, matchedCandidato, cleanIncoming);
+  }
+
+  guardarMensaje(cleanIncoming, 'model', responseText, 'bot');
+  await enviarMensajeWhatsApp(cleanIncoming, responseText);
+  return responseText;
 }
 
 // ============================================================
