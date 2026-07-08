@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server';
+import { appendFileSync } from 'fs';
+import path from 'path';
 import { db } from '@/src/db';
 import {
   guardias, clientes, incidencias, servicio_guardias, servicios, salidas, users,
@@ -53,6 +55,25 @@ function getAdminUserId(): number {
 }
 
 export async function POST(req: NextRequest) {
+  const now = new Date().toISOString();
+  const logPath = process.env.SQLITE_DB_PATH
+    ? path.join(path.dirname(process.env.SQLITE_DB_PATH), 'webhook_logs.txt')
+    : path.join(process.cwd(), 'db', 'webhook_logs.txt');
+
+  let rawBodyText = '';
+  try {
+    const cloned = req.clone();
+    rawBodyText = await cloned.text();
+    const logLine = `[${now}] URL: ${req.url} | Header-Sig: ${req.headers.get('x-webhook-signature')} | Body: ${rawBodyText}\n`;
+    appendFileSync(logPath, logLine);
+  } catch (e: any) {
+    try {
+      appendFileSync(logPath, `[${now}] ERROR AL LOGUEAR: ${e.message}\n`);
+    } catch (fsErr) {
+      console.error('No se pudo escribir en logPath:', fsErr);
+    }
+  }
+
   try {
     // 1. Validar Token de Seguridad (Soporta Header o Query Parameter)
     const webhookToken = process.env.WASENDER_WEBHOOK_TOKEN;
@@ -67,7 +88,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Filtrar eventos irrelevantes (acuse de recibo, actualizaciones de estado, grupos, qrcodes, etc.)
-    const body = await req.json();
+    const body = JSON.parse(rawBodyText || '{}');
     const event = body.event || '';
     if (
       event.includes('receipt') ||
