@@ -120,24 +120,52 @@ export async function POST(req: NextRequest) {
     // Soporte para estructura anidada de WaSender (body.data.*)
     if (body.data) {
       const d = body.data;
-      if (d.key?.remoteJid) {
-        rawPhone = d.key.remoteJid;
-      } else if (d.sender) {
-        rawPhone = d.sender;
-      } else if (d.from) {
-        rawPhone = d.from;
-      }
-
-      if (d.message) {
-        if (typeof d.message === 'string') {
-          incomingText = d.message;
-        } else {
-          incomingText = d.message.conversation || d.message.extendedTextMessage?.text || d.message.text || '';
+      
+      // Soporte para formato d.messages observado en logs
+      const messagesObj = d.messages;
+      if (messagesObj) {
+        const m = Array.isArray(messagesObj) ? messagesObj[0] : messagesObj;
+        if (m.key?.senderPn) {
+          rawPhone = m.key.senderPn;
+        } else if (m.key?.remoteJid) {
+          rawPhone = m.key.remoteJid;
+        } else if (m.remoteJid) {
+          rawPhone = m.remoteJid;
         }
-      } else if (d.text) {
-        incomingText = d.text;
-      } else if (d.body) {
-        incomingText = d.body;
+
+        if (m.messageBody) {
+          incomingText = m.messageBody;
+        } else if (m.message) {
+          incomingText = m.message.conversation || m.message.extendedTextMessage?.text || m.message.text || '';
+        }
+
+        if (m.key?.fromMe === true) {
+          fromMe = true;
+        }
+      } else {
+        if (d.key?.remoteJid) {
+          rawPhone = d.key.remoteJid;
+        } else if (d.sender) {
+          rawPhone = d.sender;
+        } else if (d.from) {
+          rawPhone = d.from;
+        }
+
+        if (d.message) {
+          if (typeof d.message === 'string') {
+            incomingText = d.message;
+          } else {
+            incomingText = d.message.conversation || d.message.extendedTextMessage?.text || d.message.text || '';
+          }
+        } else if (d.text) {
+          incomingText = d.text;
+        } else if (d.body) {
+          incomingText = d.body;
+        }
+
+        if (d.key?.fromMe === true || d.fromMe === true) {
+          fromMe = true;
+        }
       }
     }
 
