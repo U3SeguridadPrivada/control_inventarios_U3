@@ -87,29 +87,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Filtrar eventos irrelevantes (acuse de recibo, actualizaciones de estado, grupos, qrcodes, etc.)
+    // 2. Solo procesar el evento principal 'messages.upsert' y el evento de test.
+    // Esto previene que procesemos eventos duplicados de WaSender (messages.received, messages-personal.received, etc.)
     const body = JSON.parse(rawBodyText || '{}');
     const event = body.event || '';
-    if (
-      event.includes('receipt') ||
-      event.includes('update') ||
-      event.includes('delete') ||
-      event.includes('reaction') ||
-      event.includes('poll') ||
-      event.includes('newsletter') ||
-      event.includes('group') ||
-      event.includes('qrcode') ||
-      event.includes('session') ||
-      event.includes('status') ||
-      event.includes('call')
-    ) {
+    if (event !== 'messages.upsert' && event !== 'webhook.test' && body.event !== 'webhook.test') {
       return Response.json({ status: 'ignored_event', event });
     }
 
     console.log('Webhook recibido:', JSON.stringify(body));
 
     // Si es un evento de prueba del simulador de WaSender, responder exitoso inmediatamente
-    if (body.event === 'webhook.test' || body.test === true || body.data?.test === true) {
+    if (event === 'webhook.test' || body.event === 'webhook.test' || body.test === true || body.data?.test === true) {
       return Response.json({ status: 'success', message: 'Webhook test verified successfully' });
     }
 
