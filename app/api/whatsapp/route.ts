@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { db } from '@/src/db';
 import {
   guardias, clientes, incidencias, servicio_guardias, servicios, salidas, users,
-  candidatos, vacantes, whatsapp_conversaciones, eventos_calendario,
+  candidatos, vacantes, whatsapp_conversaciones, eventos_calendario, whatsapp_chats,
 } from '@/src/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -66,8 +66,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Extraer datos del payload de WASender de forma segura
+    // 2. Filtrar eventos irrelevantes (acuse de recibo, actualizaciones de estado, grupos, qrcodes, etc.)
     const body = await req.json();
+    const event = body.event || '';
+    if (
+      event.includes('receipt') ||
+      event.includes('update') ||
+      event.includes('delete') ||
+      event.includes('reaction') ||
+      event.includes('poll') ||
+      event.includes('newsletter') ||
+      event.includes('group') ||
+      event.includes('qrcode') ||
+      event.includes('session') ||
+      event.includes('status') ||
+      event.includes('call')
+    ) {
+      return Response.json({ status: 'ignored_event', event });
+    }
+
     console.log('Webhook recibido:', JSON.stringify(body));
 
     // Si es un evento de prueba del simulador de WaSender, responder exitoso inmediatamente
@@ -77,6 +94,7 @@ export async function POST(req: NextRequest) {
 
     let rawPhone = body.phone || body.sender || body.from || body.message?.from;
     let incomingText = body.message || body.text || body.message?.text || body.content;
+    let fromMe = body.fromMe === true || body.data?.fromMe === true || body.data?.key?.fromMe === true || body.key?.fromMe === true || event === 'message.sent' || event === 'messages.sent';
 
     // Soporte para estructura anidada de WaSender (body.data.*)
     if (body.data) {
@@ -108,6 +126,24 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanIncoming = cleanPhoneNumber(rawPhone);
+
+    // 2.1 Si el mensaje es de nosotros mismos (fromMe), lo sincronizamos pero NO disparamos respuesta del bot
+    if (fromMe) {
+      const existeMensaje = db.select().from(whatsapp_conversaciones)
+        .where(eq(whatsapp_conversaciones.telefono, cleanIncoming))
+        .orderBy(desc(whatsapp_conversaciones.id))
+        .limit(5)
+        .all();
+      
+      const esDuplicado = existeMensaje.some(m => m.mensaje === incomingText);
+      if (!esDuplicado) {
+        tocarChat(cleanIncoming, { incrementarNoLeidos: false });
+        guardarMensaje(cleanIncoming, 'model', incomingText, 'humano');
+        db.update(whatsapp_chats).set({ bot_activo: 0 }).where(eq(whatsapp_chats.telefono, cleanIncoming)).run();
+        console.log('Mensaje saliente sincronizado (se pausó el bot para esta conversación):', incomingText);
+      }
+      return Response.json({ status: 'from_me_synced' });
+    }
 
     // 3. Identificar al remitente: guardia, cliente o candidato/desconocido
     const allGuardias = db.select().from(guardias).all();
