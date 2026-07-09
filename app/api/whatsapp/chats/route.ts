@@ -1,6 +1,30 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/src/db';
-import { whatsapp_chats, whatsapp_conversaciones, guardias, clientes, candidatos } from '@/src/db/schema';
+import { sql } from 'drizzle-orm';
+import { 
+  whatsapp_chats, 
+  whatsapp_conversaciones, 
+  guardias, 
+  clientes, 
+  candidatos,
+  guardia_documentos,
+  entradas,
+  salidas,
+  uniformes_campo,
+  bajas,
+  mensajes,
+  eventos_calendario,
+  servicios,
+  servicio_guardias,
+  incidencias,
+  cotizaciones,
+  ventas,
+  cuentas_bancarias,
+  movimientos_financieros,
+  password_resets,
+  vacantes,
+  movimiento_evidencias
+} from '@/src/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { verifyAuth, unauthorized, forbidden } from '@/src/lib/auth';
 import { phoneMatches } from '@/src/lib/whatsapp';
@@ -52,19 +76,44 @@ export async function GET(req: NextRequest) {
   return Response.json(resultado);
 }
 
-// Elimina todos los mensajes y chats de WhatsApp del ERP
+// Elimina todos los mensajes, chats y datos transactional/master del ERP
 export async function DELETE(req: NextRequest) {
   const authUser = verifyAuth(req);
   if (!authUser) return unauthorized();
   if (authUser.role !== 'admin') return forbidden();
 
   try {
+    // Desactivar temporalmente llaves foráneas para evitar conflictos al vaciar tablas
+    db.run(sql`PRAGMA foreign_keys = OFF`);
+
     db.delete(whatsapp_conversaciones).run();
     db.delete(whatsapp_chats).run();
     db.delete(candidatos).run();
-    return Response.json({ success: true, message: 'Todos los mensajes, chats de WhatsApp y candidatos han sido eliminados.' });
+    db.delete(guardia_documentos).run();
+    db.delete(entradas).run();
+    db.delete(salidas).run();
+    db.delete(uniformes_campo).run();
+    db.delete(bajas).run();
+    db.delete(mensajes).run();
+    db.delete(eventos_calendario).run();
+    db.delete(servicios).run();
+    db.delete(servicio_guardias).run();
+    db.delete(incidencias).run();
+    db.delete(cotizaciones).run();
+    db.delete(ventas).run();
+    db.delete(cuentas_bancarias).run();
+    db.delete(movimientos_financieros).run();
+    db.delete(password_resets).run();
+    db.delete(vacantes).run();
+    db.delete(movimiento_evidencias).run();
+    db.delete(clientes).run();
+    db.delete(guardias).run();
+
+    db.run(sql`PRAGMA foreign_keys = ON`);
+
+    return Response.json({ success: true, message: 'La base de datos ha sido limpiada por completo (guardias, clientes, candidatos, cotizaciones, transacciones y chats eliminados).' });
   } catch (error: any) {
-    return Response.json({ error: 'Error al limpiar los chats', details: error.message }, { status: 500 });
+    try { db.run(sql`PRAGMA foreign_keys = ON`); } catch(e){}
+    return Response.json({ error: 'Error al limpiar la base de datos', details: error.message }, { status: 500 });
   }
 }
-
