@@ -27,6 +27,117 @@ function fechaHoraLocal(): string {
   });
 }
 
+// Convierte herramientas en formato Gemini a formato OpenAI/Groq (lowercase types)
+function mapGeminiToolsToGroq(geminiTools: any[]) {
+  if (!geminiTools) return undefined;
+  return geminiTools.map((t) => {
+    const cleanParams = JSON.parse(
+      JSON.stringify(t.parameters || {})
+        .replace(/"type":"OBJECT"/g, '"type":"object"')
+        .replace(/"type":"STRING"/g, '"type":"string"')
+        .replace(/"type":"NUMBER"/g, '"type":"number"')
+        .replace(/"type":"BOOLEAN"/g, '"type":"boolean"')
+        .replace(/"type":"ARRAY"/g, '"type":"array"')
+    );
+    return {
+      type: 'function',
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: cleanParams,
+      },
+    };
+  });
+}
+
+// Bucle de conversación con Groq (soporta llamadas a herramientas)
+async function conversarConGroq(
+  systemInstruction: string,
+  historial: { role: 'user' | 'model'; parts: { text: string }[] }[],
+  incomingText: string,
+  geminiTools: any[],
+  ejecutarHerramienta: (name: string, args: any) => any,
+): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  const model = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
+
+  if (!apiKey) {
+    throw new Error('GROQ_API_KEY no está configurada.');
+  }
+
+  const messages: any[] = [];
+  if (systemInstruction) {
+    messages.push({ role: 'system', content: systemInstruction });
+  }
+
+  for (const h of historial) {
+    messages.push({
+      role: h.role === 'user' ? 'user' : 'assistant',
+      content: h.parts?.[0]?.text || '',
+    });
+  }
+
+  messages.push({ role: 'user', content: incomingText });
+
+  const tools = mapGeminiToolsToGroq(geminiTools);
+
+  for (let ronda = 0; ronda < MAX_RONDAS_HERRAMIENTAS; ronda++) {
+    const payload: any = {
+      model,
+      messages,
+    };
+    if (tools && tools.length > 0) {
+      payload.tools = tools;
+      payload.tool_choice = 'auto';
+    }
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Groq API respondió ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json();
+    const assistantMessage = data.choices?.[0]?.message;
+    if (!assistantMessage) {
+      throw new Error('Respuesta vacía de Groq API');
+    }
+
+    messages.push(assistantMessage);
+
+    const toolCalls = assistantMessage.tool_calls;
+    if (!toolCalls || toolCalls.length === 0) {
+      return assistantMessage.content || '';
+    }
+
+    for (const call of toolCalls) {
+      const args = typeof call.function.arguments === 'string'
+        ? JSON.parse(call.function.arguments)
+        : call.function.arguments;
+      const result = ejecutarHerramienta(call.function.name, args);
+
+      messages.push({
+        role: 'tool',
+        tool_call_id: call.id,
+        name: call.function.name,
+        content: JSON.stringify(result),
+      });
+    }
+  }
+
+  const ultimoMsg = messages[messages.length - 1];
+  return ultimoMsg?.content || 'Operación completada.';
+}
+
+
 // Historial reciente del teléfono en el formato que espera Gemini
 function cargarHistorial(telefono: string) {
   const rows = db.select().from(whatsapp_conversaciones)
@@ -358,8 +469,6 @@ async function chatUsuarioInterno(
   usuarioId: number,
   usuarioTelefono: string,
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-
   const systemInstruction = `Eres el Asistente Virtual Inteligente de U3 Seguridad Privada.
 Estás chateando por WhatsApp con un usuario del sistema.
 Fecha y hora actual: ${fechaHoraLocal()}.
@@ -376,49 +485,40 @@ INSTRUCCIONES CLAVE:
 3. Si el usuario te hace una pregunta que requiera ver su turno, servicio asignado, inventario o registrar una novedad/incidencia, ejecuta de inmediato la herramienta adecuada.
 4. Solo tienes acceso a las herramientas descritas a continuación. Si el usuario pide algo fuera del alcance, indícale amablemente que no tienes esa función habilitada.`;
 
-  const chat = model.startChat({
-    history: historial,
-    generationConfig: { maxOutputTokens: 600 },
-    systemInstruction: { role: 'system', parts: [{ text: systemInstruction }] },
-    tools: [
-      {
-        functionDeclarations: [
-          {
-            name: 'registrarIncidencia',
-            description: 'Registra un reporte de novedad o incidencia de seguridad (ej. daños, robos, retrasos, fallas de equipo) en el sistema.',
-            parameters: {
-              type: 'OBJECT',
-              properties: {
-                tipo: {
-                  type: 'STRING',
-                  description: 'El tipo de incidencia. Ejemplos: "Falta", "Retardo", "Falla de Equipo", "Accidente", "Incidente de Seguridad", "Novedad en Turno"',
-                },
-                gravedad: {
-                  type: 'STRING',
-                  description: 'Gravedad del reporte: "Leve", "Media", "Grave"',
-                },
-                descripcion: {
-                  type: 'STRING',
-                  description: 'Detalles minuciosos del reporte (ej. "Se reporta daño en la reja trasera del almacén")',
-                },
-              },
-              required: ['tipo', 'descripcion'],
-            },
+  const geminiTools = [
+    {
+      name: 'registrarIncidencia',
+      description: 'Registra un reporte de novedad o incidencia de seguridad (ej. daños, robos, retrasos, fallas de equipo) en el sistema.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          tipo: {
+            type: 'STRING',
+            description: 'El tipo de incidencia. Ejemplos: "Falta", "Retardo", "Falla de Equipo", "Accidente", "Incidente de Seguridad", "Novedad en Turno"',
           },
-          {
-            name: 'consultarServicioAsignado',
-            description: 'Obtiene las asignaciones de servicios activos, turnos y ubicación del guardia.',
-            parameters: { type: 'OBJECT', properties: {} },
+          gravedad: {
+            type: 'STRING',
+            description: 'Gravedad del reporte: "Leve", "Media", "Grave"',
           },
-          {
-            name: 'consultarInventarioAsignado',
-            description: 'Obtiene los uniformes, tallas y prendas que el guardia tiene actualmente registrados a su cargo.',
-            parameters: { type: 'OBJECT', properties: {} },
+          descripcion: {
+            type: 'STRING',
+            description: 'Detalles minuciosos del reporte (ej. "Se reporta daño en la reja trasera del almacén")',
           },
-        ],
+        },
+        required: ['tipo', 'descripcion'],
       },
-    ] as any,
-  });
+    },
+    {
+      name: 'consultarServicioAsignado',
+      description: 'Obtiene las asignaciones de servicios activos, turnos y ubicación del guardia.',
+      parameters: { type: 'OBJECT', properties: {} },
+    },
+    {
+      name: 'consultarInventarioAsignado',
+      description: 'Obtiene los uniformes, tallas y prendas que el guardia tiene actualmente registrados a su cargo.',
+      parameters: { type: 'OBJECT', properties: {} },
+    },
+  ];
 
   const ejecutarHerramienta = (name: string, args: any): any => {
     if (name === 'registrarIncidencia') {
@@ -477,7 +577,18 @@ INSTRUCCIONES CLAVE:
     return { success: false, error: `Herramienta desconocida: ${name}` };
   };
 
-  return await conversarConHerramientas(chat, incomingText, ejecutarHerramienta);
+  if (process.env.GROQ_API_KEY) {
+    return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+  } else {
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    const chat = model.startChat({
+      history: historial,
+      generationConfig: { maxOutputTokens: 600 },
+      systemInstruction: { role: 'system', parts: [{ text: systemInstruction }] },
+      tools: [{ functionDeclarations: geminiTools }] as any,
+    });
+    return await conversarConHerramientas(chat, incomingText, ejecutarHerramienta);
+  }
 }
 
 // ============================================================
@@ -489,8 +600,6 @@ async function chatReclutamiento(
   candidato: typeof candidatos.$inferSelect | null,
   telefono: string,
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-
   const vacantesActivas = db.select().from(vacantes).where(eq(vacantes.activa, 1)).all();
   const listaVacantes = vacantesActivas.length
     ? vacantesActivas.map((v) =>
@@ -546,58 +655,49 @@ REGLAS ESTRICTAS:
 - Si la persona pide hablar con un humano, indícale que un reclutador le devolverá el mensaje y registra la nota con actualizarDatosCandidato.
 ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
 
-  const chat = model.startChat({
-    history: historial,
-    generationConfig: { maxOutputTokens: 600 },
-    systemInstruction: { role: 'system', parts: [{ text: systemInstruction }] },
-    tools: [
-      {
-        functionDeclarations: [
-          {
-            name: 'actualizarDatosCandidato',
-            description: 'Guarda o actualiza los datos del candidato en el sistema de reclutamiento. Úsala en cuanto obtengas un dato nuevo (nombre, ciudad, edad, experiencia, vacante de interés o una nota).',
-            parameters: {
-              type: 'OBJECT',
-              properties: {
-                nombre: { type: 'STRING', description: 'Nombre completo del candidato' },
-                ciudad: { type: 'STRING', description: 'Ciudad o zona donde vive' },
-                edad: { type: 'NUMBER', description: 'Edad en años' },
-                experiencia: { type: 'STRING', description: 'Resumen de su experiencia en seguridad u otros trabajos' },
-                vacante_id: { type: 'NUMBER', description: 'ID de la vacante que le interesa (de la lista de vacantes activas)' },
-                nota: { type: 'STRING', description: 'Observación relevante del reclutador (ej. "pide hablar con humano", "disponible solo turno nocturno")' },
-              },
-            },
-          },
-          {
-            name: 'agendarEntrevista',
-            description: 'Agenda la cita de entrevista presencial del candidato una vez que confirmó día y hora. Crea el evento en el calendario de la empresa.',
-            parameters: {
-              type: 'OBJECT',
-              properties: {
-                fecha: { type: 'STRING', description: 'Fecha de la entrevista en formato YYYY-MM-DD' },
-                hora: { type: 'STRING', description: 'Hora de la entrevista en formato HH:MM (24 horas)' },
-              },
-              required: ['fecha', 'hora'],
-            },
-          },
-          {
-            name: 'registrarProspectoVenta',
-            description: 'Registra a una persona o empresa interesada en CONTRATAR servicios de seguridad, para que el equipo comercial le dé seguimiento.',
-            parameters: {
-              type: 'OBJECT',
-              properties: {
-                nombre: { type: 'STRING', description: 'Nombre de la persona de contacto' },
-                empresa: { type: 'STRING', description: 'Nombre de la empresa (si aplica)' },
-                email: { type: 'STRING', description: 'Correo electrónico de contacto' },
-                interes: { type: 'STRING', description: 'Qué servicio necesita y cualquier detalle relevante' },
-              },
-              required: ['nombre'],
-            },
-          },
-        ],
+  const geminiTools = [
+    {
+      name: 'actualizarDatosCandidato',
+      description: 'Guarda o actualiza los datos del candidato en el sistema de reclutamiento. Úsala en cuanto obtengas un dato nuevo (nombre, ciudad, edad, experiencia, vacante de interés o una nota).',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          nombre: { type: 'STRING', description: 'Nombre completo del candidato' },
+          ciudad: { type: 'STRING', description: 'Ciudad o zona donde vive' },
+          edad: { type: 'NUMBER', description: 'Edad en años' },
+          experiencia: { type: 'STRING', description: 'Resumen de su experiencia en seguridad u otros trabajos' },
+          vacante_id: { type: 'NUMBER', description: 'ID de la vacante que le interesa (de la lista de vacantes activas)' },
+          nota: { type: 'STRING', description: 'Observación relevante del reclutador (ej. "pide hablar con humano", "disponible solo turno nocturno")' },
+        },
       },
-    ] as any,
-  });
+    },
+    {
+      name: 'agendarEntrevista',
+      description: 'Agenda la cita de entrevista presencial del candidato una vez que confirmó día y hora. Crea el evento en el calendario de la empresa.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          fecha: { type: 'STRING', description: 'Fecha de la entrevista en formato YYYY-MM-DD' },
+          hora: { type: 'STRING', description: 'Hora de la entrevista en formato HH:MM (24 horas)' },
+        },
+        required: ['fecha', 'hora'],
+      },
+    },
+    {
+      name: 'registrarProspectoVenta',
+      description: 'Registra a una persona o empresa interesada en CONTRATAR servicios de seguridad, para que el equipo comercial le dé seguimiento.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          nombre: { type: 'STRING', description: 'Nombre de la persona de contacto' },
+          empresa: { type: 'STRING', description: 'Nombre de la empresa (si aplica)' },
+          email: { type: 'STRING', description: 'Correo electrónico de contacto' },
+          interes: { type: 'STRING', description: 'Qué servicio necesita y cualquier detalle relevante' },
+        },
+        required: ['nombre'],
+      },
+    },
+  ];
 
   // Asegura que exista la ficha del candidato y devuelve su registro actual
   const obtenerOCrearCandidato = () => {
@@ -679,7 +779,18 @@ ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
     }
   };
 
-  return await conversarConHerramientas(chat, incomingText, ejecutarHerramienta);
+  if (process.env.GROQ_API_KEY) {
+    return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+  } else {
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    const chat = model.startChat({
+      history: historial,
+      generationConfig: { maxOutputTokens: 600 },
+      systemInstruction: { role: 'system', parts: [{ text: systemInstruction }] },
+      tools: [{ functionDeclarations: geminiTools }] as any,
+    });
+    return await conversarConHerramientas(chat, incomingText, ejecutarHerramienta);
+  }
 }
 
 // Envía el mensaje al modelo y resuelve llamadas a herramientas hasta obtener texto final
