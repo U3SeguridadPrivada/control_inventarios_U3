@@ -315,6 +315,16 @@ export async function POST(req: NextRequest) {
       return Response.json({ status: 'from_me_synced' });
     }
 
+    // 2.2 Activar indicador de "escribiendo" si hay un ID de mensaje disponible en el webhook
+    const messagesObj = body.data?.messages;
+    const msgId = messagesObj?.key?.id || messagesObj?.id || body.data?.key?.id || body.key?.id || body.message?.id;
+    if (msgId) {
+      const fromJid = messagesObj?.key?.remoteJid || body.data?.key?.remoteJid || body.key?.remoteJid || body.from || body.phone;
+      if (fromJid) {
+        mostrarEscribiendoKapso(fromJid, msgId).catch(() => {});
+      }
+    }
+
     // 3. Procesar el mensaje (identifica remitente, responde con el bot y envía por el proveedor activo)
     const responseText = await procesarMensajeEntrante(cleanIncoming, incomingText);
     if (responseText === null) return Response.json({ status: 'bot_paused' });
