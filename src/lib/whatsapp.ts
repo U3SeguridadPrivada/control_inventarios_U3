@@ -178,3 +178,35 @@ export async function enviarMensajeWhatsApp(to: string, messageText: string): Pr
   }
 }
 
+// Envía estado "escribiendo" (typing indicator) a Kapso (Meta Cloud API)
+export async function mostrarEscribiendoKapso(to: string, messageId: string): Promise<void> {
+  const phoneNumberId = process.env.KAPSO_PHONE_NUMBER_ID;
+  const apiKey = process.env.KAPSO_API_KEY;
+  const version = process.env.KAPSO_VERSION || 'v24.0';
+
+  if (!phoneNumberId || !apiKey || !messageId) return;
+
+  const url = `https://api.kapso.ai/meta/whatsapp/${version}/${phoneNumberId}/messages`;
+
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        status: 'read',
+        message_id: messageId,
+        typing_indicator: {
+          type: 'text'
+        }
+      }),
+    });
+  } catch (err) {
+    console.error('Error al mostrar escribiendo en Kapso:', err);
+  }
+}
+
+

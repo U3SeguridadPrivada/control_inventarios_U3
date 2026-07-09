@@ -10,7 +10,7 @@ import {
 import { eq, desc } from 'drizzle-orm';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getConfig } from '@/src/lib/mailer';
-import { cleanPhoneNumber, phoneMatches, tocarChat, enviarMensajeWhatsApp } from '@/src/lib/whatsapp';
+import { cleanPhoneNumber, phoneMatches, tocarChat, enviarMensajeWhatsApp, mostrarEscribiendoKapso } from '@/src/lib/whatsapp';
 
 // Inicializar el SDK de Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -59,7 +59,7 @@ async function conversarConGroq(
   ejecutarHerramienta: (name: string, args: any) => any,
 ): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
-  const model = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
+  const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
   if (!apiKey) {
     throw new Error('GROQ_API_KEY no está configurada.');
@@ -80,6 +80,13 @@ async function conversarConGroq(
   messages.push({ role: 'user', content: incomingText });
 
   const tools = mapGeminiToolsToGroq(geminiTools);
+
+  const limpiarRespuesta = (texto: string): string => {
+    let limpia = texto || '';
+    limpia = limpia.replace(/<function=\w+>(\{[\s\S]*?\})?/gi, '');
+    limpia = limpia.replace(/<function=\w+>/gi, '');
+    return limpia.trim();
+  };
 
   for (let ronda = 0; ronda < MAX_RONDAS_HERRAMIENTAS; ronda++) {
     const payload: any = {
@@ -115,7 +122,7 @@ async function conversarConGroq(
 
     const toolCalls = assistantMessage.tool_calls;
     if (!toolCalls || toolCalls.length === 0) {
-      return assistantMessage.content || '';
+      return limpiarRespuesta(assistantMessage.content || '');
     }
 
     for (const call of toolCalls) {
@@ -134,7 +141,7 @@ async function conversarConGroq(
   }
 
   const ultimoMsg = messages[messages.length - 1];
-  return ultimoMsg?.content || 'Operación completada.';
+  return limpiarRespuesta(ultimoMsg?.content || 'Operación completada.');
 }
 
 
@@ -353,6 +360,10 @@ async function procesarWebhookMeta(body: any, req: NextRequest, rawBodyText: str
     const incomingText = msg.text?.body || '';
     if (!cleanIncoming || !incomingText) return Response.json({ status: 'ignored_empty' });
 
+    if (msg.id) {
+      mostrarEscribiendoKapso(msg.from, msg.id).catch(() => {});
+    }
+
     const responseText = await procesarMensajeEntrante(cleanIncoming, incomingText);
     if (responseText === null) return Response.json({ status: 'bot_paused' });
     return Response.json({ status: 'success', response: responseText });
@@ -401,6 +412,10 @@ async function procesarWebhookKapso(body: any, req: NextRequest, rawBodyText: st
       const incomingText = msg.text?.body || msg.kapso?.content || '';
 
       if (!cleanIncoming || !incomingText) continue;
+
+      if (msg.id) {
+        mostrarEscribiendoKapso(msg.from, msg.id).catch(() => {});
+      }
 
       const responseText = await procesarMensajeEntrante(cleanIncoming, incomingText);
       resultados.push({ telefono: cleanIncoming, respuesta: responseText });
