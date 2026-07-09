@@ -61,7 +61,8 @@ export async function DELETE(req: NextRequest) {
   try {
     db.delete(whatsapp_conversaciones).run();
     db.delete(whatsapp_chats).run();
-    return Response.json({ success: true, message: 'Todos los mensajes y chats de WhatsApp han sido eliminados.' });
+    db.delete(candidatos).run();
+    return Response.json({ success: true, message: 'Todos los mensajes, chats de WhatsApp y candidatos han sido eliminados.' });
   } catch (error: any) {
     return Response.json({ error: 'Error al limpiar los chats', details: error.message }, { status: 500 });
   }
