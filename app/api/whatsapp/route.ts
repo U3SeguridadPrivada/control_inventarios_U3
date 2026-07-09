@@ -85,6 +85,7 @@ async function conversarConGroq(
     let limpia = texto || '';
     limpia = limpia.replace(/<function=\w+>(\{[\s\S]*?\})?/gi, '');
     limpia = limpia.replace(/<function=\w+>/gi, '');
+    limpia = limpia.replace(/<\/function>/gi, '');
     return limpia.trim();
   };
 

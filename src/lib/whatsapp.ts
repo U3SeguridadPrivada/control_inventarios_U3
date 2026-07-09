@@ -189,7 +189,7 @@ export async function mostrarEscribiendoKapso(to: string, messageId: string): Pr
   const url = `https://api.kapso.ai/meta/whatsapp/${version}/${phoneNumberId}/messages`;
 
   try {
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -204,6 +204,10 @@ export async function mostrarEscribiendoKapso(to: string, messageId: string): Pr
         }
       }),
     });
+    if (!res.ok) {
+      const txt = await res.text();
+      console.warn(`[TYPING WARNING] Kapso respondió ${res.status}:`, txt);
+    }
   } catch (err) {
     console.error('Error al mostrar escribiendo en Kapso:', err);
   }
