@@ -154,16 +154,31 @@ function cargarHistorial(telefono: string) {
     .limit(MENSAJES_MEMORIA)
     .all()
     .reverse();
+
   // Gemini exige que el historial inicie con un mensaje del usuario
   while (rows.length && rows[0].rol !== 'user') rows.shift();
-  return rows.map((r) => ({ role: r.rol as 'user' | 'model', parts: [{ text: r.mensaje }] }));
+
+  // Agrupar mensajes consecutivos del mismo rol para evitar errores de validación de API
+  const agrupados: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
+  for (const r of rows) {
+    const rol = r.rol as 'user' | 'model';
+    const texto = r.mensaje;
+    if (agrupados.length && agrupados[agrupados.length - 1].role === rol) {
+      agrupados[agrupados.length - 1].parts[0].text += '\n' + texto;
+    } else {
+      agrupados.push({ role: rol, parts: [{ text: texto }] });
+    }
+  }
+
+  return agrupados;
 }
 
 function guardarMensaje(telefono: string, rol: 'user' | 'model', mensaje: string, autor: 'contacto' | 'bot' | 'humano') {
   try {
-    db.insert(whatsapp_conversaciones).values({ telefono, rol, mensaje, autor }).run();
+    return db.insert(whatsapp_conversaciones).values({ telefono, rol, mensaje, autor }).returning().get();
   } catch (e) {
     console.error('No se pudo guardar el mensaje de WhatsApp:', e);
+    return null;
   }
 }
 
@@ -460,11 +475,36 @@ async function procesarMensajeEntrante(cleanIncoming: string, incomingText: stri
   }
 
   const estadoChat = tocarChat(cleanIncoming, { incrementarNoLeidos: true });
-  const historial = cargarHistorial(cleanIncoming);
-  guardarMensaje(cleanIncoming, 'user', incomingText, 'contacto');
+  
+  // 1. Guardar el mensaje entrante inmediatamente
+  const msgGuardado = guardarMensaje(cleanIncoming, 'user', incomingText, 'contacto');
 
-  // Si un humano tomó el control del chat, solo se guarda el mensaje entrante
+  // Si un humano tomó el control del chat, solo se guarda el mensaje entrante y salimos
   if (estadoChat.bot_activo === 0) return null;
+
+  // 2. Mecanismo de Debounce / Agrupación de mensajes:
+  // Esperamos 4.5 segundos. Si el usuario escribe otro mensaje, un nuevo hilo se activará.
+  await new Promise((resolve) => setTimeout(resolve, 4500));
+
+  if (msgGuardado) {
+    // Consultamos el último mensaje de la conversación para este teléfono
+    const ultimoMensaje = db.select().from(whatsapp_conversaciones)
+      .where(eq(whatsapp_conversaciones.telefono, cleanIncoming))
+      .orderBy(desc(whatsapp_conversaciones.id))
+      .limit(1)
+      .get();
+
+    // Si el id del último mensaje en la BD es diferente al de este hilo,
+    // significa que el usuario mandó un mensaje más nuevo después.
+    // Dejamos que el hilo del último mensaje responda por todos y salimos.
+    if (ultimoMensaje && ultimoMensaje.id !== msgGuardado.id) {
+      console.log(`[DEBOUNCE] Cancelando respuesta del hilo del mensaje ID ${msgGuardado.id} porque llegó uno más nuevo (${ultimoMensaje.id}).`);
+      return null;
+    }
+  }
+
+  // Si somos el último hilo, cargamos el historial agrupado (que ya contiene todos los mensajes recién guardados)
+  const historial = cargarHistorial(cleanIncoming);
 
   let responseText = '';
   if (matchedGuardia || matchedCliente) {
