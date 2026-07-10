@@ -72,6 +72,42 @@ function mapGeminiToolsToGroq(geminiTools: any[]) {
   });
 }
 
+// Algunos modelos (gpt-oss/llama en Groq) a veces "escriben" la llamada a la herramienta como
+// texto en el contenido — p. ej. `actualizarDatosCandidato>{"nombre":"..."}` — en lugar de usar
+// el canal nativo de tool_calls. Esto las detecta para (1) ejecutarlas de verdad y (2) que NUNCA
+// lleguen al usuario. Se restringe a los nombres reales de herramientas para evitar falsos positivos.
+function extraerLlamadasEnTexto(texto: string, nombres: string[]): { name: string; args: any }[] {
+  const out: { name: string; args: any }[] = [];
+  if (!texto || !nombres?.length) return out;
+  const alt = nombres.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const re = new RegExp(`(?:<function=)?\\b(${alt})\\b\\s*[>:(=]*\\s*(\\{[\\s\\S]*?\\})`, 'gi');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(texto)) !== null) {
+    try {
+      out.push({ name: m[1], args: JSON.parse(m[2]) });
+    } catch {
+      /* JSON incompleto: se ignora; de todos modos se limpiará del texto */
+    }
+  }
+  return out;
+}
+
+// Quita del texto cualquier rastro de llamadas a herramientas para que el usuario nunca las vea.
+function limpiarTextoHerramientas(texto: string, nombres: string[] = []): string {
+  let limpia = texto || '';
+  limpia = limpia.replace(/<function=\w+>(\{[\s\S]*?\})?/gi, '');
+  limpia = limpia.replace(/<function=\w+>/gi, '');
+  limpia = limpia.replace(/<\/?function>/gi, '');
+  limpia = limpia.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '');
+  limpia = limpia.replace(/<\/?\|?tool_call\|?>/gi, '');
+  if (nombres.length) {
+    const alt = nombres.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    // NAME>{...} / NAME({...}) / NAME:{...} / NAME={...}
+    limpia = limpia.replace(new RegExp(`\\b(?:${alt})\\b\\s*[>:(=]+\\s*\\{[\\s\\S]*?\\}\\)?`, 'gi'), '');
+  }
+  return limpia.trim();
+}
+
 // Bucle de conversación con Groq (soporta llamadas a herramientas)
 async function conversarConGroq(
   systemInstruction: string,
@@ -105,14 +141,8 @@ async function conversarConGroq(
   messages.push({ role: 'user', content: incomingText });
 
   const tools = mapGeminiToolsToGroq(geminiTools);
-
-  const limpiarRespuesta = (texto: string): string => {
-    let limpia = texto || '';
-    limpia = limpia.replace(/<function=\w+>(\{[\s\S]*?\})?/gi, '');
-    limpia = limpia.replace(/<function=\w+>/gi, '');
-    limpia = limpia.replace(/<\/function>/gi, '');
-    return limpia.trim();
-  };
+  const nombresTools = (geminiTools || []).map((t) => t.name);
+  const limpiar = (texto: string) => limpiarTextoHerramientas(texto, nombresTools);
 
   for (let ronda = 0; ronda < MAX_RONDAS_HERRAMIENTAS; ronda++) {
     const payload: any = {
@@ -162,7 +192,23 @@ async function conversarConGroq(
 
     const toolCalls = assistantMessage.tool_calls;
     if (!toolCalls || toolCalls.length === 0) {
-      return limpiarRespuesta(assistantMessage.content || '');
+      // ¿El modelo escribió la llamada como texto en vez de usar tool_calls? La ejecutamos de
+      // verdad (para que los datos SÍ se guarden) y le pedimos que ahora responda en lenguaje
+      // natural. Nunca dejamos ese JSON crudo ni en el historial ni de cara al usuario.
+      const enTexto = extraerLlamadasEnTexto(assistantMessage.content || '', nombresTools);
+      if (enTexto.length > 0 && ronda < MAX_RONDAS_HERRAMIENTAS - 1) {
+        assistantMessage.content = limpiar(assistantMessage.content || '');
+        const resultados = enTexto.map((c) => ({
+          herramienta: c.name,
+          resultado: ejecutarHerramienta(c.name, c.args),
+        }));
+        messages.push({
+          role: 'system',
+          content: `Herramientas ejecutadas: ${JSON.stringify(resultados)}. Ahora escribe SOLO tu mensaje para el candidato en lenguaje natural de WhatsApp. Está PROHIBIDO incluir nombres de funciones, JSON o llamadas a herramientas en el texto.`,
+        });
+        continue;
+      }
+      return limpiar(assistantMessage.content || '') || 'Perfecto, ¿te apoyo en algo más?';
     }
 
     for (const call of toolCalls) {
@@ -181,7 +227,7 @@ async function conversarConGroq(
   }
 
   const ultimoMsg = messages[messages.length - 1];
-  return limpiarRespuesta(ultimoMsg?.content || 'Operación completada.');
+  return limpiar(ultimoMsg?.content || '') || 'Perfecto, ¿te apoyo en algo más?';
 }
 
 // Conversación con Gemini (respaldo / proveedor por defecto)
@@ -682,7 +728,8 @@ INSTRUCCIONES CLAVE:
 1. Responde de forma muy concisa, profesional y directa, ya que las respuestas se leerán en WhatsApp.
 2. Si el usuario te saluda, salúdalo por su nombre y pregúntale en qué puedes ayudarle.
 3. Si el usuario te hace una pregunta que requiera ver su turno, servicio asignado, inventario o registrar una novedad/incidencia, ejecuta de inmediato la herramienta adecuada.
-4. Solo tienes acceso a las herramientas descritas a continuación. Si el usuario pide algo fuera del alcance, indícale amablemente que no tienes esa función habilitada.`;
+4. Solo tienes acceso a las herramientas descritas a continuación. Si el usuario pide algo fuera del alcance, indícale amablemente que no tienes esa función habilitada.
+5. NUNCA escribas en tus mensajes nombres de funciones, JSON ni llamadas a herramientas; úsalas de forma silenciosa y responde SOLO en lenguaje natural.`;
 
   const geminiTools = [
     {
@@ -883,6 +930,7 @@ REGLAS ESTRICTAS:
 - Mantén viva la conversación: cierra casi todos tus mensajes con una pregunta o un siguiente paso, para que el candidato siempre sepa cómo continuar.
 - SOLO usa la información de este mensaje. Si no sabes algo (sueldos exactos, prestaciones no listadas, precios de servicios), di que se confirma en la entrevista o con un asesor. NUNCA inventes.
 - No prometas contratación; la entrevista es el siguiente paso, no una oferta.
+- NUNCA escribas en tus mensajes nombres de funciones, JSON ni llamadas a herramientas (p. ej. "actualizarDatosCandidato{...}"). Usa las herramientas de forma silenciosa; al candidato háblale SOLO en lenguaje natural.
 - Agenda entrevistas únicamente dentro del horario disponible indicado.
 - Si la persona pide hablar con un humano, dile que un reclutador le escribirá pronto y registra la nota con actualizarDatosCandidato.
 ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
