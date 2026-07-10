@@ -7,7 +7,7 @@ import {
   guardias, clientes, incidencias, servicio_guardias, servicios, salidas, users,
   candidatos, vacantes, whatsapp_conversaciones, eventos_calendario, whatsapp_chats,
 } from '@/src/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, like } from 'drizzle-orm';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getConfig } from '@/src/lib/mailer';
 import { cleanPhoneNumber, phoneMatches, tocarChat, enviarMensajeWhatsApp, mostrarEscribiendoKapso } from '@/src/lib/whatsapp';
@@ -220,12 +220,23 @@ async function generarRespuesta(
 // mensajes del usuario aún sin responder al final: esos se agrupan en un solo turno `textoAgrupado`
 // para que el bot los conteste juntos, y el `historial` termina en el último turno del modelo.
 // Así el mensaje entrante no se duplica (antes iba en el historial y además se reenviaba aparte).
+// El mismo contacto puede llegar con el número en distintos formatos (p. ej. WhatsApp/Kapso
+// entregan los móviles de México como "521XXXXXXXXXX" o "52XXXXXXXXXX"). Para que el bot NO
+// pierda el hilo, el historial se busca por los últimos 10 dígitos (el número nacional), igual
+// que la identificación del remitente (phoneMatches), en vez de por coincidencia exacta.
+function condicionMismoTelefono(telefono: string) {
+  const digitos = (telefono || '').replace(/\D/g, '');
+  // Sólo agrupamos por sufijo cuando hay suficientes dígitos para evitar falsos positivos.
+  if (digitos.length < 10) return eq(whatsapp_conversaciones.telefono, telefono);
+  return like(whatsapp_conversaciones.telefono, `%${digitos.slice(-10)}`);
+}
+
 function cargarHistorialYPendiente(telefono: string): {
   historial: { role: 'user' | 'model'; parts: { text: string }[] }[];
   textoAgrupado: string;
 } {
   const rows = db.select().from(whatsapp_conversaciones)
-    .where(eq(whatsapp_conversaciones.telefono, telefono))
+    .where(condicionMismoTelefono(telefono))
     .orderBy(desc(whatsapp_conversaciones.id))
     .limit(MENSAJES_MEMORIA)
     .all()
@@ -398,7 +409,7 @@ export async function POST(req: NextRequest) {
     // 2.1 Si el mensaje es de nosotros mismos (fromMe), lo sincronizamos pero NO disparamos respuesta del bot
     if (fromMe) {
       const existeMensaje = db.select().from(whatsapp_conversaciones)
-        .where(eq(whatsapp_conversaciones.telefono, cleanIncoming))
+        .where(condicionMismoTelefono(cleanIncoming))
         .orderBy(desc(whatsapp_conversaciones.id))
         .limit(5)
         .all();
@@ -568,7 +579,7 @@ async function responderConDebounce(cleanIncoming: string, msgId: number | null)
 
   if (msgId !== null) {
     const ultimoMensaje = db.select().from(whatsapp_conversaciones)
-      .where(eq(whatsapp_conversaciones.telefono, cleanIncoming))
+      .where(condicionMismoTelefono(cleanIncoming))
       .orderBy(desc(whatsapp_conversaciones.id))
       .limit(1)
       .get();
