@@ -19,6 +19,7 @@ function clienteImapDe(u: { correo_imap_host: string | null; correo_imap_puerto:
 
 // GET /api/correo/externo         → últimos mensajes de la bandeja IMAP personal
 // GET /api/correo/externo?uid=123 → cuerpo completo (HTML/texto) de un mensaje
+// GET /api/correo/externo?action=folders → lista de todas las carpetas del buzón
 export async function GET(req: NextRequest) {
   const authUser = verifyAuth(req);
   if (!authUser) return unauthorized();
@@ -30,10 +31,25 @@ export async function GET(req: NextRequest) {
   if (!client) return Response.json({ error: 'Configura tu buzón personal (IMAP) en "Mi correo y firma"' }, { status: 428 });
 
   const uid = req.nextUrl.searchParams.get('uid');
+  const action = req.nextUrl.searchParams.get('action');
+  const folder = req.nextUrl.searchParams.get('folder') || 'INBOX';
 
   try {
     await client.connect();
-    const lock = await client.getMailboxLock('INBOX');
+
+    if (action === 'folders') {
+      const folders = await client.list();
+      const mapped = folders.map((f) => ({
+        path: f.path,
+        name: f.name,
+        delimiter: f.delimiter,
+        specialUse: f.specialUse ? String(f.specialUse) : null,
+        flags: Array.from(f.flags || []),
+      }));
+      return Response.json(mapped);
+    }
+
+    const lock = await client.getMailboxLock(folder);
     try {
       if (uid) {
         const bajado = await client.download(uid, undefined, { uid: true });

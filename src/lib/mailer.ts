@@ -34,33 +34,62 @@ export function firmaHtml(f: FirmaDatos): string {
   return `
   <table cellpadding="0" cellspacing="0" style="margin-top:28px;border-left:3px solid #1e3a5f;">
     <tr><td style="padding:2px 0 2px 14px;">
-      <p style="margin:0;font-size:15px;font-weight:bold;color:#1e293b;">${f.nombre ?? ''}</p>
-      ${f.puesto ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">${f.puesto}</p>` : ''}
-      <p style="margin:6px 0 0;font-size:12px;font-weight:bold;color:#1e3a5f;">U3 SEGURIDAD PRIVADA, S.A. DE C.V.</p>
-      ${f.telefono ? `<p style="margin:4px 0 0;font-size:12px;color:#475569;">Tel: ${f.telefono}</p>` : ''}
-      ${f.correo ? `<p style="margin:2px 0 0;font-size:12px;color:#475569;">${f.correo}</p>` : ''}
+      <p style="margin:0;font-size:14px;font-weight:bold;color:#1e293b;">${f.nombre ?? ''}</p>
+      ${f.puesto ? `<p style="margin:2px 0 0;font-size:11px;color:#64748b;">${f.puesto}</p>` : ''}
+      <p style="margin:4px 0 0;font-size:11px;font-weight:bold;color:#1e3a5f;">U3 SEGURIDAD PRIVADA, S.A. DE C.V.</p>
+      ${f.telefono ? `<p style="margin:3px 0 0;font-size:11px;color:#475569;">Tel: ${f.telefono}</p>` : ''}
+      ${f.correo ? `<p style="margin:1px 0 0;font-size:11px;color:#475569;">${f.correo}</p>` : ''}
     </td></tr>
   </table>`;
 }
 
-// ── Plantilla corporativa ──
+// ── Plantilla corporativa en tonos claros ──
 export function plantillaCorreo(cuerpoHtml: string, firma?: string): string {
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:24px 12px;">
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:24px 12px;">
     <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
-        <tr><td style="background-color:#1e3a5f;padding:18px 28px;">
-          <p style="margin:0;font-size:16px;font-weight:bold;color:#ffffff;letter-spacing:0.5px;">U3 SEGURIDAD PRIVADA</p>
-        </td></tr>
-        <tr><td style="padding:28px;font-size:14px;line-height:1.6;color:#334155;">
-          ${cuerpoHtml}
-          ${firma ?? ''}
-        </td></tr>
-        <tr><td style="background-color:#f8fafc;padding:14px 28px;border-top:1px solid #e2e8f0;">
-          <p style="margin:0;font-size:11px;color:#94a3b8;">Este correo fue enviado desde el sistema de control de U3 Seguridad Privada. Por favor no compartas su contenido.</p>
-        </td></tr>
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+        <!-- Línea superior de acento corporativo (Navy + Oro) -->
+        <tr>
+          <td height="6" style="background: linear-gradient(to right, #1e3a5f 70%, #d97706 30%); font-size: 0; line-height: 0;">&nbsp;</td>
+        </tr>
+        <!-- Encabezado corporativo claro -->
+        <tr>
+          <td style="background-color:#ffffff;border-bottom:1px solid #f1f5f9;padding:22px 28px;">
+            <p style="margin:0;font-size:18px;font-weight:bold;color:#1e3a5f;letter-spacing:0.8px;">U3 SEGURIDAD PRIVADA</p>
+            <p style="margin:3px 0 0;font-size:10px;color:#64748b;letter-spacing:1px;text-transform:uppercase;">Protección, Confianza y Soluciones Integrales</p>
+          </td>
+        </tr>
+        <!-- Cuerpo del Correo -->
+        <tr>
+          <td style="padding:28px;font-size:14px;line-height:1.6;color:#334155;">
+            <div style="min-height:150px;">
+              ${cuerpoHtml}
+            </div>
+            ${firma ?? ''}
+          </td>
+        </tr>
+        <!-- Pie de página U3 Corporativo -->
+        <tr>
+          <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="font-family:Arial,sans-serif;font-size:11px;color:#475569;line-height:1.5;padding-bottom:12px;">
+                  <strong>U3 SEGURIDAD PRIVADA, S.A. DE C.V.</strong><br>
+                  Av. Paseo de la Reforma #456, Col. Juárez, C.P. 06600, CDMX<br>
+                  Tel: 55-8902-1234 · <a href="mailto:contacto@u3seguridad.com" style="color:#1e3a5f;text-decoration:none;">contacto@u3seguridad.com</a> · <a href="https://www.u3seguridadprivada.com" target="_blank" style="color:#1e3a5f;text-decoration:none;">www.u3seguridadprivada.com</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="font-family:Arial,sans-serif;font-size:9.5px;color:#94a3b8;line-height:1.4;border-top:1px solid #e2e8f0;padding-top:10px;">
+                  <strong>AVISO DE CONFIDENCIALIDAD:</strong> Este correo electrónico y, en su caso, cualquier archivo adjunto, contienen información confidencial y privilegiada de U3 Seguridad Privada y está dirigida exclusivamente al destinatario(s). Si usted ha recibido este mensaje por error, por favor notifíquelo de inmediato al remitente y elimine este mensaje de su sistema sin copiarlo, distribuirlo ni revelarlo.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
       </table>
     </td></tr>
   </table>
