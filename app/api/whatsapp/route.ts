@@ -17,7 +17,29 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 
 const MAX_RONDAS_HERRAMIENTAS = 4;
+// Historial que se reenvía en CADA petición al modelo. 20 mensajes dan buena memoria de la
+// conversación; el consumo de tokens es manejable con el modelo 8b-instant.
 const MENSAJES_MEMORIA = 20;
+const DEBOUNCE_MS = 4500;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Determina si debemos usar Groq. Evita los valores de plantilla del .env de ejemplo
+// (p. ej. "tu_api_key..."), que de otro modo el código tomaría como clave válida y
+// terminaría llamando a Groq con un token inválido (401) sin responder nunca.
+function usarGroq(): boolean {
+  const k = (process.env.GROQ_API_KEY || '').trim();
+  return k.startsWith('gsk_');
+}
+
+// Gemini disponible como respaldo cuando Groq agota su límite diario de tokens (429).
+function usarGemini(): boolean {
+  return !!(process.env.GEMINI_API_KEY || '').trim();
+}
+
+function esRateLimit(e: any): boolean {
+  return e?.rateLimited === true || e?.status === 429 || /429|rate_limit/i.test(e?.message || '');
+}
 
 function fechaHoraLocal(): string {
   return new Date().toLocaleString('es-MX', {
@@ -59,7 +81,9 @@ async function conversarConGroq(
   ejecutarHerramienta: (name: string, args: any) => any,
 ): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
-  const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  // llama-3.1-8b-instant tiene un límite diario de tokens mucho más alto (y menor costo)
+  // que el 70b; suficiente para un bot de WhatsApp y evita agotar el TPD.
+  const model = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
 
   if (!apiKey) {
     throw new Error('GROQ_API_KEY no está configurada.');
@@ -93,6 +117,8 @@ async function conversarConGroq(
     const payload: any = {
       model,
       messages,
+      max_tokens: 500,
+      temperature: 0.4,
     };
     if (tools && tools.length > 0) {
       payload.tools = tools;
@@ -110,7 +136,10 @@ async function conversarConGroq(
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Groq API respondió ${res.status}: ${errText}`);
+      const err: any = new Error(`Groq API respondió ${res.status}: ${errText}`);
+      err.status = res.status;
+      err.rateLimited = res.status === 429;
+      throw err;
     }
 
     const data = await res.json();
@@ -145,9 +174,56 @@ async function conversarConGroq(
   return limpiarRespuesta(ultimoMsg?.content || 'Operación completada.');
 }
 
+// Conversación con Gemini (respaldo / proveedor por defecto)
+async function conversarConGemini(
+  systemInstruction: string,
+  historial: { role: 'user' | 'model'; parts: { text: string }[] }[],
+  incomingText: string,
+  geminiTools: any[],
+  ejecutarHerramienta: (name: string, args: any) => any,
+): Promise<string> {
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  const chat = model.startChat({
+    history: historial,
+    generationConfig: { maxOutputTokens: 600 },
+    systemInstruction: { role: 'system', parts: [{ text: systemInstruction }] },
+    tools: [{ functionDeclarations: geminiTools }] as any,
+  });
+  return await conversarConHerramientas(chat, incomingText, ejecutarHerramienta);
+}
 
-// Historial reciente del teléfono en el formato que espera Gemini
-function cargarHistorial(telefono: string) {
+// Genera la respuesta con el proveedor disponible. Si Groq agota su límite diario de tokens (429),
+// reintenta automáticamente con Gemini para que el bot no deje al contacto sin respuesta.
+async function generarRespuesta(
+  systemInstruction: string,
+  historial: { role: 'user' | 'model'; parts: { text: string }[] }[],
+  incomingText: string,
+  geminiTools: any[],
+  ejecutarHerramienta: (name: string, args: any) => any,
+): Promise<string> {
+  if (usarGroq()) {
+    try {
+      return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+    } catch (e) {
+      if (esRateLimit(e) && usarGemini()) {
+        console.warn('Groq alcanzó su límite de tokens; usando Gemini como respaldo.');
+        return await conversarConGemini(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+      }
+      throw e;
+    }
+  }
+  return await conversarConGemini(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+}
+
+
+// Devuelve el historial reciente (en el formato que espera Gemini) SEPARANDO la ráfaga de
+// mensajes del usuario aún sin responder al final: esos se agrupan en un solo turno `textoAgrupado`
+// para que el bot los conteste juntos, y el `historial` termina en el último turno del modelo.
+// Así el mensaje entrante no se duplica (antes iba en el historial y además se reenviaba aparte).
+function cargarHistorialYPendiente(telefono: string): {
+  historial: { role: 'user' | 'model'; parts: { text: string }[] }[];
+  textoAgrupado: string;
+} {
   const rows = db.select().from(whatsapp_conversaciones)
     .where(eq(whatsapp_conversaciones.telefono, telefono))
     .orderBy(desc(whatsapp_conversaciones.id))
@@ -155,22 +231,29 @@ function cargarHistorial(telefono: string) {
     .all()
     .reverse();
 
+  // Separar los mensajes 'user' consecutivos al final = la ráfaga recién recibida sin responder
+  const pendientes: typeof rows = [];
+  while (rows.length && rows[rows.length - 1].rol === 'user') {
+    pendientes.unshift(rows.pop()!);
+  }
+  const textoAgrupado = pendientes.map((r) => r.mensaje).join('\n');
+
   // Gemini exige que el historial inicie con un mensaje del usuario
   while (rows.length && rows[0].rol !== 'user') rows.shift();
 
   // Agrupar mensajes consecutivos del mismo rol para evitar errores de validación de API
-  const agrupados: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
+  const historial: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
   for (const r of rows) {
     const rol = r.rol as 'user' | 'model';
     const texto = r.mensaje;
-    if (agrupados.length && agrupados[agrupados.length - 1].role === rol) {
-      agrupados[agrupados.length - 1].parts[0].text += '\n' + texto;
+    if (historial.length && historial[historial.length - 1].role === rol) {
+      historial[historial.length - 1].parts[0].text += '\n' + texto;
     } else {
-      agrupados.push({ role: rol, parts: [{ text: texto }] });
+      historial.push({ role: rol, parts: [{ text: texto }] });
     }
   }
 
-  return agrupados;
+  return { historial, textoAgrupado };
 }
 
 function guardarMensaje(telefono: string, rol: 'user' | 'model', mensaje: string, autor: 'contacto' | 'bot' | 'humano') {
@@ -459,6 +542,53 @@ async function procesarWebhookKapso(body: any, req: NextRequest, rawBodyText: st
 // Núcleo compartido por ambos proveedores: identifica al remitente, genera la respuesta
 // del bot y la envía. Devuelve el texto enviado, o null si el bot está pausado en ese chat.
 async function procesarMensajeEntrante(cleanIncoming: string, incomingText: string): Promise<string | null> {
+  const estadoChat = tocarChat(cleanIncoming, { incrementarNoLeidos: true });
+
+  // 1. Guardar el mensaje entrante inmediatamente
+  const msgGuardado = guardarMensaje(cleanIncoming, 'user', incomingText, 'contacto');
+
+  // Si un humano tomó el control del chat, solo se guarda el mensaje entrante y salimos
+  if (estadoChat.bot_activo === 0) return null;
+
+  // 2. Procesamos con debounce en SEGUNDO PLANO y devolvemos el control al webhook de inmediato.
+  //    Bloquear la respuesta HTTP durante el debounce rompe a los proveedores (p. ej. WASender)
+  //    que entregan los mensajes en serie o con timeout corto: por eso el bot "no contestaba"
+  //    cuando el usuario mandaba varios mensajes seguidos.
+  void responderConDebounce(cleanIncoming, msgGuardado?.id ?? null)
+    .catch((e) => console.error('Error en el procesamiento diferido del bot de WhatsApp:', e));
+
+  return 'processing';
+}
+
+// Espera la ventana de debounce; si este es el mensaje más reciente de la ráfaga, genera y envía
+// UNA sola respuesta que considera todos los mensajes recién recibidos (agrupados en un turno).
+async function responderConDebounce(cleanIncoming: string, msgId: number | null): Promise<void> {
+  // Mecanismo de debounce: si llega un mensaje más nuevo mientras esperamos, ese hilo responderá.
+  await sleep(DEBOUNCE_MS);
+
+  if (msgId !== null) {
+    const ultimoMensaje = db.select().from(whatsapp_conversaciones)
+      .where(eq(whatsapp_conversaciones.telefono, cleanIncoming))
+      .orderBy(desc(whatsapp_conversaciones.id))
+      .limit(1)
+      .get();
+
+    // Si el último mensaje en la BD no es el nuestro, llegó uno más nuevo: dejamos que ese responda.
+    if (ultimoMensaje && ultimoMensaje.id !== msgId) {
+      console.log(`[DEBOUNCE] Se omite el hilo del mensaje ${msgId}; llegó uno más nuevo (${ultimoMensaje.id}).`);
+      return;
+    }
+  }
+
+  // El chat pudo pausarse durante la espera (un humano tomó el control)
+  const chat = db.select().from(whatsapp_chats).where(eq(whatsapp_chats.telefono, cleanIncoming)).get();
+  if (chat && chat.bot_activo === 0) return;
+
+  // Historial previo + la ráfaga de mensajes sin responder agrupada en un solo turno de usuario
+  const { historial, textoAgrupado } = cargarHistorialYPendiente(cleanIncoming);
+  if (!textoAgrupado) return;
+
+  // Identificar al remitente
   const allGuardias = db.select().from(guardias).all();
   const matchedGuardia = allGuardias.find((g) => phoneMatches(g.telefono, cleanIncoming));
 
@@ -474,54 +604,21 @@ async function procesarMensajeEntrante(cleanIncoming: string, incomingText: stri
     matchedCandidato = allCandidatos.find((c) => phoneMatches(c.telefono, cleanIncoming)) || null;
   }
 
-  const estadoChat = tocarChat(cleanIncoming, { incrementarNoLeidos: true });
-  
-  // 1. Guardar el mensaje entrante inmediatamente
-  const msgGuardado = guardarMensaje(cleanIncoming, 'user', incomingText, 'contacto');
-
-  // Si un humano tomó el control del chat, solo se guarda el mensaje entrante y salimos
-  if (estadoChat.bot_activo === 0) return null;
-
-  // 2. Mecanismo de Debounce / Agrupación de mensajes:
-  // Esperamos 4.5 segundos. Si el usuario escribe otro mensaje, un nuevo hilo se activará.
-  await new Promise((resolve) => setTimeout(resolve, 4500));
-
-  if (msgGuardado) {
-    // Consultamos el último mensaje de la conversación para este teléfono
-    const ultimoMensaje = db.select().from(whatsapp_conversaciones)
-      .where(eq(whatsapp_conversaciones.telefono, cleanIncoming))
-      .orderBy(desc(whatsapp_conversaciones.id))
-      .limit(1)
-      .get();
-
-    // Si el id del último mensaje en la BD es diferente al de este hilo,
-    // significa que el usuario mandó un mensaje más nuevo después.
-    // Dejamos que el hilo del último mensaje responda por todos y salimos.
-    if (ultimoMensaje && ultimoMensaje.id !== msgGuardado.id) {
-      console.log(`[DEBOUNCE] Cancelando respuesta del hilo del mensaje ID ${msgGuardado.id} porque llegó uno más nuevo (${ultimoMensaje.id}).`);
-      return null;
-    }
-  }
-
-  // Si somos el último hilo, cargamos el historial agrupado (que ya contiene todos los mensajes recién guardados)
-  const historial = cargarHistorial(cleanIncoming);
-
   let responseText = '';
   if (matchedGuardia || matchedCliente) {
     responseText = await chatUsuarioInterno(
-      incomingText, historial,
+      textoAgrupado, historial,
       matchedGuardia ? 'Guardia' : 'Cliente',
       matchedGuardia ? matchedGuardia.nombre : matchedCliente!.nombre,
       matchedGuardia ? matchedGuardia.id : matchedCliente!.id,
       cleanIncoming,
     );
   } else {
-    responseText = await chatReclutamiento(incomingText, historial, matchedCandidato, cleanIncoming);
+    responseText = await chatReclutamiento(textoAgrupado, historial, matchedCandidato, cleanIncoming);
   }
 
   guardarMensaje(cleanIncoming, 'model', responseText, 'bot');
   await enviarMensajeWhatsApp(cleanIncoming, responseText);
-  return responseText;
 }
 
 // ============================================================
@@ -643,18 +740,7 @@ INSTRUCCIONES CLAVE:
     return { success: false, error: `Herramienta desconocida: ${name}` };
   };
 
-  if (process.env.GROQ_API_KEY) {
-    return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
-  } else {
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-    const chat = model.startChat({
-      history: historial,
-      generationConfig: { maxOutputTokens: 600 },
-      systemInstruction: { role: 'system', parts: [{ text: systemInstruction }] },
-      tools: [{ functionDeclarations: geminiTools }] as any,
-    });
-    return await conversarConHerramientas(chat, incomingText, ejecutarHerramienta);
-  }
+  return await generarRespuesta(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
 }
 
 // ============================================================
@@ -689,6 +775,21 @@ async function chatReclutamiento(
 - Entrevista agendada: ${candidato.fecha_entrevista || 'ninguna'}`
     : '\nEste número NO está registrado todavía. Es un contacto nuevo.';
 
+  // El detalle de rutas de transporte solo se incluye cuando el candidato pregunta cómo llegar,
+  // para no gastar ~350 tokens en cada mensaje de la conversación.
+  const preguntaComoLlegar = /llegar|c[oó]mo llego|transporte|metrobus|metrob[uú]s|\bmetro\b|direcci[oó]n|ubicad|ubicaci[oó]n|d[oó]nde\s+(est|qued|son)/i.test(incomingText);
+  const bloqueTransporte = preguntaComoLlegar
+    ? `
+8. Rutas de Transporte Público en CDMX: Las oficinas están sobre Av. Insurgentes Sur, a unas cuadras de la estación del METROBÚS OLIVO (Línea 1). Indícale de forma amable y precisa cómo llegar en transporte público:
+   - En Metrobús: Tomar la Línea 1 (roja) y bajarse en la estación "Olivo", las oficinas quedan a un par de cuadras caminando.
+   - Desde el Norte (ej. Indios Verdes): Tomar el Metrobús Línea 1 directo dirección sur hasta la estación "Olivo".
+   - Desde el Oriente (ej. Pantitlán): Tomar Metro Línea 9 hasta Chilpancingo, y transbordar al Metrobús Línea 1 rumbo al sur hasta la estación "Olivo".
+   - Desde el Poniente (ej. Observatorio / Tacubaya): Tomar Metro Línea 1 o 9 hasta Chilpancingo, y transbordar al Metrobús Línea 1 rumbo al sur hasta la estación "Olivo".
+   - Desde el Sur (ej. El Caminero): Tomar el Metrobús Línea 1 directo rumbo al norte hasta la estación "Olivo".
+   - Desde Metro Línea 7 (ej. Barranca del Muerto): Tomar transporte colectivo/bús sobre Av. Altavista o Barranca del Muerto hacia Insurgentes Sur, y bajarse en la estación "Olivo".
+   - Desde Metro Línea 3 (ej. Viveros / Coyoacán): Tomar autobús o colectivo que vaya hacia Insurgentes Sur y bajarse en la estación "Olivo".`
+    : '';
+
   const systemInstruction = `Eres "Uli", el reclutador virtual experto en Recursos Humanos de U3 Seguridad Privada. Chateas por WhatsApp.
 Fecha y hora actual: ${fechaHoraLocal()} (hora del centro de México).
 
@@ -711,15 +812,7 @@ CÓMO TRABAJAS (técnica de reclutador experto):
 4. Califica con criterio de RRHH: si cumple el perfil, pasa al cierre de cita SIN esperar a que él lo pida: propón directamente dos opciones concretas de día y hora dentro del horario disponible (ej. "¿Te queda mejor mañana a las 10:00 o el jueves a las 12:00?").
 5. Cuando el candidato confirme día y hora, usa la herramienta agendarEntrevista y confírmale por escrito: fecha, hora, lugar y qué documentos llevar (identificación oficial, CURP, comprobante de domicilio y, si tiene, constancias de cursos de seguridad).
 6. Si el candidato no confirma, haz UN seguimiento amable proponiendo otra opción. Nunca presiones de más.
-7. Maneja objeciones como reclutador: si duda por sueldo o distancia, destaca lo que la vacante sí ofrece, sin inventar nada.
-8. Rutas de Transporte Público en CDMX: Las oficinas están ubicadas sobre la Av. Insurgentes Sur, a unas cuadras de la estación del METROBÚS OLIVO (Línea 1). Si el candidato pregunta cómo llegar, indícale de forma muy amable y precisa cómo hacerlo en transporte público:
-   - En Metrobús: Tomar la Línea 1 (roja) y bajarse en la estación "Olivo", las oficinas quedan a un par de cuadras caminando.
-   - Desde el Norte (ej. Indios Verdes): Tomar el Metrobús Línea 1 directo dirección sur hasta la estación "Olivo".
-   - Desde el Oriente (ej. Pantitlán): Tomar Metro Línea 9 hasta Chilpancingo, y transbordar al Metrobús Línea 1 rumbo al sur hasta la estación "Olivo".
-   - Desde el Poniente (ej. Observatorio / Tacubaya): Tomar Metro Línea 1 o 9 hasta Chilpancingo, y transbordar al Metrobús Línea 1 rumbo al sur hasta la estación "Olivo".
-   - Desde el Sur (ej. El Caminero): Tomar el Metrobús Línea 1 directo rumbo al norte hasta la estación "Olivo".
-   - Desde Metro Línea 7 (ej. Barranca del Muerto): Tomar transporte colectivo/bús sobre Av. Altavista o Barranca del Muerto hacia Insurgentes Sur, y bajarse en la estación "Olivo".
-   - Desde Metro Línea 3 (ej. Viveros / Coyoacán): Tomar autobús o colectivo que vaya hacia Insurgentes Sur y bajarse en la estación "Olivo".
+7. Maneja objeciones como reclutador: si duda por sueldo o distancia, destaca lo que la vacante sí ofrece, sin inventar nada.${bloqueTransporte}
 
 REGLAS ESTRICTAS:
 - Responde SIEMPRE en español, mensajes cortos (2-4 líneas), tono cálido y profesional de WhatsApp.
@@ -853,18 +946,7 @@ ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
     }
   };
 
-  if (process.env.GROQ_API_KEY) {
-    return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
-  } else {
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-    const chat = model.startChat({
-      history: historial,
-      generationConfig: { maxOutputTokens: 600 },
-      systemInstruction: { role: 'system', parts: [{ text: systemInstruction }] },
-      tools: [{ functionDeclarations: geminiTools }] as any,
-    });
-    return await conversarConHerramientas(chat, incomingText, ejecutarHerramienta);
-  }
+  return await generarRespuesta(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
 }
 
 // Envía el mensaje al modelo y resuelve llamadas a herramientas hasta obtener texto final

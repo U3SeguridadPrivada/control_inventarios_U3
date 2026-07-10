@@ -166,9 +166,11 @@ export async function enviarMensajeKapso(to: string, messageText: string): Promi
   }
 }
 
-// Envía por el proveedor activo (WHATSAPP_PROVIDER=meta, wasender o kapso)
+// Envía por el proveedor activo (WHATSAPP_PROVIDER=meta, wasender o kapso).
+// Default: kapso (proveedor activo). Antes era wasender, que ya no se usa; si la variable
+// faltaba en producción las respuestas se enviaban a un proveedor muerto y nunca llegaban.
 export async function enviarMensajeWhatsApp(to: string, messageText: string): Promise<{ ok: boolean; error?: string }> {
-  const provider = (process.env.WHATSAPP_PROVIDER || 'wasender').toLowerCase();
+  const provider = (process.env.WHATSAPP_PROVIDER || 'kapso').toLowerCase();
   if (provider === 'meta') {
     return enviarMensajeMeta(to, messageText);
   } else if (provider === 'kapso') {
