@@ -79,11 +79,12 @@ async function conversarConGroq(
   incomingText: string,
   geminiTools: any[],
   ejecutarHerramienta: (name: string, args: any) => any,
+  modelOverride?: string,
 ): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
-  // llama-3.1-8b-instant tiene un límite diario de tokens mucho más alto (y menor costo)
-  // que el 70b; suficiente para un bot de WhatsApp y evita agotar el TPD.
-  const model = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
+  // Modelo configurable por GROQ_MODEL. `modelOverride` permite reintentar con un modelo
+  // de respaldo (p. ej. llama-3.1-8b-instant, con TPD mucho más alto) si el principal se agota.
+  const model = modelOverride || process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
 
   if (!apiKey) {
     throw new Error('GROQ_API_KEY no está configurada.');
@@ -117,9 +118,18 @@ async function conversarConGroq(
     const payload: any = {
       model,
       messages,
-      max_tokens: 500,
+      // Los modelos de razonamiento (gpt-oss) gastan tokens "pensando" ANTES de responder, y
+      // ese consumo cuenta dentro de max_tokens; con 500 la respuesta salía vacía o cortada.
+      // 1024 deja margen para razonamiento + el texto final (que es corto, de WhatsApp).
+      max_tokens: 1024,
       temperature: 0.4,
     };
+    // gpt-oss admite reasoning_effort; en un bot de WhatsApp no hace falta razonar profundo,
+    // 'low' lo mantiene rápido y deja espacio a la respuesta. Otros modelos no lo soportan,
+    // así que solo lo enviamos cuando aplica.
+    if (/gpt-oss/i.test(model)) {
+      payload.reasoning_effort = 'low';
+    }
     if (tools && tools.length > 0) {
       payload.tools = tools;
       payload.tool_choice = 'auto';
@@ -202,9 +212,24 @@ async function generarRespuesta(
   ejecutarHerramienta: (name: string, args: any) => any,
 ): Promise<string> {
   if (usarGroq()) {
+    const primario = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
+    const RESPALDO_GROQ = 'llama-3.1-8b-instant'; // TPD mucho más alto (500K) para no quedar mudos
     try {
       return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
     } catch (e) {
+      // Si el modelo principal agotó su límite diario, reintenta con el 8b antes de rendirse.
+      if (esRateLimit(e) && primario !== RESPALDO_GROQ) {
+        console.warn(`Groq (${primario}) alcanzó su límite; reintentando con ${RESPALDO_GROQ}.`);
+        try {
+          return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta, RESPALDO_GROQ);
+        } catch (e2) {
+          if (esRateLimit(e2) && usarGemini()) {
+            console.warn('Groq agotado por completo; usando Gemini como último respaldo.');
+            return await conversarConGemini(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+          }
+          throw e2;
+        }
+      }
       if (esRateLimit(e) && usarGemini()) {
         console.warn('Groq alcanzó su límite de tokens; usando Gemini como respaldo.');
         return await conversarConGemini(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
