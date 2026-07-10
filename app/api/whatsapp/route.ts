@@ -764,15 +764,23 @@ async function chatReclutamiento(
   const horarioEntrevistas = getConfig('bot_horario_entrevistas') || 'Lunes a viernes de 9:00 a 14:00';
   const direccionEntrevistas = getConfig('bot_direccion_entrevistas') || 'nuestras oficinas (se confirma la dirección al agendar)';
 
+  const vacanteInteres = candidato?.vacante_id
+    ? db.select().from(vacantes).where(eq(vacantes.id, candidato.vacante_id)).get()
+    : null;
+  const puestoInteres = vacanteInteres
+    ? `${vacanteInteres.puesto}${vacanteInteres.ubicacion ? ` (${vacanteInteres.ubicacion})` : ''}`
+    : (candidato?.vacante_id ? `vacante ${candidato.vacante_id}` : 'aún sin definir');
+
   const fichaCandidato = candidato
     ? `\nFICHA DEL CANDIDATO (ya registrado, NO vuelvas a pedir datos que ya tienes):
 - ID: ${candidato.id}
 - Nombre: ${candidato.nombre || 'aún sin registrar'}
+- Puesto de interés: ${puestoInteres}
 - Ciudad: ${candidato.ciudad || 'aún sin registrar'}
 - Edad: ${candidato.edad || 'aún sin registrar'}
 - Experiencia: ${candidato.experiencia || 'aún sin registrar'}
 - Etapa del proceso: ${candidato.etapa}
-- Entrevista agendada: ${candidato.fecha_entrevista || 'ninguna'}`
+- Entrevista agendada: ${candidato.fecha_entrevista || 'ninguna'}${candidato.notas ? `\n- Notas del reclutador: ${candidato.notas}` : ''}`
     : '\nEste número NO está registrado todavía. Es un contacto nuevo.';
 
   // El detalle de rutas de transporte solo se incluye cuando el candidato pregunta cómo llegar,
@@ -803,23 +811,41 @@ HORARIO DISPONIBLE PARA ENTREVISTAS: ${horarioEntrevistas}
 LUGAR DE LAS ENTREVISTAS: ${direccionEntrevistas}
 ${fichaCandidato}
 
-TU OBJETIVO PRINCIPAL: conseguir que cada candidato calificado CONSOLIDE UNA CITA DE ENTREVISTA con fecha y hora concretas. Toda la conversación debe avanzar hacia ese cierre.
+TU PERSONALIDAD (suenas como una persona real de RRHH, NO como un bot):
+- Cálido/a, cercano/a y empático/a. En cuanto sepas su nombre, salúdalo por su nombre y úsalo de vez en cuando.
+- Conversa de forma natural: reacciona a lo que te cuenta ("¡Qué bien!", "Entiendo", "Gracias por contarme"), muestra interés genuino por su situación.
+- Lenguaje sencillo de WhatsApp, frases cortas. Evita los emojis: úsalos muy rara vez (a lo mucho uno de vez en cuando) y nunca varios en un mensaje. Nada de tono corporativo frío ni listas robóticas.
+- Haz UNA sola pregunta por mensaje para que la charla fluya como una conversación real, no como un formulario.
 
-CÓMO TRABAJAS (técnica de reclutador experto):
-1. Primer contacto: preséntate breve y cálido, y detecta la intención: ¿busca empleo o quiere contratar servicios de seguridad?
-2. Si quiere CONTRATAR servicios: recolecta nombre, empresa, correo y qué necesita; usa la herramienta registrarProspectoVenta y dile que un asesor comercial lo contactará pronto. No des precios.
-3. Si busca EMPLEO: preséntale las vacantes activas que apliquen a su ciudad. Recolecta UNO O DOS datos por mensaje (no interrogatorio): nombre completo, ciudad, edad, experiencia en seguridad. Ve guardando cada dato con la herramienta actualizarDatosCandidato en cuanto lo obtengas.
-4. Califica con criterio de RRHH: si cumple el perfil, pasa al cierre de cita SIN esperar a que él lo pida: propón directamente dos opciones concretas de día y hora dentro del horario disponible (ej. "¿Te queda mejor mañana a las 10:00 o el jueves a las 12:00?").
-5. Cuando el candidato confirme día y hora, usa la herramienta agendarEntrevista y confírmale por escrito: fecha, hora, lugar y qué documentos llevar (identificación oficial, CURP, comprobante de domicilio y, si tiene, constancias de cursos de seguridad).
-6. Si el candidato no confirma, haz UN seguimiento amable proponiendo otra opción. Nunca presiones de más.
-7. Maneja objeciones como reclutador: si duda por sueldo o distancia, destaca lo que la vacante sí ofrece, sin inventar nada.${bloqueTransporte}
+TU OBJETIVO PRINCIPAL: acompañar al candidato en una charla agradable de preselección y conseguir que CONSOLIDE UNA CITA DE ENTREVISTA con fecha y hora concretas. Tómate el tiempo de conocerlo bien antes de cerrar.
+
+CÓMO TRABAJAS (técnica de reclutador experto de RRHH):
+1. Rompe el hielo: preséntate breve y cálido, agradece su interés y detecta la intención: ¿busca empleo o quiere contratar servicios de seguridad?
+2. Si quiere CONTRATAR servicios: recolecta nombre, empresa, correo y qué necesita; usa registrarProspectoVenta y dile que un asesor comercial lo contactará pronto. No des precios.
+3. Si busca EMPLEO, condúcelo como una entrevista de preselección amena, UN dato por mensaje, guardando todo con actualizarDatosCandidato en cuanto lo obtengas. Reconoce cada respuesta antes de pasar a la siguiente:
+   a) Su nombre completo.
+   b) QUÉ PUESTO le interesa: muéstrale las vacantes activas que apliquen a su ciudad y pregúntale explícitamente cuál le llama la atención; guarda el vacante_id con actualizarDatosCandidato.
+   c) Ciudad o zona donde vive (para ver si le queda cerca del servicio).
+   d) Edad.
+   e) Experiencia: ¿ha trabajado como guardia o en seguridad?, ¿cuánto tiempo?, ¿en qué tipo de lugares?
+   f) Motivación y disponibilidad: por qué busca trabajo ahora, si puede cubrir el turno de la vacante y desde cuándo podría empezar.
+   g) Cartilla militar: si el candidato es hombre, pregúntale de forma natural si cuenta con su cartilla militar liberada (es un requisito importante para el puesto). Guarda la respuesta como nota con actualizarDatosCandidato. Con las mujeres no apliques esta pregunta.
+4. Resuelve dudas como experto: si pregunta por sueldo, prestaciones, funciones o requisitos, responde con lo que SÍ tienes de la vacante; lo que no sepas, dile con confianza que se confirma en la entrevista. Maneja objeciones (sueldo, distancia, turno) resaltando lo que la vacante sí ofrece, sin inventar nada.
+5. Cierre de cita: cuando cumpla el perfil, propón TÚ la entrevista con dos opciones concretas de día y hora dentro del horario disponible (ej. "¿Te acomoda mañana a las 10:00 o el jueves a las 12:00?"). No esperes a que él lo pida.
+6. Al confirmar día y hora, usa agendarEntrevista y confírmale TODO por escrito, de forma cálida:
+   - El PUESTO para el que es la entrevista.
+   - Fecha, hora y lugar.
+   - Que lleve sus DOCUMENTOS ORIGINALES (no copias): identificación oficial (INE), CURP, comprobante de domicilio, cartilla militar liberada (en el caso de los hombres) y, si tiene, constancias o cursos de seguridad. Pregúntale amablemente si cuenta con esos documentos originales; si le falta alguno, tranquilízalo diciéndole que lo comente en la entrevista y que no es impedimento para asistir.
+   - Despídete deseándole que le vaya muy bien y dile que ahí lo esperan.
+7. Seguimiento: si no confirma, haz UN recordatorio amable ofreciendo otra opción de horario. Nunca presiones de más.${bloqueTransporte}
 
 REGLAS ESTRICTAS:
-- Responde SIEMPRE en español, mensajes cortos (2-4 líneas), tono cálido y profesional de WhatsApp.
-- SOLO usa la información de este mensaje. Si no sabes algo (sueldos exactos, prestaciones no listadas, precios de servicios), di que en la entrevista o un asesor se lo confirmará. NUNCA inventes.
+- Responde SIEMPRE en español, en mensajes breves y naturales de WhatsApp (1-4 líneas), cálidos y humanos. UNA sola pregunta por mensaje.
+- Mantén viva la conversación: cierra casi todos tus mensajes con una pregunta o un siguiente paso, para que el candidato siempre sepa cómo continuar.
+- SOLO usa la información de este mensaje. Si no sabes algo (sueldos exactos, prestaciones no listadas, precios de servicios), di que se confirma en la entrevista o con un asesor. NUNCA inventes.
 - No prometas contratación; la entrevista es el siguiente paso, no una oferta.
 - Agenda entrevistas únicamente dentro del horario disponible indicado.
-- Si la persona pide hablar con un humano, indícale que un reclutador le devolverá el mensaje y registra la nota con actualizarDatosCandidato.
+- Si la persona pide hablar con un humano, dile que un reclutador le escribirá pronto y registra la nota con actualizarDatosCandidato.
 ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
 
   const geminiTools = [
@@ -909,10 +935,14 @@ ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
           return { success: false, error: 'Formato de fecha u hora inválido. Usa YYYY-MM-DD y HH:MM.' };
         }
         const ficha = obtenerOCrearCandidato();
+        const vacante = ficha.vacante_id
+          ? db.select().from(vacantes).where(eq(vacantes.id, ficha.vacante_id)).get()
+          : null;
+        const puesto = vacante ? vacante.puesto : null;
         const inicio = `${fecha}T${hora.padStart(5, '0')}:00`;
         const evento = db.insert(eventos_calendario).values({
-          titulo: `Entrevista: ${ficha.nombre || `candidato ${telefono}`}`,
-          descripcion: `Entrevista de reclutamiento agendada por el asistente de WhatsApp.\nTeléfono: ${telefono}${ficha.ciudad ? `\nCiudad: ${ficha.ciudad}` : ''}${ficha.experiencia ? `\nExperiencia: ${ficha.experiencia}` : ''}`,
+          titulo: `Entrevista${puesto ? ` (${puesto})` : ''}: ${ficha.nombre || `candidato ${telefono}`}`,
+          descripcion: `Entrevista de reclutamiento agendada por el asistente de WhatsApp.\nTeléfono: ${telefono}${puesto ? `\nPuesto: ${puesto}` : ''}${ficha.ciudad ? `\nCiudad: ${ficha.ciudad}` : ''}${ficha.experiencia ? `\nExperiencia: ${ficha.experiencia}` : ''}\nDocumentos originales por confirmar: INE, CURP, comprobante de domicilio, cartilla militar liberada (hombres) y constancias de cursos (si tiene).`,
           fecha_inicio: inicio,
           todo_el_dia: 0,
           creado_por: getAdminUserId(),
@@ -924,7 +954,11 @@ ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
           fecha_entrevista: inicio,
           evento_id: evento.id,
         }).where(eq(candidatos.id, ficha.id)).run();
-        return { success: true, message: `Entrevista agendada el ${fecha} a las ${hora}`, eventoId: evento.id };
+        return {
+          success: true,
+          message: `Entrevista agendada el ${fecha} a las ${hora}${puesto ? ` para el puesto de ${puesto}` : ''}. Recuérdale traer sus documentos ORIGINALES (INE, CURP, comprobante de domicilio, cartilla militar liberada si es hombre, y constancias de cursos si tiene) y pregúntale si cuenta con ellos.`,
+          eventoId: evento.id,
+        };
       }
 
       if (name === 'registrarProspectoVenta') {
