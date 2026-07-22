@@ -156,10 +156,12 @@ export default function CorreoApp() {
     queryFn: () => apiFetch<PerfilCorreo>('/api/auth/perfil-correo')
   });
 
-  const { data: imapFolders = [], refetch: refetchFolders } = useQuery({
+  const { data: imapFolders = [], refetch: refetchFolders, isFetching: fetchingFolders, error: errorFolders } = useQuery({
     queryKey: ['correo-externo-folders'],
     queryFn: () => apiFetch<ImapFolder[]>('/api/correo/externo?action=folders'),
     enabled: !!perfil?.buzon_configurado,
+    retry: false,
+    staleTime: 60_000,
   });
 
   const { data: externos = [], isLoading: loadingExternos, error: errorExternos, refetch: refetchExternos, isFetching: fetchingExternos } = useQuery({
@@ -435,10 +437,20 @@ export default function CorreoApp() {
                     </div>
                   ) : (
                     <>
-                      {imapFolders.length === 0 ? (
+                      {errorFolders ? (
+                        <div className="p-3 mx-2 bg-red-50/60 border border-red-200/60 rounded-lg text-[11px] text-red-600 text-center space-y-2">
+                          <p>No se pudieron cargar las carpetas. Revisa tu servidor y credenciales IMAP.</p>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => refetchFolders()} className="h-6 text-[10px]">Reintentar</Button>
+                            <Button size="sm" variant="outline" onClick={() => setPerfilOpen(true)} className="h-6 text-[10px]">Configurar</Button>
+                          </div>
+                        </div>
+                      ) : fetchingFolders ? (
                         <div className="text-[11px] text-slate-400 p-3 text-center flex items-center justify-center gap-1.5">
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Cargando carpetas...
                         </div>
+                      ) : imapFolders.length === 0 ? (
+                        <div className="text-[11px] text-slate-400 p-3 text-center">Sin carpetas en el buzón.</div>
                       ) : (
                         imapFolders.map((f) => {
                           const FolderIcon = getFolderIcon(f.path);

@@ -14,6 +14,11 @@ function clienteImapDe(u: { correo_imap_host: string | null; correo_imap_puerto:
     secure: u.correo_ssl === 1,
     auth: { user: u.correo_usuario, pass: u.correo_password },
     logger: false,
+    // Fallar rápido si el servidor no responde, en vez de dejar la petición
+    // (y el spinner de "Cargando carpetas") colgada indefinidamente.
+    connectionTimeout: 10000,
+    greetingTimeout: 8000,
+    socketTimeout: 20000,
   });
 }
 
