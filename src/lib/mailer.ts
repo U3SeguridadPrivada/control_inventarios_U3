@@ -1,21 +1,14 @@
 import nodemailer from 'nodemailer';
-import { readFileSync } from 'fs';
-import path from 'path';
 import { db } from '@/src/db';
 import { site_config, users } from '@/src/db/schema';
 import { eq } from 'drizzle-orm';
 
-// Logo U3 para el encabezado de los correos. Se incrusta como adjunto inline
-// (cid:u3logo) porque muchos clientes (Gmail) bloquean las imágenes data: URI.
-let _logoCache: Buffer | null = null;
-export function logoBuffer(): Buffer | null {
-  if (_logoCache) return _logoCache;
-  try {
-    _logoCache = readFileSync(path.join(process.cwd(), 'public', 'LOGO_PDFS.png'));
-    return _logoCache;
-  } catch {
-    return null;
-  }
+// URL pública del logo U3 para el encabezado de los correos. Se referencia por
+// URL (no como adjunto) para que NO aparezca como archivo adjunto en el cliente.
+// Alojado en el hosting institucional; se puede sobrescribir en site_config.
+const LOGO_CORREO_URL_DEFAULT = 'https://mail.u3seguridadprivada.com/img_email/LOGO_U3_SEG_PRIV.png';
+export function logoCorreoUrl(): string {
+  return getConfig('logo_correo_url') || LOGO_CORREO_URL_DEFAULT;
 }
 
 export interface FirmaDatos { nombre?: string; puesto?: string; telefono?: string; correo?: string }
@@ -59,9 +52,8 @@ export function firmaHtml(f: FirmaDatos): string {
 }
 
 // ── Plantilla corporativa en tonos claros ──
-// `logoSrc` se pasa por separado porque en el envío real es un adjunto inline
-// (cid:u3logo) y en la vista previa del navegador es la ruta pública /LOGO_PDFS.png.
-export function plantillaCorreo(cuerpoHtml: string, firma?: string, logoSrc: string = 'cid:u3logo'): string {
+// `logoSrc` es la URL pública del logo (misma en el envío y en la vista previa).
+export function plantillaCorreo(cuerpoHtml: string, firma?: string, logoSrc: string = logoCorreoUrl()): string {
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background-color:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
@@ -170,28 +162,15 @@ export async function enviarCorreo({ remitenteId, para, cc, bcc, asunto, cuerpoH
   }
   if (!transporter) throw new Error('No hay un servidor de correo (SMTP) configurado');
 
-  // Logo U3 del encabezado: preferimos servirlo por su URL pública para que NO
-  // aparezca como archivo adjunto en el correo. Solo si no hay app_url configurada
-  // caemos al adjunto inline (cid) como respaldo, para que el logo nunca falte.
-  const appUrl = getConfig('app_url');
-  const attachments: nodemailer.SendMailOptions['attachments'] = [];
-  let logoSrc: string;
-  if (appUrl) {
-    logoSrc = `${appUrl}/LOGO_PDFS.png`;
-  } else {
-    logoSrc = 'cid:u3logo';
-    const logo = logoBuffer();
-    if (logo) attachments.push({ filename: 'u3-logo.png', content: logo, cid: 'u3logo', contentType: 'image/png' });
-  }
-  if (adjuntos?.length) attachments.push(...adjuntos);
-
+  // El logo del encabezado se referencia por URL pública (logoCorreoUrl), NO se
+  // adjunta, para que no aparezca como archivo adjunto en el correo.
   await transporter.sendMail({
     from, to: para,
     cc: cc || undefined,
     bcc: bcc || undefined,
     subject: asunto,
-    html: plantillaCorreo(cuerpoHtml, firma, logoSrc),
-    attachments: attachments.length ? attachments : undefined,
+    html: plantillaCorreo(cuerpoHtml, firma, logoCorreoUrl()),
+    attachments: adjuntos?.length ? adjuntos : undefined,
   });
 }
 
