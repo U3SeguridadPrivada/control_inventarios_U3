@@ -64,18 +64,11 @@ export function plantillaCorreo(cuerpoHtml: string, firma?: string, logoSrc: str
         <tr>
           <td height="6" style="background: linear-gradient(to right, #1e3a5f 70%, #d97706 30%); font-size: 0; line-height: 0;">&nbsp;</td>
         </tr>
-        <!-- Encabezado corporativo claro con logo U3 -->
+        <!-- Encabezado corporativo: logo U3 centrado (el logo ya incluye el nombre) -->
         <tr>
-          <td style="background-color:#ffffff;border-bottom:1px solid #f1f5f9;padding:22px 28px;">
-            <table cellpadding="0" cellspacing="0"><tr>
-              <td style="padding-right:14px;vertical-align:middle;">
-                <img src="${logoSrc}" width="52" height="52" alt="U3 Seguridad Privada" style="display:block;width:52px;height:52px;object-fit:contain;border:0;" />
-              </td>
-              <td style="vertical-align:middle;">
-                <p style="margin:0;font-size:18px;font-weight:bold;color:#1e3a5f;letter-spacing:0.8px;">U3 SEGURIDAD PRIVADA</p>
-                <p style="margin:3px 0 0;font-size:10px;color:#64748b;letter-spacing:1px;text-transform:uppercase;">Protección, Confianza y Soluciones Integrales</p>
-              </td>
-            </tr></table>
+          <td align="center" style="background-color:#ffffff;border-bottom:1px solid #f1f5f9;padding:26px 28px 22px;">
+            <img src="${logoSrc}" width="130" alt="U3 Seguridad Privada" style="display:block;width:130px;max-width:55%;height:auto;border:0;margin:0 auto;" />
+            <p style="margin:16px 0 0;font-size:10px;color:#64748b;letter-spacing:1.5px;text-transform:uppercase;">Protección, Confianza y Soluciones Integrales</p>
           </td>
         </tr>
         <!-- Cuerpo del Correo -->
