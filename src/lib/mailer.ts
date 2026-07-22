@@ -1,7 +1,22 @@
 import nodemailer from 'nodemailer';
+import { readFileSync } from 'fs';
+import path from 'path';
 import { db } from '@/src/db';
 import { site_config, users } from '@/src/db/schema';
 import { eq } from 'drizzle-orm';
+
+// Logo U3 para el encabezado de los correos. Se incrusta como adjunto inline
+// (cid:u3logo) porque muchos clientes (Gmail) bloquean las imágenes data: URI.
+let _logoCache: Buffer | null = null;
+export function logoBuffer(): Buffer | null {
+  if (_logoCache) return _logoCache;
+  try {
+    _logoCache = readFileSync(path.join(process.cwd(), 'public', 'LOGO_PDFS.png'));
+    return _logoCache;
+  } catch {
+    return null;
+  }
+}
 
 export interface FirmaDatos { nombre?: string; puesto?: string; telefono?: string; correo?: string }
 
@@ -44,7 +59,9 @@ export function firmaHtml(f: FirmaDatos): string {
 }
 
 // ── Plantilla corporativa en tonos claros ──
-export function plantillaCorreo(cuerpoHtml: string, firma?: string): string {
+// `logoSrc` se pasa por separado porque en el envío real es un adjunto inline
+// (cid:u3logo) y en la vista previa del navegador es la ruta pública /LOGO_PDFS.png.
+export function plantillaCorreo(cuerpoHtml: string, firma?: string, logoSrc: string = 'cid:u3logo'): string {
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background-color:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
@@ -55,11 +72,18 @@ export function plantillaCorreo(cuerpoHtml: string, firma?: string): string {
         <tr>
           <td height="6" style="background: linear-gradient(to right, #1e3a5f 70%, #d97706 30%); font-size: 0; line-height: 0;">&nbsp;</td>
         </tr>
-        <!-- Encabezado corporativo claro -->
+        <!-- Encabezado corporativo claro con logo U3 -->
         <tr>
           <td style="background-color:#ffffff;border-bottom:1px solid #f1f5f9;padding:22px 28px;">
-            <p style="margin:0;font-size:18px;font-weight:bold;color:#1e3a5f;letter-spacing:0.8px;">U3 SEGURIDAD PRIVADA</p>
-            <p style="margin:3px 0 0;font-size:10px;color:#64748b;letter-spacing:1px;text-transform:uppercase;">Protección, Confianza y Soluciones Integrales</p>
+            <table cellpadding="0" cellspacing="0"><tr>
+              <td style="padding-right:14px;vertical-align:middle;">
+                <img src="${logoSrc}" width="52" height="52" alt="U3 Seguridad Privada" style="display:block;width:52px;height:52px;object-fit:contain;border:0;" />
+              </td>
+              <td style="vertical-align:middle;">
+                <p style="margin:0;font-size:18px;font-weight:bold;color:#1e3a5f;letter-spacing:0.8px;">U3 SEGURIDAD PRIVADA</p>
+                <p style="margin:3px 0 0;font-size:10px;color:#64748b;letter-spacing:1px;text-transform:uppercase;">Protección, Confianza y Soluciones Integrales</p>
+              </td>
+            </tr></table>
           </td>
         </tr>
         <!-- Cuerpo del Correo -->
@@ -146,13 +170,19 @@ export async function enviarCorreo({ remitenteId, para, cc, bcc, asunto, cuerpoH
   }
   if (!transporter) throw new Error('No hay un servidor de correo (SMTP) configurado');
 
+  // Logo U3 del encabezado como imagen inline (cid:u3logo) + adjuntos del usuario.
+  const logo = logoBuffer();
+  const attachments: nodemailer.SendMailOptions['attachments'] = [];
+  if (logo) attachments.push({ filename: 'u3-logo.png', content: logo, cid: 'u3logo', contentType: 'image/png' });
+  if (adjuntos?.length) attachments.push(...adjuntos);
+
   await transporter.sendMail({
     from, to: para,
     cc: cc || undefined,
     bcc: bcc || undefined,
     subject: asunto,
     html: plantillaCorreo(cuerpoHtml, firma),
-    attachments: adjuntos?.length ? adjuntos : undefined,
+    attachments: attachments.length ? attachments : undefined,
   });
 }
 

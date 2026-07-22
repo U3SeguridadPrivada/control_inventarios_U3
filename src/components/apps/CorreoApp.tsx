@@ -12,7 +12,7 @@ import {
   Pencil, Inbox, Send, Trash2, Star, Reply, Globe, Settings, RefreshCw, Paperclip, X, FileText,
   Search, HelpCircle, Maximize2, Minimize2, ChevronDown, ChevronRight, Menu, ArrowLeft, MoreVertical,
   Check, MailOpen, Mail, User, Shield, CheckSquare, Square, FolderClosed, ExternalLink, Calendar,
-  Archive, AlertOctagon, Tag, Users, LayoutGrid, Info
+  Archive, AlertOctagon, Tag, Users, LayoutGrid, Info, Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DOMPurify from 'isomorphic-dompurify';
@@ -99,6 +99,32 @@ export default function CorreoApp() {
   // Configuración del perfil de correo
   const [perfilOpen, setPerfilOpen] = useState(false);
   const [imapFoldersCollapsed, setImapFoldersCollapsed] = useState(false);
+
+  // Vista previa del correo completo (logo + cuerpo + firma + footer)
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const abrirVistaPrevia = async () => {
+    if (!stripHtml(composeForm.cuerpo)) { toast.error('Escribe el mensaje para previsualizar'); return; }
+    setPreviewLoading(true);
+    setPreviewOpen(true);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : null;
+      const res = await fetch('/api/correo/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ cuerpo: composeForm.cuerpo, es_html: true, conFirma: true }),
+      });
+      if (!res.ok) throw new Error('No se pudo generar la vista previa');
+      setPreviewHtml(await res.text());
+    } catch (e) {
+      toast.error((e as Error).message);
+      setPreviewOpen(false);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const COMPOSE_VACIO = { modo: 'interno' as const, destinatario_id: '', para: '', cc: '', bcc: '', asunto: '', cuerpo: '' };
   
@@ -945,21 +971,31 @@ export default function CorreoApp() {
                   </Button>
                   
                   {composeForm.modo === 'externo' && (
-                    <label className="cursor-pointer p-2 hover:bg-slate-200 rounded-full transition-colors inline-block" title="Adjuntar archivos">
-                      <Paperclip className="w-4 h-4 text-slate-500" />
-                      <input
-                        type="file" multiple className="hidden"
-                        onChange={(e) => {
-                          const nuevos = Array.from(e.target.files || []);
-                          setAdjuntos((prev) => {
-                            const total = [...prev, ...nuevos];
-                            if (total.reduce((a, f) => a + f.size, 0) > 15 * 1024 * 1024) { toast.error('Los adjuntos superan el límite de 15 MB'); return prev; }
-                            return total;
-                          });
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
+                    <>
+                      <label className="cursor-pointer p-2 hover:bg-slate-200 rounded-full transition-colors inline-block" title="Adjuntar archivos">
+                        <Paperclip className="w-4 h-4 text-slate-500" />
+                        <input
+                          type="file" multiple className="hidden"
+                          onChange={(e) => {
+                            const nuevos = Array.from(e.target.files || []);
+                            setAdjuntos((prev) => {
+                              const total = [...prev, ...nuevos];
+                              if (total.reduce((a, f) => a + f.size, 0) > 15 * 1024 * 1024) { toast.error('Los adjuntos superan el límite de 15 MB'); return prev; }
+                              return total;
+                            });
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={abrirVistaPrevia}
+                        className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500 hover:text-[#1e3a5f]"
+                        title="Vista previa del correo completo (logo, firma y footer)"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </>
                   )}
                 </div>
 
@@ -978,6 +1014,30 @@ export default function CorreoApp() {
 
         </div>
       )}
+
+      {/* ── MODAL DE VISTA PREVIA DEL CORREO COMPLETO ── */}
+      <Dialog open={previewOpen} onOpenChange={(o) => { if (!o) setPreviewOpen(false); }}>
+        <DialogContent className="max-w-3xl max-h-[92vh] p-0 overflow-hidden gap-0">
+          <DialogHeader className="px-5 py-3 border-b">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Eye className="w-4 h-4 text-[#1e3a5f]" /> Vista previa del correo
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Así llegará tu correo: logo U3, tu mensaje, tu firma personalizada y el pie corporativo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-slate-100 h-[70vh] overflow-hidden">
+            {previewLoading ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                <RefreshCw className="w-7 h-7 animate-spin text-sky-500 mb-2" />
+                <p className="text-sm">Generando vista previa...</p>
+              </div>
+            ) : (
+              <iframe title="Vista previa del correo" srcDoc={previewHtml} className="w-full h-full border-0 bg-white" />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── MODAL DE CONFIGURACIÓN DE FIRMA Y CONFIGURACIÓN SMTP/IMAP ── */}
       <PerfilCorreoDialog open={perfilOpen} onClose={() => { setPerfilOpen(false); refetchFolders(); }} perfil={perfil} />
