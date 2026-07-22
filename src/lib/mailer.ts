@@ -170,10 +170,19 @@ export async function enviarCorreo({ remitenteId, para, cc, bcc, asunto, cuerpoH
   }
   if (!transporter) throw new Error('No hay un servidor de correo (SMTP) configurado');
 
-  // Logo U3 del encabezado como imagen inline (cid:u3logo) + adjuntos del usuario.
-  const logo = logoBuffer();
+  // Logo U3 del encabezado: preferimos servirlo por su URL pública para que NO
+  // aparezca como archivo adjunto en el correo. Solo si no hay app_url configurada
+  // caemos al adjunto inline (cid) como respaldo, para que el logo nunca falte.
+  const appUrl = getConfig('app_url');
   const attachments: nodemailer.SendMailOptions['attachments'] = [];
-  if (logo) attachments.push({ filename: 'u3-logo.png', content: logo, cid: 'u3logo', contentType: 'image/png' });
+  let logoSrc: string;
+  if (appUrl) {
+    logoSrc = `${appUrl}/LOGO_PDFS.png`;
+  } else {
+    logoSrc = 'cid:u3logo';
+    const logo = logoBuffer();
+    if (logo) attachments.push({ filename: 'u3-logo.png', content: logo, cid: 'u3logo', contentType: 'image/png' });
+  }
   if (adjuntos?.length) attachments.push(...adjuntos);
 
   await transporter.sendMail({
@@ -181,7 +190,7 @@ export async function enviarCorreo({ remitenteId, para, cc, bcc, asunto, cuerpoH
     cc: cc || undefined,
     bcc: bcc || undefined,
     subject: asunto,
-    html: plantillaCorreo(cuerpoHtml, firma),
+    html: plantillaCorreo(cuerpoHtml, firma, logoSrc),
     attachments: attachments.length ? attachments : undefined,
   });
 }
