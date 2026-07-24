@@ -70,6 +70,17 @@ function formatFechaHora(iso: string | null): string {
   return d.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+// Convierte la fecha almacenada (formato naïve del bot "YYYY-MM-DDTHH:MM:SS") al valor
+// que espera un <input type="datetime-local"> ("YYYY-MM-DDTHH:MM").
+function toInputDateTime(iso: string | null): string {
+  if (!iso) return '';
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(iso);
+  if (m) return `${m[1]}T${m[2]}`;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 // ---------------- Detalle de candidato ----------------
 function CandidatoDetalle({ candidato, vacantes, onClose }: { candidato: Candidato; vacantes: Vacante[]; onClose: () => void }) {
   const { isEditor, isAdmin } = useAuth();
@@ -83,6 +94,7 @@ function CandidatoDetalle({ candidato, vacantes, onClose }: { candidato: Candida
     experiencia: candidato.experiencia ?? '',
     vacante_id: candidato.vacante_id ? String(candidato.vacante_id) : '',
     etapa: candidato.etapa,
+    fecha_entrevista: toInputDateTime(candidato.fecha_entrevista),
   });
 
   const { data: detalle } = useQuery({
@@ -125,6 +137,7 @@ function CandidatoDetalle({ candidato, vacantes, onClose }: { candidato: Candida
     experiencia: form.experiencia || null,
     vacante_id: form.vacante_id || null,
     etapa: form.etapa,
+    fecha_entrevista: form.fecha_entrevista ? `${form.fecha_entrevista}:00` : null,
     notas: notas || null,
   });
 
@@ -158,6 +171,11 @@ function CandidatoDetalle({ candidato, vacantes, onClose }: { candidato: Candida
               <option value="">Sin vacante</option>
               {vacantes.map((v) => <option key={v.id} value={v.id}>{v.puesto}{v.ubicacion ? ` — ${v.ubicacion}` : ''}</option>)}
             </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><CalendarClock className="w-3.5 h-3.5" /> Fecha y hora de entrevista</label>
+            <Input type="datetime-local" value={form.fecha_entrevista} onChange={(e) => setForm((f) => ({ ...f, fecha_entrevista: e.target.value }))} disabled={!isEditor} />
+            <p className="text-[11px] text-muted-foreground">Ajusta aquí la cita si el bot la agendó en un día equivocado. Déjala vacía para quitarla.</p>
           </div>
           <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Experiencia</label><Textarea rows={2} value={form.experiencia} onChange={(e) => setForm((f) => ({ ...f, experiencia: e.target.value }))} disabled={!isEditor} /></div>
           <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Notas del reclutador</label><Textarea rows={3} value={notas} onChange={(e) => setNotas(e.target.value)} disabled={!isEditor} /></div>

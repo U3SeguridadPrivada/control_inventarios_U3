@@ -74,6 +74,70 @@ function fechaHoraLocal(): string {
   });
 }
 
+const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+function quitarAcentos(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// "Hoy" en la zona horaria del centro de México, como fecha UTC-mediodía para hacer
+// aritmética de días sin sufrir cambios de horario. Devuelve el ancla y el día de semana (0=domingo).
+function anclaHoyMexico(): { base: Date } {
+  const fechaMx = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' }); // "YYYY-MM-DD"
+  const [y, m, d] = fechaMx.split('-').map(Number);
+  return { base: new Date(Date.UTC(y, m - 1, d, 12, 0, 0)) };
+}
+
+function ymd(dt: Date): string {
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
+
+// Tabla de fechas reales de los próximos días para que el modelo NO calcule fechas a mano
+// (los LLM se equivocan al convertir "el lunes" a YYYY-MM-DD). Se inyecta en el prompt.
+function fechasReferenciaTexto(): string {
+  const { base } = anclaHoyMexico();
+  const lineas: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const dt = new Date(base.getTime() + i * 86400000);
+    const etiqueta = i === 0 ? 'hoy, ' : i === 1 ? 'mañana, ' : '';
+    lineas.push(`- ${etiqueta}${DIAS_SEMANA[dt.getUTCDay()]} ${ymd(dt)}`);
+  }
+  return lineas.join('\n');
+}
+
+/**
+ * Resuelve la fecha real de la entrevista de forma robusta. El modelo suele equivocarse al
+ * calcular "el lunes" → YYYY-MM-DD, así que si nos da el nombre del día (`diaSemana`) y no
+ * coincide con el día real de la `fecha` propuesta, recalculamos la próxima ocurrencia de ese
+ * día a partir de hoy (zona centro de México). También rechaza fechas ya pasadas.
+ */
+function resolverFechaEntrevista(fecha: string, diaSemana?: string): { fecha: string } | { error: string } {
+  const { base } = anclaHoyMexico();
+  const hoyStr = ymd(base);
+  const [y, m, d] = fecha.split('-').map(Number);
+  const propuesta = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const dowPropuesta = propuesta.getUTCDay();
+
+  let objetivo = propuesta;
+
+  if (diaSemana) {
+    const idx = DIAS_SEMANA.findIndex((n) => quitarAcentos(n) === quitarAcentos(diaSemana.trim().toLowerCase()));
+    if (idx >= 0 && idx !== dowPropuesta) {
+      // El modelo calculó mal la fecha: buscamos la próxima ocurrencia real de ese día (1..7 días).
+      for (let i = 1; i <= 7; i++) {
+        const cand = new Date(base.getTime() + i * 86400000);
+        if (cand.getUTCDay() === idx) { objetivo = cand; break; }
+      }
+    }
+  }
+
+  const objetivoStr = ymd(objetivo);
+  if (objetivoStr < hoyStr) {
+    return { error: 'La fecha propuesta ya pasó. Pregunta de nuevo qué día le acomoda y usa una fecha futura de la tabla de referencia.' };
+  }
+  return { fecha: objetivoStr };
+}
+
 // Convierte herramientas en formato Gemini a formato OpenAI/Groq (lowercase types)
 function mapGeminiToolsToGroq(geminiTools: any[]) {
   if (!geminiTools) return undefined;
@@ -1098,6 +1162,10 @@ OJO — LA ZONA DONDE VIVE EL CANDIDATO NO ES LA ZONA DE LA VACANTE: son cosas d
 
 HORARIO DISPONIBLE PARA ENTREVISTAS: ${horarioEntrevistas}
 LUGAR DE LAS ENTREVISTAS: ${direccionEntrevistas}
+
+FECHAS DE REFERENCIA (usa EXACTAMENTE estas al agendar; NUNCA calcules tú la fecha de un día de la semana):
+${fechasReferenciaTexto()}
+Cuando el candidato acuerde un día (p. ej. "el lunes"), busca ese día en la tabla de arriba y usa su fecha YYYY-MM-DD tal cual. Al llamar agendarEntrevista, incluye SIEMPRE el parámetro dia_semana con el nombre del día acordado (p. ej. "lunes").
 ${fichaCandidato}
 
 CONTEXTO GEOGRÁFICO (operamos en la CDMX y su zona conurbada del Estado de México):
@@ -1160,12 +1228,13 @@ ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
     },
     {
       name: 'agendarEntrevista',
-      description: 'Agenda la cita de entrevista presencial del candidato una vez que confirmó día y hora. Crea el evento en el calendario de la empresa.',
+      description: 'Agenda la cita de entrevista presencial del candidato una vez que confirmó día y hora. Crea el evento en el calendario de la empresa. Toma la fecha EXACTA de la tabla FECHAS DE REFERENCIA; no la calcules tú.',
       parameters: {
         type: 'OBJECT',
         properties: {
-          fecha: { type: 'STRING', description: 'Fecha de la entrevista en formato YYYY-MM-DD' },
+          fecha: { type: 'STRING', description: 'Fecha de la entrevista en formato YYYY-MM-DD, tomada de la tabla FECHAS DE REFERENCIA' },
           hora: { type: 'STRING', description: 'Hora de la entrevista en formato HH:MM (24 horas)' },
+          dia_semana: { type: 'STRING', description: 'Nombre del día de la semana acordado con el candidato, en minúsculas (ej. "lunes", "martes"). Sirve para verificar que la fecha sea correcta.' },
         },
         required: ['fecha', 'hora'],
       },
@@ -1210,16 +1279,22 @@ ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
       }
 
       if (name === 'agendarEntrevista') {
-        const { fecha, hora } = args as { fecha: string; hora: string };
+        const { fecha, hora, dia_semana } = args as { fecha: string; hora: string; dia_semana?: string };
         if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{1,2}:\d{2}$/.test(hora)) {
           return { success: false, error: 'Formato de fecha u hora inválido. Usa YYYY-MM-DD y HH:MM.' };
         }
+        // Corrige la fecha si el modelo calculó mal el día de la semana y rechaza fechas pasadas.
+        const fechaResuelta = resolverFechaEntrevista(fecha, dia_semana);
+        if ('error' in fechaResuelta) {
+          return { success: false, error: fechaResuelta.error };
+        }
+        const fechaFinal = fechaResuelta.fecha;
         const ficha = obtenerOCrearCandidato();
         const vacante = ficha.vacante_id
           ? db.select().from(vacantes).where(eq(vacantes.id, ficha.vacante_id)).get()
           : null;
         const puesto = vacante ? vacante.puesto : null;
-        const inicio = `${fecha}T${hora.padStart(5, '0')}:00`;
+        const inicio = `${fechaFinal}T${hora.padStart(5, '0')}:00`;
         const evento = db.insert(eventos_calendario).values({
           titulo: `Entrevista${puesto ? ` (${puesto})` : ''}: ${ficha.nombre || `candidato ${telefono}`}`,
           descripcion: `Entrevista de reclutamiento agendada por el asistente de WhatsApp.\nTeléfono: ${telefono}${puesto ? `\nPuesto: ${puesto}` : ''}${ficha.ciudad ? `\nCiudad: ${ficha.ciudad}` : ''}${ficha.experiencia ? `\nExperiencia: ${ficha.experiencia}` : ''}\nDocumentos originales por confirmar: INE, CURP, comprobante de domicilio, cartilla militar liberada (hombres) y constancias de cursos (si tiene).`,
@@ -1236,7 +1311,7 @@ ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
         }).where(eq(candidatos.id, ficha.id)).run();
         return {
           success: true,
-          message: `Entrevista agendada el ${fecha} a las ${hora}${puesto ? ` para el puesto de ${puesto}` : ''}. Recuérdale traer sus documentos ORIGINALES (INE, CURP, comprobante de domicilio, cartilla militar liberada si es hombre, y constancias de cursos si tiene) y pregúntale si cuenta con ellos.`,
+          message: `Entrevista agendada el ${fechaFinal} a las ${hora}${puesto ? ` para el puesto de ${puesto}` : ''}. Confírmale al candidato ESTA fecha exacta (${fechaFinal}). Recuérdale traer sus documentos ORIGINALES (INE, CURP, comprobante de domicilio, cartilla militar liberada si es hombre, y constancias de cursos si tiene) y pregúntale si cuenta con ellos.`,
           eventoId: evento.id,
         };
       }
