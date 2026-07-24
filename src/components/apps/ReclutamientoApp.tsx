@@ -11,10 +11,13 @@ import { Badge } from '@/src/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
 import {
   UserPlus, Briefcase, Phone, MapPin, CalendarClock, MessageCircle,
-  Edit, Trash2, ShieldCheck, KanbanSquare, ArrowRight,
+  Edit, Trash2, ShieldCheck, KanbanSquare, ArrowRight, FileText, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
+import { generarPdfConFallback } from '@/src/lib/generatePdfBlob';
+import { buildReporteReclutamientoHtml } from '@/src/lib/reporteReclutamientoTemplate';
+import DocumentViewerModal from '@/src/components/DocumentViewerModal';
 
 interface Candidato {
   id: number;
@@ -431,7 +434,47 @@ function VacantesTab({ vacantes, isLoading }: { vacantes: Vacante[]; isLoading: 
 // ---------------- App principal ----------------
 export default function ReclutamientoApp() {
   const [tab, setTab] = useState<'pipeline' | 'vacantes'>('pipeline');
+  const { user } = useAuth();
   const { data: vacantesList = [], isLoading: loadingVacantes } = useQuery({ queryKey: ['vacantes'], queryFn: () => apiFetch<Vacante[]>('/api/vacantes') });
+  const { data: candidatosList = [] } = useQuery({ queryKey: ['candidatos'], queryFn: () => apiFetch<Candidato[]>('/api/candidatos') });
+
+  const [viewer, setViewer] = useState<{ url: string; viaFallback: boolean } | null>(null);
+  const [generando, setGenerando] = useState(false);
+
+  const generarInforme = async () => {
+    setGenerando(true);
+    try {
+      const token = localStorage.getItem('inv_token');
+      const fallbackHtml = buildReporteReclutamientoHtml({
+        candidatos: candidatosList.map((c) => ({
+          nombre: c.nombre, telefono: c.telefono, ciudad: c.ciudad, edad: c.edad,
+          vacante_puesto: c.vacante_puesto ?? null, etapa: c.etapa,
+          fecha_entrevista: c.fecha_entrevista, origen: c.origen, created_at: c.created_at,
+        })),
+        vacantes: vacantesList.map((v) => ({
+          puesto: v.puesto, ubicacion: v.ubicacion, turno: v.turno, sueldo: v.sueldo, activa: v.activa,
+        })),
+        generadoPor: user?.username ?? '—',
+        fecha: new Date().toISOString(),
+      }, '/LOGO_PDFS.png');
+
+      const { blob, viaFallback } = await generarPdfConFallback(
+        () => fetch('/api/reclutamiento/reporte-pdf', { headers: { Authorization: `Bearer ${token}` } }),
+        fallbackHtml,
+      );
+      setViewer({ url: URL.createObjectURL(blob), viaFallback });
+      if (viaFallback) toast.warning('El servidor no respondió: se generó el informe en tu navegador como respaldo');
+    } catch {
+      toast.error('No se pudo generar el informe');
+    } finally {
+      setGenerando(false);
+    }
+  };
+
+  const cerrarViewer = () => {
+    if (viewer) URL.revokeObjectURL(viewer.url);
+    setViewer(null);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -440,19 +483,35 @@ export default function ReclutamientoApp() {
           <h1 className="text-2xl font-bold tracking-tight">Reclutamiento</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Candidatos captados por el asistente de WhatsApp y vacantes publicadas</p>
         </div>
-        <div className="flex rounded-lg border border-border overflow-hidden">
-          <button onClick={() => setTab('pipeline')} className={`px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors ${tab === 'pipeline' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}>
-            <KanbanSquare className="w-4 h-4" /> Candidatos
-          </button>
-          <button onClick={() => setTab('vacantes')} className={`px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors ${tab === 'vacantes' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}>
-            <Briefcase className="w-4 h-4" /> Vacantes
-          </button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={generarInforme} disabled={generando}>
+            {generando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileText className="w-4 h-4 mr-1.5" />}
+            {generando ? 'Generando...' : 'Generar informe'}
+          </Button>
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <button onClick={() => setTab('pipeline')} className={`px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors ${tab === 'pipeline' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}>
+              <KanbanSquare className="w-4 h-4" /> Candidatos
+            </button>
+            <button onClick={() => setTab('vacantes')} className={`px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors ${tab === 'vacantes' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}>
+              <Briefcase className="w-4 h-4" /> Vacantes
+            </button>
+          </div>
         </div>
       </div>
 
       {tab === 'pipeline'
         ? <PipelineCandidatos vacantes={vacantesList} />
         : <VacantesTab vacantes={vacantesList} isLoading={loadingVacantes} />}
+
+      {viewer && (
+        <DocumentViewerModal
+          title="Informe de reclutamiento"
+          url={viewer.url}
+          downloadName={`informe_reclutamiento_${new Date().toISOString().slice(0, 10)}.pdf`}
+          viaFallback={viewer.viaFallback}
+          onClose={cerrarViewer}
+        />
+      )}
     </div>
   );
 }
