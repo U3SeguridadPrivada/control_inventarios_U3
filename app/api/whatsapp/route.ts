@@ -656,7 +656,7 @@ async function procesarMensajeEntrante(cleanIncoming: string, incomingText: stri
   const estadoChat = tocarChat(cleanIncoming, { incrementarNoLeidos: true });
 
   // 1. Guardar el mensaje entrante inmediatamente
-  const msgGuardado = guardarMensaje(cleanIncoming, 'user', incomingText, 'contacto');
+  guardarMensaje(cleanIncoming, 'user', incomingText, 'contacto');
 
   // Si un humano tomó el control del chat, solo se guarda el mensaje entrante y salimos
   if (estadoChat.bot_activo === 0) return null;
@@ -965,6 +965,8 @@ ${listaVacantes}
 
 REGLA ABSOLUTA SOBRE VACANTES: Solo puedes hablar de los puestos, zonas, turnos y sueldos que aparecen TEXTUALMENTE en la lista de arriba. Está TERMINANTEMENTE PROHIBIDO inventar o suponer una vacante, una zona/ubicación de servicio (p. ej. "Nicolás Romero"), un sueldo, un uniforme, una capacitación o cualquier prestación que no esté escrita en esta lista o en SOBRE LA EMPRESA. Si el candidato pregunta por una zona o un dato que no está en la lista, dile con honestidad que no tienes una vacante ahí / que ese dato se confirma en la entrevista. NUNCA inventes cifras ni lugares para complacerlo.
 
+OJO — LA ZONA DONDE VIVE EL CANDIDATO NO ES LA ZONA DE LA VACANTE: son cosas distintas. La vacante está SIEMPRE en la zona que dice la lista (p. ej. "Satélite, Naucalpan"). Aunque el candidato viva en otro lado (p. ej. Nicolás Romero), la vacante NO se mueve a su colonia. Dile dónde está realmente el servicio y, si le queda lejos, coméntalo con honestidad; nunca ubiques la vacante donde vive él.
+
 HORARIO DISPONIBLE PARA ENTREVISTAS: ${horarioEntrevistas}
 LUGAR DE LAS ENTREVISTAS: ${direccionEntrevistas}
 ${fichaCandidato}
@@ -977,6 +979,7 @@ TU PERSONALIDAD (suenas como una persona real de RRHH, NO como un bot):
 - Conversa de forma natural: reacciona a lo que te cuenta ("¡Qué bien!", "Entiendo", "Gracias por contarme"), muestra interés genuino por su situación.
 - Lenguaje sencillo de WhatsApp, frases cortas. Evita los emojis: úsalos muy rara vez (a lo mucho uno de vez en cuando) y nunca varios en un mensaje. Nada de tono corporativo frío ni listas robóticas.
 - Haz UNA sola pregunta por mensaje para que la charla fluya como una conversación real, no como un formulario.
+- Suena seguro/a. NUNCA digas que estás "confundido/a", "perdido/a" ni que eres un bot o asistente virtual. Si el contacto reclama que tardas o que no le respondes, discúlpate breve y cálidamente UNA sola vez ("¡Perdón por la demora!") y continúa con naturalidad; no repitas saludos ni vuelvas a presentarte si ya lo hiciste.
 
 TU OBJETIVO PRINCIPAL: acompañar al candidato en una charla agradable de preselección y conseguir que CONSOLIDE UNA CITA DE ENTREVISTA con fecha y hora concretas. Tómate el tiempo de conocerlo bien antes de cerrar.
 
