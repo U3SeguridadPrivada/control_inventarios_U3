@@ -170,7 +170,8 @@ async function conversarConGroq(
       // ese consumo cuenta dentro de max_tokens; con 500 la respuesta salía vacía o cortada.
       // 1024 deja margen para razonamiento + el texto final (que es corto, de WhatsApp).
       max_tokens: 1024,
-      temperature: 0.4,
+      // Temperatura baja: el bot debe ceñirse a los datos (vacantes/prestaciones) y NO inventar.
+      temperature: 0.2,
     };
     // gpt-oss admite reasoning_effort; en un bot de WhatsApp no hace falta razonar profundo,
     // 'low' lo mantiene rápido y deja espacio a la respuesta. Otros modelos no lo soportan,
@@ -912,9 +913,9 @@ async function chatReclutamiento(
     ? vacantesActivas.map((v) =>
         `- [ID ${v.id}] ${v.puesto}${v.ubicacion ? ` | Zona: ${v.ubicacion}` : ''}${v.turno ? ` | Turno: ${v.turno}` : ''}${v.sueldo ? ` | Sueldo: ${v.sueldo}` : ''}${v.requisitos ? ` | Requisitos: ${v.requisitos}` : ''}${v.descripcion ? ` | ${v.descripcion}` : ''}`
       ).join('\n')
-    : '(Por el momento no hay vacantes abiertas. Ofrece registrar los datos del candidato para contactarlo cuando se abra una vacante.)';
+    : '(NO HAY NINGUNA VACANTE ABIERTA EN ESTE MOMENTO. Está PROHIBIDO inventar puestos, zonas, servicios o sueldos. Dile con honestidad que por ahora no hay vacantes disponibles, toma sus datos con actualizarDatosCandidato y ofrécele avisarle en cuanto se abra una.)';
 
-  const empresaInfo = getConfig('bot_empresa_info') || 'U3 Seguridad Privada es una empresa mexicana de servicios de seguridad privada (guardias intramuros y servicios relacionados).';
+  const empresaInfo = getConfig('bot_empresa_info') || 'U3 Seguridad Privada es una empresa mexicana de seguridad privada. Este canal es exclusivamente para reclutamiento de personal.';
   const reglasExtra = getConfig('bot_reglas') || '';
   const horarioEntrevistas = getConfig('bot_horario_entrevistas') || 'Lunes a viernes de 9:00 a 14:00';
   const direccionEntrevistas = getConfig('bot_direccion_entrevistas') || 'nuestras oficinas (se confirma la dirección al agendar)';
@@ -959,8 +960,10 @@ Fecha y hora actual: ${fechaHoraLocal()} (hora del centro de México).
 SOBRE LA EMPRESA:
 ${empresaInfo}
 
-VACANTES ACTIVAS HOY:
+VACANTES ACTIVAS HOY (esta lista es tu ÚNICA fuente de verdad sobre puestos, zonas y sueldos):
 ${listaVacantes}
+
+REGLA ABSOLUTA SOBRE VACANTES: Solo puedes hablar de los puestos, zonas, turnos y sueldos que aparecen TEXTUALMENTE en la lista de arriba. Está TERMINANTEMENTE PROHIBIDO inventar o suponer una vacante, una zona/ubicación de servicio (p. ej. "Nicolás Romero"), un sueldo, un uniforme, una capacitación o cualquier prestación que no esté escrita en esta lista o en SOBRE LA EMPRESA. Si el candidato pregunta por una zona o un dato que no está en la lista, dile con honestidad que no tienes una vacante ahí / que ese dato se confirma en la entrevista. NUNCA inventes cifras ni lugares para complacerlo.
 
 HORARIO DISPONIBLE PARA ENTREVISTAS: ${horarioEntrevistas}
 LUGAR DE LAS ENTREVISTAS: ${direccionEntrevistas}
