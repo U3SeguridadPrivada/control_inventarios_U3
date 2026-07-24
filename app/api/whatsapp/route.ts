@@ -978,9 +978,9 @@ TU PERSONALIDAD (suenas como una persona real de RRHH, NO como un bot):
 TU OBJETIVO PRINCIPAL: acompañar al candidato en una charla agradable de preselección y conseguir que CONSOLIDE UNA CITA DE ENTREVISTA con fecha y hora concretas. Tómate el tiempo de conocerlo bien antes de cerrar.
 
 CÓMO TRABAJAS (técnica de reclutador experto de RRHH):
-1. Rompe el hielo: preséntate breve y cálido, agradece su interés y detecta la intención: ¿busca empleo o quiere contratar servicios de seguridad?
-2. Si quiere CONTRATAR servicios: recolecta nombre, empresa, correo y qué necesita; usa registrarProspectoVenta y dile que un asesor comercial lo contactará pronto. No des precios.
-3. Si busca EMPLEO, condúcelo como una entrevista de preselección amena, UN dato por mensaje, guardando todo con actualizarDatosCandidato en cuanto lo obtengas. Reconoce cada respuesta antes de pasar a la siguiente:
+1. Rompe el hielo: preséntate breve y cálido y agradece su interés en unirse al equipo de U3.
+2. Este canal es EXCLUSIVAMENTE para reclutamiento de personal. Si la persona quiere CONTRATAR servicios de seguridad (es un cliente, no busca empleo), explícale con amabilidad que por este medio solo atendemos reclutamiento y remítela a nuestra página de Facebook. NUNCA le ofrezcas ni coticas servicios, ni tomes sus datos como cliente.
+3. Cuando busque EMPLEO, condúcelo como una entrevista de preselección amena, UN dato por mensaje, guardando todo con actualizarDatosCandidato en cuanto lo obtengas. Reconoce cada respuesta antes de pasar a la siguiente:
    a) Su nombre completo.
    b) QUÉ PUESTO le interesa: muéstrale las vacantes activas que apliquen a su ciudad y pregúntale explícitamente cuál le llama la atención; guarda el vacante_id con actualizarDatosCandidato.
    c) Ciudad o zona donde vive (para ver si le queda cerca del servicio).
@@ -1033,20 +1033,6 @@ ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
           hora: { type: 'STRING', description: 'Hora de la entrevista en formato HH:MM (24 horas)' },
         },
         required: ['fecha', 'hora'],
-      },
-    },
-    {
-      name: 'registrarProspectoVenta',
-      description: 'Registra a una persona o empresa interesada en CONTRATAR servicios de seguridad, para que el equipo comercial le dé seguimiento.',
-      parameters: {
-        type: 'OBJECT',
-        properties: {
-          nombre: { type: 'STRING', description: 'Nombre de la persona de contacto' },
-          empresa: { type: 'STRING', description: 'Nombre de la empresa (si aplica)' },
-          email: { type: 'STRING', description: 'Correo electrónico de contacto' },
-          interes: { type: 'STRING', description: 'Qué servicio necesita y cualquier detalle relevante' },
-        },
-        required: ['nombre'],
       },
     },
   ];
@@ -1118,19 +1104,6 @@ ${reglasExtra ? `\nREGLAS ADICIONALES DE LA EMPRESA:\n${reglasExtra}` : ''}`;
           message: `Entrevista agendada el ${fecha} a las ${hora}${puesto ? ` para el puesto de ${puesto}` : ''}. Recuérdale traer sus documentos ORIGINALES (INE, CURP, comprobante de domicilio, cartilla militar liberada si es hombre, y constancias de cursos si tiene) y pregúntale si cuenta con ellos.`,
           eventoId: evento.id,
         };
-      }
-
-      if (name === 'registrarProspectoVenta') {
-        const { nombre, empresa, email, interes } = args as { nombre: string; empresa?: string; email?: string; interes?: string };
-        const nuevo = db.insert(clientes).values({
-          nombre,
-          tipo: 'Prospecto',
-          empresa: empresa || null,
-          email: email || null,
-          telefono,
-          notas: `Captado por el asistente de WhatsApp.${interes ? ` Interés: ${interes}` : ''}`,
-        }).returning().get();
-        return { success: true, message: 'Prospecto registrado; el equipo comercial le dará seguimiento', prospectoId: nuevo.id };
       }
 
       return { success: false, error: `Herramienta desconocida: ${name}` };
