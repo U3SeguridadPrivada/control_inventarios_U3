@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/src/db';
-import { candidatos, whatsapp_conversaciones } from '@/src/db/schema';
+import { candidatos, whatsapp_conversaciones, eventos_calendario, vacantes } from '@/src/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { verifyAuth, unauthorized, forbidden } from '@/src/lib/auth';
 
@@ -45,6 +45,37 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const updated = db.update(candidatos).set(cambios).where(eq(candidatos.id, Number(id))).returning().get();
+
+    // Mantiene sincronizada la entrevista con la Agenda (eventos_calendario) cuando cambia la fecha.
+    if ('fecha_entrevista' in body) {
+      const nuevaFecha = (cambios.fecha_entrevista as string | null) ?? null;
+      if (!nuevaFecha) {
+        // Se quitó la entrevista → borra el evento vinculado para que no quede huérfano en Agenda.
+        if (updated.evento_id) {
+          db.delete(eventos_calendario).where(eq(eventos_calendario.id, updated.evento_id)).run();
+          db.update(candidatos).set({ evento_id: null }).where(eq(candidatos.id, updated.id)).run();
+          updated.evento_id = null;
+        }
+      } else if (updated.evento_id) {
+        // Actualiza el evento existente con la nueva fecha/hora.
+        db.update(eventos_calendario).set({ fecha_inicio: nuevaFecha, notificado: 0 }).where(eq(eventos_calendario.id, updated.evento_id)).run();
+      } else {
+        // No había evento → créalo para que la cita aparezca también en la Agenda.
+        const vac = updated.vacante_id ? db.select().from(vacantes).where(eq(vacantes.id, updated.vacante_id)).get() : null;
+        const puesto = vac?.puesto;
+        const evento = db.insert(eventos_calendario).values({
+          titulo: `Entrevista${puesto ? ` (${puesto})` : ''}: ${updated.nombre || `candidato ${updated.telefono}`}`,
+          descripcion: `Entrevista de reclutamiento.\nTeléfono: ${updated.telefono}`,
+          fecha_inicio: nuevaFecha,
+          todo_el_dia: 0,
+          creado_por: authUser.id,
+          notificar_minutos_antes: 60,
+        }).returning().get();
+        db.update(candidatos).set({ evento_id: evento.id }).where(eq(candidatos.id, updated.id)).run();
+        updated.evento_id = evento.id;
+      }
+    }
+
     return Response.json(updated);
   } catch {
     return Response.json({ error: 'Error al actualizar el candidato' }, { status: 500 });
@@ -57,6 +88,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (authUser.role !== 'admin') return forbidden();
 
   const { id } = await params;
+  // Borra también la entrevista vinculada en la Agenda para que no quede huérfana.
+  const cand = db.select().from(candidatos).where(eq(candidatos.id, Number(id))).get();
   db.delete(candidatos).where(eq(candidatos.id, Number(id))).run();
+  if (cand?.evento_id) {
+    db.delete(eventos_calendario).where(eq(eventos_calendario.id, cand.evento_id)).run();
+  }
   return Response.json({ ok: true });
 }
