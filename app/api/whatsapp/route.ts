@@ -20,7 +20,16 @@ const MAX_RONDAS_HERRAMIENTAS = 4;
 // Historial que se reenvía en CADA petición al modelo. 20 mensajes dan buena memoria de la
 // conversación; el consumo de tokens es manejable con el modelo 8b-instant.
 const MENSAJES_MEMORIA = 20;
-const DEBOUNCE_MS = 4500;
+
+// ── Ritmo de respuesta ──
+// El bot NO contesta al instante: espera a que el contacto termine su ráfaga y responde
+// con calma (se siente más humano) y, sobre todo, reparte las llamadas al modelo en el
+// tiempo para no agotar el límite de tokens por minuto (TPM) del proveedor de IA.
+const ESPERA_ANTES_DE_RESPONDER_MS = 60_000;
+// Separación mínima entre dos respuestas seguidas del bot (se atiende un chat a la vez).
+const ESPERA_ENTRE_RESPUESTAS_MS = 15_000;
+// Tope de espera: aunque el contacto siga escribiendo sin parar, se le contesta al llegar aquí.
+const ESPERA_MAXIMA_MS = 3 * 60_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -39,6 +48,15 @@ function usarGemini(): boolean {
 
 function esRateLimit(e: any): boolean {
   return e?.rateLimited === true || e?.status === 429 || /429|rate_limit/i.test(e?.message || '');
+}
+
+// Cuando Groq corta por límite, indica en el mensaje cuánto falta para liberar cupo
+// ("Please try again in 3.705s"). Respetarlo y reintentar suele bastar, y es mejor que
+// saltar de inmediato a un modelo de respaldo más tonto. Se acota a 30s por seguridad.
+function segundosDeEsperaSugeridos(e: any): number {
+  const m = /try again in ([\d.]+)\s*s/i.exec(e?.message || '');
+  const s = m ? Number(m[1]) : NaN;
+  return Number.isFinite(s) ? Math.min(s + 0.5, 30) : 0;
 }
 
 function fechaHoraLocal(): string {
@@ -261,7 +279,17 @@ async function generarRespuesta(
     const primario = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
     const RESPALDO_GROQ = 'llama-3.1-8b-instant'; // TPD mucho más alto (500K) para no quedar mudos
     try {
-      return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+      try {
+        return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+      } catch (ePrimerIntento) {
+        // El cupo por minuto se libera en segundos: esperamos lo que indica Groq y reintentamos
+        // con el MISMO modelo antes de degradar a uno de respaldo.
+        const espera = esRateLimit(ePrimerIntento) ? segundosDeEsperaSugeridos(ePrimerIntento) : 0;
+        if (espera <= 0) throw ePrimerIntento;
+        console.warn(`Groq (${primario}) sin cupo; esperando ${espera}s y reintentando el mismo modelo.`);
+        await sleep(espera * 1000);
+        return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+      }
     } catch (e) {
       // Si el modelo principal agotó su límite diario, reintenta con el 8b antes de rendirse.
       if (esRateLimit(e) && primario !== RESPALDO_GROQ) {
@@ -632,36 +660,80 @@ async function procesarMensajeEntrante(cleanIncoming: string, incomingText: stri
   // Si un humano tomó el control del chat, solo se guarda el mensaje entrante y salimos
   if (estadoChat.bot_activo === 0) return null;
 
-  // 2. Procesamos con debounce en SEGUNDO PLANO y devolvemos el control al webhook de inmediato.
-  //    Bloquear la respuesta HTTP durante el debounce rompe a los proveedores (p. ej. WASender)
-  //    que entregan los mensajes en serie o con timeout corto: por eso el bot "no contestaba"
-  //    cuando el usuario mandaba varios mensajes seguidos.
-  void responderConDebounce(cleanIncoming, msgGuardado?.id ?? null)
-    .catch((e) => console.error('Error en el procesamiento diferido del bot de WhatsApp:', e));
+  // 2. Encolamos el chat y devolvemos el control al webhook de inmediato. Bloquear la
+  //    respuesta HTTP rompe a los proveedores que entregan los mensajes en serie o con
+  //    timeout corto. La cola responde con calma, de uno en uno y por orden de llegada.
+  encolarChat(cleanIncoming);
 
   return 'processing';
 }
 
-// Espera la ventana de debounce; si este es el mensaje más reciente de la ráfaga, genera y envía
-// UNA sola respuesta que considera todos los mensajes recién recibidos (agrupados en un turno).
-async function responderConDebounce(cleanIncoming: string, msgId: number | null): Promise<void> {
-  // Mecanismo de debounce: si llega un mensaje más nuevo mientras esperamos, ese hilo responderá.
-  await sleep(DEBOUNCE_MS);
+// ============================================================
+// Cola de respuestas: un chat a la vez, por orden de llegada
+// ============================================================
+// Sin esto, varios contactos escribiendo al mismo tiempo disparaban llamadas simultáneas al
+// modelo y se agotaba el límite de tokens por minuto (429), dejando conversaciones a medias.
+// La cola: (1) espera a que el contacto termine de escribir, (2) atiende primero a quien
+// escribió primero, y (3) separa las llamadas al modelo para no volver a topar el límite.
 
-  if (msgId !== null) {
-    const ultimoMensaje = db.select().from(whatsapp_conversaciones)
-      .where(condicionMismoTelefono(cleanIncoming))
-      .orderBy(desc(whatsapp_conversaciones.id))
-      .limit(1)
-      .get();
+type ChatPendiente = {
+  telefono: string;
+  primerMensajeEn: number; // prioridad FIFO: quien escribió primero se atiende primero
+  ultimoMensajeEn: number; // para esperar a que termine su ráfaga de mensajes
+};
 
-    // Si el último mensaje en la BD no es el nuestro, llegó uno más nuevo: dejamos que ese responda.
-    if (ultimoMensaje && ultimoMensaje.id !== msgId) {
-      console.log(`[DEBOUNCE] Se omite el hilo del mensaje ${msgId}; llegó uno más nuevo (${ultimoMensaje.id}).`);
-      return;
-    }
+const pendientes = new Map<string, ChatPendiente>();
+let procesandoCola = false;
+let ultimaRespuestaEn = 0;
+
+function encolarChat(telefono: string) {
+  const ahora = Date.now();
+  const existente = pendientes.get(telefono);
+  if (existente) {
+    existente.ultimoMensajeEn = ahora;
+  } else {
+    pendientes.set(telefono, { telefono, primerMensajeEn: ahora, ultimoMensajeEn: ahora });
   }
+  void procesarCola().catch((e) => console.error('Error en la cola del bot de WhatsApp:', e));
+}
 
+async function procesarCola(): Promise<void> {
+  if (procesandoCola) return; // ya hay un worker activo; este mensaje lo tomará él
+  procesandoCola = true;
+  try {
+    while (pendientes.size > 0) {
+      // Prioridad al que escribió primero
+      const siguiente = [...pendientes.values()].sort((a, b) => a.primerMensajeEn - b.primerMensajeEn)[0];
+      const ahora = Date.now();
+
+      // ¿Ya terminó su ráfaga (o se agotó el tope de espera)?
+      const listoPorRafaga = ahora >= siguiente.ultimoMensajeEn + ESPERA_ANTES_DE_RESPONDER_MS;
+      const listoPorTope = ahora >= siguiente.primerMensajeEn + ESPERA_MAXIMA_MS;
+      // ¿Ya pasó la separación mínima desde la respuesta anterior?
+      const listoPorRitmo = ahora >= ultimaRespuestaEn + ESPERA_ENTRE_RESPUESTAS_MS;
+
+      if (!((listoPorRafaga || listoPorTope) && listoPorRitmo)) {
+        // Dormimos a ratos cortos para reaccionar si llegan mensajes nuevos.
+        await sleep(2000);
+        continue;
+      }
+
+      pendientes.delete(siguiente.telefono);
+      try {
+        await responderChat(siguiente.telefono);
+      } catch (e) {
+        console.error(`No se pudo responder al chat ${siguiente.telefono}:`, e);
+      }
+      ultimaRespuestaEn = Date.now();
+    }
+  } finally {
+    procesandoCola = false;
+  }
+}
+
+// Genera y envía UNA sola respuesta que considera todos los mensajes recién recibidos del
+// contacto (agrupados en un turno). La cola ya se encargó de esperar y del orden de atención.
+async function responderChat(cleanIncoming: string): Promise<void> {
   // El chat pudo pausarse durante la espera (un humano tomó el control)
   const chat = db.select().from(whatsapp_chats).where(eq(whatsapp_chats.telefono, cleanIncoming)).get();
   if (chat && chat.bot_activo === 0) return;
