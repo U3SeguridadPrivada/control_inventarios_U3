@@ -46,6 +46,13 @@ function usarGemini(): boolean {
   return !!(process.env.GEMINI_API_KEY || '').trim();
 }
 
+// Claude (Anthropic) es el proveedor PRINCIPAL cuando hay una API key válida (empieza con
+// "sk-ant-"). Es el que mejor sigue las reglas del prompt y no inventa (vacantes, sueldos).
+// Si Claude se cae o topa límite, se cae automáticamente a Groq/Gemini.
+function usarClaude(): boolean {
+  return (process.env.ANTHROPIC_API_KEY || '').trim().startsWith('sk-ant-');
+}
+
 function esRateLimit(e: any): boolean {
   return e?.rateLimited === true || e?.status === 429 || /429|rate_limit/i.test(e?.message || '');
 }
@@ -90,6 +97,22 @@ function mapGeminiToolsToGroq(geminiTools: any[]) {
   });
 }
 
+// Convierte herramientas en formato Gemini al formato de la API de Anthropic (input_schema).
+function mapGeminiToolsToClaude(geminiTools: any[]) {
+  if (!geminiTools) return undefined;
+  return geminiTools.map((t) => {
+    const cleanParams = JSON.parse(
+      JSON.stringify(t.parameters || { type: 'OBJECT', properties: {} })
+        .replace(/"type":"OBJECT"/g, '"type":"object"')
+        .replace(/"type":"STRING"/g, '"type":"string"')
+        .replace(/"type":"NUMBER"/g, '"type":"number"')
+        .replace(/"type":"BOOLEAN"/g, '"type":"boolean"')
+        .replace(/"type":"ARRAY"/g, '"type":"array"')
+    );
+    return { name: t.name, description: t.description, input_schema: cleanParams };
+  });
+}
+
 // Algunos modelos (gpt-oss/llama en Groq) a veces "escriben" la llamada a la herramienta como
 // texto en el contenido — p. ej. `actualizarDatosCandidato>{"nombre":"..."}` — en lugar de usar
 // el canal nativo de tool_calls. Esto las detecta para (1) ejecutarlas de verdad y (2) que NUNCA
@@ -124,6 +147,92 @@ function limpiarTextoHerramientas(texto: string, nombres: string[] = []): string
     limpia = limpia.replace(new RegExp(`\\b(?:${alt})\\b\\s*[>:(=]+\\s*\\{[\\s\\S]*?\\}\\)?`, 'gi'), '');
   }
   return limpia.trim();
+}
+
+// Bucle de conversación con Claude (Anthropic Messages API nativa, soporta herramientas).
+// Se usa fetch a la API nativa para mantener el mismo patrón que conversarConGroq (el proyecto
+// no usa SDKs de LLM). El system prompt va en el campo `system`, no dentro de messages.
+async function conversarConClaude(
+  systemInstruction: string,
+  historial: { role: 'user' | 'model'; parts: { text: string }[] }[],
+  incomingText: string,
+  geminiTools: any[],
+  ejecutarHerramienta: (name: string, args: any) => any,
+): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY no está configurada.');
+  const model = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5';
+
+  const tools = mapGeminiToolsToClaude(geminiTools);
+  const nombresTools = (geminiTools || []).map((t) => t.name);
+  const limpiar = (texto: string) => limpiarTextoHerramientas(texto, nombresTools);
+
+  // Historial → formato Anthropic (model → assistant). El texto entrante es el último turno.
+  const messages: any[] = [];
+  for (const h of historial) {
+    messages.push({ role: h.role === 'user' ? 'user' : 'assistant', content: h.parts?.[0]?.text || '' });
+  }
+  messages.push({ role: 'user', content: incomingText });
+
+  for (let ronda = 0; ronda < MAX_RONDAS_HERRAMIENTAS; ronda++) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 1024,
+        system: systemInstruction,
+        messages,
+        ...(tools && tools.length ? { tools } : {}),
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      const err: any = new Error(`Anthropic API respondió ${res.status}: ${errText}`);
+      err.status = res.status;
+      err.rateLimited = res.status === 429;
+      throw err;
+    }
+
+    const data = await res.json();
+    const content: any[] = data.content || [];
+    // Guardamos el turno del asistente tal cual (incluye los bloques tool_use).
+    messages.push({ role: 'assistant', content });
+
+    const toolUses = content.filter((b) => b.type === 'tool_use');
+    if (data.stop_reason !== 'tool_use' || toolUses.length === 0) {
+      const texto = content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+      return limpiar(texto) || 'Perfecto, ¿te apoyo en algo más?';
+    }
+
+    // Ejecutamos cada herramienta y devolvemos los resultados en un turno 'user'.
+    const toolResults = toolUses.map((tu) => ({
+      type: 'tool_result',
+      tool_use_id: tu.id,
+      content: JSON.stringify(ejecutarHerramienta(tu.name, tu.input)),
+    }));
+    messages.push({ role: 'user', content: toolResults });
+  }
+
+  // Si se agotaron las rondas, pedimos una respuesta final SIN herramientas para cerrar en texto.
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model, max_tokens: 1024, system: systemInstruction, messages }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const texto = (data.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+      if (texto) return limpiar(texto);
+    }
+  } catch { /* devolvemos el genérico abajo */ }
+  return 'Perfecto, ¿te apoyo en algo más?';
 }
 
 // Bucle de conversación con Groq (soporta llamadas a herramientas)
@@ -276,6 +385,26 @@ async function generarRespuesta(
   geminiTools: any[],
   ejecutarHerramienta: (name: string, args: any) => any,
 ): Promise<string> {
+  // Claude (Anthropic) es el proveedor principal: el que mejor sigue el prompt y no inventa.
+  // Si falla o topa límite, cae automáticamente a Groq y luego a Gemini.
+  if (usarClaude()) {
+    try {
+      return await conversarConClaude(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+    } catch (e) {
+      console.warn('Claude falló; usando respaldo:', (e as any)?.message);
+      if (usarGroq()) {
+        try {
+          return await conversarConGroq(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+        } catch (e2) {
+          if (usarGemini()) return await conversarConGemini(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+          throw e2;
+        }
+      }
+      if (usarGemini()) return await conversarConGemini(systemInstruction, historial, incomingText, geminiTools, ejecutarHerramienta);
+      throw e;
+    }
+  }
+
   if (usarGroq()) {
     const primario = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
     const RESPALDO_GROQ = 'llama-3.1-8b-instant'; // TPD mucho más alto (500K) para no quedar mudos
