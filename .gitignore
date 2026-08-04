@@ -14,6 +14,12 @@ next-env.d.ts
 db/*.db
 db/*.db-shm
 db/*.db-wal
+db/*.db.backup*
+db/backups/
+
+# Exportaciones de Kapso e informes: llevan nombres y teléfonos de candidatos.
+# Datos personales — nunca al repositorio.
+db/recuperacion/
 
 # Environment variables — NEVER commit these
 .env

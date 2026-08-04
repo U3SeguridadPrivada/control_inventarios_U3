@@ -296,9 +296,49 @@ CREATE TABLE IF NOT EXISTS movimiento_evidencias (
 );
 `;
 
+/**
+ * En producción la base DEBE vivir en un volumen montado. Sin esta comprobación la
+ * app arrancaba feliz contra el disco efímero del contenedor y cada reinicio borraba
+ * todo en silencio — así se perdieron los candidatos de julio de 2026.
+ * Escotilla de escape: ALLOW_EPHEMERAL_DB=1 (solo para pruebas desechables).
+ */
+function verificarRutaPersistente(dbPath: string) {
+  if (process.env.NODE_ENV !== 'production') return;
+  // Durante `next build` NODE_ENV ya es production y el volumen todavía no existe;
+  // si el guardia saltara aquí, tumbaría la compilación en vez de proteger nada.
+  // Doble comprobación: la fase de Next y el propio comando, por si la variable
+  // no se propaga a los procesos que recopilan datos de página.
+  if (process.env.NEXT_PHASE === 'phase-production-build') return;
+  if (process.argv.some((a) => a === 'build' || a.endsWith('next-build'))) return;
+  if (process.env.ALLOW_EPHEMERAL_DB === '1') {
+    console.warn('[db] ALLOW_EPHEMERAL_DB=1 — la base NO persiste entre reinicios.');
+    return;
+  }
+
+  const problemas: string[] = [];
+  if (!process.env.SQLITE_DB_PATH) {
+    problemas.push('SQLITE_DB_PATH no está definida.');
+  }
+  // El directorio de la app se reconstruye en cada deploy: nada que viva ahí sobrevive
+  const normal = path.resolve(dbPath).replace(/\\/g, '/');
+  if (normal.startsWith(path.resolve(process.cwd()).replace(/\\/g, '/'))) {
+    problemas.push(`La ruta ${dbPath} está dentro del directorio de la aplicación (disco efímero).`);
+  }
+
+  if (problemas.length) {
+    console.error(
+      '\n[db] ARRANQUE ABORTADO — la base de datos no persistiría:\n' +
+        problemas.map((p) => `  · ${p}`).join('\n') +
+        '\n  Apunta SQLITE_DB_PATH al volumen montado (por ejemplo /data/app.db).\n'
+    );
+    throw new Error('SQLITE_DB_PATH apunta a almacenamiento efímero; revisa la configuración del volumen.');
+  }
+}
+
 function initDb(): DrizzleDB {
   if (_db) return _db;
   const dbPath = process.env.SQLITE_DB_PATH || path.join(process.cwd(), 'db', 'app.db');
+  verificarRutaPersistente(dbPath);
   const dir = path.dirname(dbPath);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const sqlite = new Database(dbPath);
