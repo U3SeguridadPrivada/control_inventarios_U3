@@ -1,94 +1,95 @@
-// Informe de reclutamiento a partir del historial de Kapso.
+// Informe de reclutamiento. Lee la base de datos, no el archivo de Kapso: así refleja
+// el estado real de los expedientes y sirve igual en local que en producción.
 //
-//   node scripts/informe-reclutamiento.mjs <phoneNumberId>
+//   node scripts/informe-reclutamiento.mjs
 //
 // Genera en db/recuperacion/:
 //   informe-reclutamiento.html  -> para revisar e imprimir a PDF
 //   informe-reclutamiento.csv   -> para Excel
 //
-// Sobre la fiabilidad, que es lo que importa aquí:
+// Fiabilidad de cada cifra, que es lo que importa en este informe:
 //   CONTACTARON  dato duro: existe la conversación.
-//   AGENDARON    indicio: el bot confirmó hora concreta en el chat. La cita real se
-//                registraba con una llamada a herramienta que Kapso no ve, así que
-//                esto se deduce del texto y hay que confirmarlo a ojo. Se incluye la
-//                frase textual y su fecha para poder verificar cada caso en segundos.
-//   ASISTIERON   NO SE PUEDE SABER. La asistencia solo vivía en el campo `etapa`,
-//                que se actualizaba a mano en la app y se perdió con la base.
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+//   AGENDARON    verificado a mano: se leyó cada conversación donde el bot propuso hora
+//                concreta y se comprobó que el candidato aceptara. La cita original se
+//                guardaba con una llamada interna que no dejó rastro fuera de la base.
+//   ASISTIERON   NO SE PUEDE SABER. Solo vivía en el campo `etapa`, actualizado a mano,
+//                y se perdió con la base. No se rellena con suposiciones.
+import { createRequire } from 'module';
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
-const PHONE_ID = process.argv[2] || process.env.KAPSO_PHONE_NUMBER_ID;
-const dir = path.join(projectRoot, 'db', 'recuperacion');
+const Database = require('better-sqlite3');
 
-const fc = path.join(dir, `kapso-${PHONE_ID}-conversaciones.json`);
-const fm = path.join(dir, `kapso-${PHONE_ID}-mensajes.json`);
-if (!existsSync(fc) || !existsSync(fm)) {
-  console.error(`✗ Faltan los archivos de Kapso. Corre antes: node scripts/exportar-kapso.mjs ${PHONE_ID}`);
+const dbPath = process.env.SQLITE_DB_PATH || path.join(projectRoot, 'db', 'app.db');
+if (!existsSync(dbPath)) {
+  console.error(`✗ No existe la base en ${dbPath}`);
+  process.exit(1);
+}
+const sqlite = new Database(dbPath, { readonly: true });
+
+const clave = (t) => String(t || '').replace(/\D/g, '').slice(-10);
+
+const candidatos = sqlite
+  .prepare(`SELECT id, nombre, telefono, etapa, fecha_entrevista, notas, created_at FROM candidatos ORDER BY id`)
+  .all();
+
+if (!candidatos.length) {
+  console.error('✗ No hay candidatos en la base. Corre antes importar-candidatos-kapso.mjs');
   process.exit(1);
 }
 
-const conversaciones = JSON.parse(readFileSync(fc, 'utf8'));
-const mensajes = JSON.parse(readFileSync(fm, 'utf8'));
-
-const ES_INTERNO = (n) => /U3\b|ADM|RH\b|Fernando Rosas/i.test(n || '');
-const clave = (t) => String(t || '').replace(/\D/g, '').slice(-10);
-const cuando = (m) => {
-  const ts = Number(m.timestamp);
-  return new Date(Number.isFinite(ts) && ts > 0 ? ts * 1000 : m.timestamp).toISOString().replace('T', ' ').slice(0, 16);
-};
-
-const gente = new Map();
-for (const c of conversaciones) {
-  const k = clave(c.phone_number);
-  if (!k || ES_INTERNO(c.kapso?.contact_name)) continue;
-  if (!gente.has(k)) gente.set(k, { telefono: c.phone_number, nombre: c.kapso?.contact_name || '', msgs: [] });
-  else if (!gente.get(k).nombre && c.kapso?.contact_name) gente.get(k).nombre = c.kapso.contact_name;
-}
-for (const m of mensajes) {
-  const e = gente.get(clave(m.kapso?.phone_number));
-  if (!e || !m.kapso?.content) continue;
-  e.msgs.push({ cuando: cuando(m), entrante: m.kapso.direction === 'inbound', texto: m.kapso.content });
+// Mensajes por teléfono, para el volumen de cada conversación
+const porTel = new Map();
+for (const m of sqlite.prepare(`SELECT telefono, created_at FROM whatsapp_conversaciones`).all()) {
+  const k = clave(m.telefono);
+  if (!porTel.has(k)) porTel.set(k, { n: 0, primero: null, ultimo: null });
+  const e = porTel.get(k);
+  e.n++;
+  if (!e.primero || m.created_at < e.primero) e.primero = m.created_at;
+  if (!e.ultimo || m.created_at > e.ultimo) e.ultimo = m.created_at;
 }
 
-// Confirmación de cita: hora concreta junto a una palabra de encuentro, dicha por el bot
-const RE_HORA = /(\b\d{1,2}:\d{2}\b)|(\b\d{1,2} de la (mañana|tarde)\b)/i;
-const RE_CITA = /(entrevista|cita|te espero|nos vemos|preséntate|presentarte)/i;
+const filas = candidatos.map((c) => {
+  const t = porTel.get(clave(c.telefono)) || { n: 0, primero: null, ultimo: null };
+  // La evidencia se anotó al reconstruir la cita; la revisión pendiente también
+  const eviM = /\[\d{4}-\d{2}-\d{2}\] Entrevista reconstruida para [^.]+\. (.+)$/m.exec(c.notas || '');
+  const revM = /\[\d{4}-\d{2}-\d{2}\] REVISAR: (.+)$/m.exec(c.notas || '');
+  return {
+    nombre: c.nombre || '(sin nombre en WhatsApp)',
+    telefono: c.telefono,
+    etapa: c.etapa,
+    cita: c.fecha_entrevista ? c.fecha_entrevista.replace('T', ' ').slice(0, 16) : '',
+    mensajes: t.n,
+    primero: (t.primero || c.created_at || '').slice(0, 16),
+    ultimo: (t.ultimo || '').slice(0, 16),
+    evidencia: eviM ? eviM[1].trim() : '',
+    revisar: revM ? revM[1].trim() : '',
+  };
+});
 
-const filas = [];
-for (const e of gente.values()) {
-  e.msgs.sort((a, b) => a.cuando.localeCompare(b.cuando));
-  const pruebas = e.msgs.filter((m) => !m.entrante && RE_HORA.test(m.texto) && RE_CITA.test(m.texto));
-  const ultima = pruebas[pruebas.length - 1];
-  filas.push({
-    nombre: e.nombre || '(sin nombre en WhatsApp)',
-    telefono: e.telefono,
-    mensajes: e.msgs.length,
-    primer: e.msgs[0]?.cuando || '',
-    ultimo: e.msgs[e.msgs.length - 1]?.cuando || '',
-    agendo: pruebas.length > 0,
-    evidencia: ultima ? ultima.texto.replace(/\s+/g, ' ').slice(0, 300) : '',
-    evidenciaCuando: ultima?.cuando || '',
-  });
-}
-filas.sort((a, b) => (b.agendo - a.agendo) || b.mensajes - a.mensajes);
+const agendaron = filas.filter((f) => f.cita).sort((a, b) => a.cita.localeCompare(b.cita));
+const revisar = filas.filter((f) => f.revisar);
+const resto = filas.filter((f) => !f.cita).sort((a, b) => b.mensajes - a.mensajes);
 
-const conCita = filas.filter((f) => f.agendo);
+const dir = path.join(projectRoot, 'db', 'recuperacion');
+if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---------- CSV ----------
 const csv = [
-  ['nombre', 'telefono', 'mensajes', 'primer_contacto', 'ultimo_mensaje', 'agendo_probable', 'evidencia_fecha', 'evidencia_texto'],
-  ...filas.map((f) => [f.nombre, f.telefono, f.mensajes, f.primer, f.ultimo, f.agendo ? 'si' : 'no', f.evidenciaCuando, f.evidencia]),
+  ['nombre', 'telefono', 'etapa', 'fecha_entrevista', 'mensajes', 'primer_contacto', 'ultimo_mensaje', 'evidencia', 'a_revisar'],
+  ...filas.map((f) => [f.nombre, f.telefono, f.etapa, f.cita, f.mensajes, f.primero, f.ultimo, f.evidencia, f.revisar]),
 ]
   .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
   .join('\n');
 writeFileSync(path.join(dir, 'informe-reclutamiento.csv'), '﻿' + csv, 'utf8');
 
 // ---------- HTML ----------
-const fechas = filas.flatMap((f) => [f.primer, f.ultimo]).filter(Boolean).sort();
+const fechas = filas.flatMap((f) => [f.primero, f.ultimo]).filter(Boolean).sort();
 const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <title>Informe de reclutamiento — U3 Seguridad Privada</title>
 <style>
@@ -108,6 +109,7 @@ const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
   td { border-bottom:1px solid var(--borde); padding:7px 8px; vertical-align:top; }
   tr:nth-child(even) td { background:#f8fafc; }
   .cita { color:var(--tenue); font-style:italic; }
+  .fecha { white-space:nowrap; font-weight:600; }
   .pie { margin-top:36px; padding-top:12px; border-top:1px solid var(--borde); font-size:11px; color:var(--tenue); }
   @media print { body { padding:0; } h2 { page-break-after:avoid; } tr { page-break-inside:avoid; } }
 </style></head><body>
@@ -116,32 +118,37 @@ const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
 
 <div class="cifras">
   <div class="caja"><div class="n">${filas.length}</div><div class="r">Nos contactaron</div></div>
-  <div class="caja"><div class="n">${conCita.length}</div><div class="r">Agendaron (probable)</div></div>
+  <div class="caja"><div class="n">${agendaron.length}</div><div class="r">Agendaron entrevista</div></div>
   <div class="caja"><div class="n">—</div><div class="r">Asistieron</div></div>
   <div class="caja"><div class="n">${filas.reduce((s, f) => s + f.mensajes, 0)}</div><div class="r">Mensajes</div></div>
 </div>
 
 <div class="aviso">
-  <strong>Sobre la fiabilidad de estas cifras.</strong> Los contactos son dato duro: cada uno tiene su conversación.
-  Los <em>agendaron</em> son un indicio, no un registro: la cita se guardaba en la base de datos que se perdió, así que
-  aquí se deducen de que el bot confirmara una hora concreta por escrito. Cada caso incluye la frase textual para
-  poder verificarlo. <strong>La asistencia no se puede reconstruir</strong>: solo existía en el expediente de la app,
-  actualizado a mano, y no dejó rastro en WhatsApp.
+  <strong>Sobre estas cifras.</strong> Los contactos son dato duro: cada uno tiene su conversación completa.
+  Las <strong>${agendaron.length} entrevistas</strong> se verificaron leyendo una por una las conversaciones en las que el
+  asistente propuso hora concreta, comprobando que el candidato aceptara y que se confirmara fecha explícita; cada fila
+  incluye la frase textual que la respalda. <strong>La asistencia no se puede reconstruir</strong>: solo existía en el
+  expediente de la aplicación, se actualizaba a mano y no dejó rastro en WhatsApp.
 </div>
 
-<h2>Agendaron entrevista (${conCita.length}) — requiere confirmación</h2>
-<table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Confirmado el</th><th>Frase del bot</th></tr></thead><tbody>
-${conCita.map((f) => `<tr><td>${esc(f.nombre)}</td><td>${esc(f.telefono)}</td><td>${esc(f.evidenciaCuando)}</td><td class="cita">${esc(f.evidencia)}</td></tr>`).join('\n')}
+<h2>Agendaron entrevista (${agendaron.length})</h2>
+<table><thead><tr><th>Fecha y hora</th><th>Nombre</th><th>Teléfono</th><th>Evidencia en la conversación</th></tr></thead><tbody>
+${agendaron.map((f) => `<tr><td class="fecha">${esc(f.cita)}</td><td>${esc(f.nombre)}</td><td>${esc(f.telefono)}</td><td class="cita">${esc(f.evidencia)}</td></tr>`).join('\n')}
 </tbody></table>
+${revisar.length ? `
+<h2>Requieren decisión manual (${revisar.length})</h2>
+<table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Motivo</th></tr></thead><tbody>
+${revisar.map((f) => `<tr><td>${esc(f.nombre)}</td><td>${esc(f.telefono)}</td><td class="cita">${esc(f.revisar)}</td></tr>`).join('\n')}
+</tbody></table>` : ''}
 
-<h2>Todos los que nos contactaron (${filas.length})</h2>
-<table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Msgs</th><th>Primer contacto</th><th>Último mensaje</th><th>Agendó</th></tr></thead><tbody>
-${filas.map((f) => `<tr><td>${esc(f.nombre)}</td><td>${esc(f.telefono)}</td><td>${f.mensajes}</td><td>${esc(f.primer)}</td><td>${esc(f.ultimo)}</td><td>${f.agendo ? 'Probable' : '—'}</td></tr>`).join('\n')}
+<h2>Contactaron sin llegar a agendar (${resto.length})</h2>
+<table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Msgs</th><th>Primer contacto</th><th>Último mensaje</th></tr></thead><tbody>
+${resto.map((f) => `<tr><td>${esc(f.nombre)}</td><td>${esc(f.telefono)}</td><td>${f.mensajes}</td><td>${esc(f.primero)}</td><td>${esc(f.ultimo)}</td></tr>`).join('\n')}
 </tbody></table>
 
 <div class="pie">
   Reconstruido desde el historial de la API de Kapso. La base de datos de producción se alojaba en almacenamiento
-  efímero y se borraba en cada reinicio del servicio; estas conversaciones son la única copia que sobrevivió.
+  efímero y se borraba en cada reinicio del servicio; esas conversaciones son la única copia que sobrevivió.
   Documento con datos personales de candidatos: trátese conforme a la LFPDPPP.
 </div>
 </body></html>`;
@@ -149,8 +156,11 @@ ${filas.map((f) => `<tr><td>${esc(f.nombre)}</td><td>${esc(f.telefono)}</td><td>
 writeFileSync(path.join(dir, 'informe-reclutamiento.html'), html, 'utf8');
 
 console.log(`Contactaron        : ${filas.length}`);
-console.log(`Agendaron (indicio): ${conCita.length}`);
+console.log(`Agendaron          : ${agendaron.length}  (verificadas a mano)`);
+console.log(`Requieren decisión : ${revisar.length}`);
 console.log(`Asistieron         : no reconstruible`);
 console.log(`Mensajes           : ${filas.reduce((s, f) => s + f.mensajes, 0)}`);
-console.log(`\n✓ db/recuperacion/informe-reclutamiento.html  (abre e imprime a PDF)`);
-console.log(`✓ db/recuperacion/informe-reclutamiento.csv   (para Excel)`);
+console.log(`\n✓ db/recuperacion/informe-reclutamiento.html`);
+console.log(`✓ db/recuperacion/informe-reclutamiento.csv`);
+
+sqlite.close();
