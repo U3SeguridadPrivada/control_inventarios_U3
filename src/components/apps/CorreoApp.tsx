@@ -12,7 +12,7 @@ import {
   Pencil, Inbox, Send, Trash2, Star, Reply, Globe, Settings, RefreshCw, Paperclip, X, FileText,
   Search, HelpCircle, Maximize2, Minimize2, ChevronDown, ChevronRight, Menu, ArrowLeft, MoreVertical,
   Check, MailOpen, Mail, User, Shield, CheckSquare, Square, FolderClosed, ExternalLink, Calendar,
-  Archive, AlertOctagon, Tag, Users, LayoutGrid, Info, Eye
+  Archive, AlertOctagon, Tag, Users, LayoutGrid, Info, Eye, EyeOff, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DOMPurify from 'isomorphic-dompurify';
@@ -1087,17 +1087,73 @@ function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose:
     correo_smtp_host: '', correo_smtp_puerto: '465',
     correo_ssl: true, correo_usuario: '', correo_password: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (perfil && open) {
       setForm({
         nombre: perfil.firma.nombre || '', puesto: perfil.firma.puesto || '', telefono: perfil.firma.telefono || '', correo: perfil.firma.correo || '',
-        correo_imap_host: perfil.correo_imap_host, correo_imap_puerto: String(perfil.correo_imap_puerto),
-        correo_smtp_host: perfil.correo_smtp_host, correo_smtp_puerto: String(perfil.correo_smtp_puerto),
-        correo_ssl: perfil.correo_ssl, correo_usuario: perfil.correo_usuario, correo_password: '',
+        correo_imap_host: perfil.correo_imap_host || '', correo_imap_puerto: String(perfil.correo_imap_puerto || 993),
+        correo_smtp_host: perfil.correo_smtp_host || '', correo_smtp_puerto: String(perfil.correo_smtp_puerto || 465),
+        correo_ssl: perfil.correo_ssl ?? true, correo_usuario: perfil.correo_usuario || '', correo_password: '',
       });
     }
   }, [perfil, open]);
+
+  const aplicarPreset = (provider: 'gmail' | 'outlook' | 'hostinger' | 'u3') => {
+    if (provider === 'gmail') {
+      setForm((f) => ({
+        ...f,
+        correo_imap_host: 'imap.gmail.com',
+        correo_imap_puerto: '993',
+        correo_smtp_host: 'smtp.gmail.com',
+        correo_smtp_puerto: '465',
+        correo_ssl: true,
+      }));
+      toast.info('Ajustes de Gmail cargados. Requiere Contraseña de Aplicación.');
+    } else if (provider === 'outlook') {
+      setForm((f) => ({
+        ...f,
+        correo_imap_host: 'outlook.office365.com',
+        correo_imap_puerto: '993',
+        correo_smtp_host: 'smtp.office365.com',
+        correo_smtp_puerto: '587',
+        correo_ssl: true,
+      }));
+      toast.info('Ajustes de Outlook / Office 365 cargados.');
+    } else if (provider === 'hostinger') {
+      setForm((f) => ({
+        ...f,
+        correo_imap_host: 'imap.hostinger.com',
+        correo_imap_puerto: '993',
+        correo_smtp_host: 'smtp.hostinger.com',
+        correo_smtp_puerto: '465',
+        correo_ssl: true,
+      }));
+      toast.info('Ajustes de Hostinger cargados.');
+    } else if (provider === 'u3') {
+      setForm((f) => ({
+        ...f,
+        correo_imap_host: 'mail.u3seguridadprivada.com',
+        correo_imap_puerto: '993',
+        correo_smtp_host: 'mail.u3seguridadprivada.com',
+        correo_smtp_puerto: '465',
+        correo_ssl: true,
+      }));
+      toast.info('Ajustes de Webmail U3 cargados.');
+    }
+  };
+
+  const probarMutation = useMutation({
+    mutationFn: () => apiFetch('/api/auth/perfil-correo/test', {
+      method: 'POST',
+      body: JSON.stringify(form),
+    }),
+    onSuccess: (data: any) => {
+      toast.success(data.message || 'Conexión verificada con éxito');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const guardarMutation = useMutation({
     mutationFn: () => apiFetch('/api/auth/perfil-correo', {
@@ -1121,35 +1177,37 @@ function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose:
   });
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto max-w-xl">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }} className="max-w-2xl">
+      <DialogContent className="space-y-4">
         <DialogHeader>
           <DialogTitle>Mi Firma e Integración de Correo</DialogTitle>
           <DialogDescription>
             Configura tu información personal para la firma del correo y tus credenciales de entrada (IMAP) y salida (SMTP).
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-5 py-2">
-          
+        
+        <div className="space-y-6 py-1">
           {/* Firma personal */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-slate-800 border-b pb-1">Firma Corporativa</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <h3 className="text-sm font-semibold text-slate-800 border-b pb-1.5 flex items-center justify-between">
+              <span>Firma Corporativa</span>
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-500">Nombre completo</label>
-                <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
+                <label className="text-xs font-medium text-slate-600">Nombre completo</label>
+                <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej. Sarai Castillo" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-500">Puesto / Cargo</label>
-                <Input value={form.puesto} onChange={(e) => setForm((f) => ({ ...f, puesto: e.target.value }))} placeholder="Ej. Supervisor de Operaciones" />
+                <label className="text-xs font-medium text-slate-600">Puesto / Cargo</label>
+                <Input value={form.puesto} onChange={(e) => setForm((f) => ({ ...f, puesto: e.target.value }))} placeholder="Ej. Directora General" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-500">Teléfono directo</label>
-                <Input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} />
+                <label className="text-xs font-medium text-slate-600">Teléfono directo</label>
+                <Input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} placeholder="Ej. 55-1234-5678" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-500">Correo corporativo</label>
-                <Input type="email" value={form.correo} onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))} />
+                <label className="text-xs font-medium text-slate-600">Correo corporativo</label>
+                <Input type="email" value={form.correo} onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))} placeholder="correo@u3seguridadprivada.com" />
               </div>
             </div>
             
@@ -1161,69 +1219,165 @@ function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose:
           </div>
 
           {/* Configuración de buzón personal */}
-          <div className="space-y-3 border-t border-slate-100 pt-4">
-            <h3 className="text-sm font-semibold text-slate-800 border-b pb-1">Buzón Personal (IMAP / SMTP)</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-500">Correo / Usuario</label>
-                <Input value={form.correo_usuario} onChange={(e) => setForm((f) => ({ ...f, correo_usuario: e.target.value }))} placeholder="usuario@empresa.com" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-500">Contraseña de aplicación</label>
-                <Input 
-                  type="password" 
-                  value={form.correo_password} 
-                  onChange={(e) => setForm((f) => ({ ...f, correo_password: e.target.value }))} 
-                  placeholder={perfil?.tiene_password ? 'Guardada — escribe para modificar' : 'Contraseña o App Password'} 
-                  autoComplete="new-password" 
-                />
-              </div>
+          <div className="space-y-4 border-t border-slate-200 pt-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2">
+              <h3 className="text-sm font-semibold text-slate-800">Buzón Personal (IMAP / SMTP)</h3>
               
-              <div className="grid grid-cols-[1fr_80px] gap-2 col-span-2 sm:col-span-1">
+              {/* Presets rápidos */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-slate-400 font-medium mr-1">Cargar servidor:</span>
+                <button
+                  type="button"
+                  onClick={() => aplicarPreset('gmail')}
+                  className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white hover:bg-slate-100 font-medium text-slate-700 transition shadow-sm"
+                >
+                  Gmail
+                </button>
+                <button
+                  type="button"
+                  onClick={() => aplicarPreset('outlook')}
+                  className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white hover:bg-slate-100 font-medium text-slate-700 transition shadow-sm"
+                >
+                  Outlook
+                </button>
+                <button
+                  type="button"
+                  onClick={() => aplicarPreset('hostinger')}
+                  className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white hover:bg-slate-100 font-medium text-slate-700 transition shadow-sm"
+                >
+                  Hostinger
+                </button>
+                <button
+                  type="button"
+                  onClick={() => aplicarPreset('u3')}
+                  className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white hover:bg-slate-100 font-medium text-slate-700 transition shadow-sm"
+                >
+                  Webmail U3
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-500">Servidor IMAP (Entrada)</label>
-                  <Input value={form.correo_imap_host} onChange={(e) => setForm((f) => ({ ...f, correo_imap_host: e.target.value }))} placeholder="imap.correo.com" />
+                  <label className="text-xs font-medium text-slate-600">Correo / Usuario</label>
+                  <Input 
+                    value={form.correo_usuario} 
+                    onChange={(e) => setForm((f) => ({ ...f, correo_usuario: e.target.value }))} 
+                    placeholder="usuario@u3seguridadprivada.com" 
+                  />
                 </div>
+
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-500">Puerto</label>
-                  <Input type="number" value={form.correo_imap_puerto} onChange={(e) => setForm((f) => ({ ...f, correo_imap_puerto: e.target.value }))} />
+                  <label className="text-xs font-medium text-slate-600">Contraseña de aplicación</label>
+                  <div className="relative">
+                    <Input 
+                      type={showPassword ? 'text' : 'password'} 
+                      value={form.correo_password} 
+                      onChange={(e) => setForm((f) => ({ ...f, correo_password: e.target.value }))} 
+                      placeholder={perfil?.tiene_password ? 'Guardada — escribe para modificar' : 'Contraseña o App Password'} 
+                      autoComplete="new-password"
+                      className="pr-9"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                      title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-[1fr_80px] gap-2 col-span-2 sm:col-span-1">
+              {/* Servidores IMAP y SMTP */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-500">Servidor SMTP (Salida)</label>
-                  <Input value={form.correo_smtp_host} onChange={(e) => setForm((f) => ({ ...f, correo_smtp_host: e.target.value }))} placeholder="smtp.correo.com" />
+                  <label className="text-xs font-medium text-slate-600">Servidor IMAP (Entrada)</label>
+                  <div className="flex gap-2">
+                    <Input 
+                      className="flex-1 min-w-0" 
+                      value={form.correo_imap_host} 
+                      onChange={(e) => setForm((f) => ({ ...f, correo_imap_host: e.target.value }))} 
+                      placeholder="imap.correo.com" 
+                    />
+                    <Input 
+                      type="number" 
+                      className="w-20 flex-shrink-0" 
+                      value={form.correo_imap_puerto} 
+                      onChange={(e) => setForm((f) => ({ ...f, correo_imap_puerto: e.target.value }))} 
+                      placeholder="993"
+                    />
+                  </div>
                 </div>
+
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-500">Puerto</label>
-                  <Input type="number" value={form.correo_smtp_puerto} onChange={(e) => setForm((f) => ({ ...f, correo_smtp_puerto: e.target.value }))} />
+                  <label className="text-xs font-medium text-slate-600">Servidor SMTP (Salida)</label>
+                  <div className="flex gap-2">
+                    <Input 
+                      className="flex-1 min-w-0" 
+                      value={form.correo_smtp_host} 
+                      onChange={(e) => setForm((f) => ({ ...f, correo_smtp_host: e.target.value }))} 
+                      placeholder="smtp.correo.com" 
+                    />
+                    <Input 
+                      type="number" 
+                      className="w-20 flex-shrink-0" 
+                      value={form.correo_smtp_puerto} 
+                      onChange={(e) => setForm((f) => ({ ...f, correo_smtp_puerto: e.target.value }))} 
+                      placeholder="465"
+                    />
+                  </div>
                 </div>
               </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+                  <input 
+                    type="checkbox" 
+                    checked={form.correo_ssl} 
+                    onChange={(e) => setForm((f) => ({ ...f, correo_ssl: e.target.checked }))} 
+                    className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 w-4 h-4" 
+                  /> 
+                  <span>Usar SSL/TLS para conexiones seguras</span>
+                </label>
+              </div>
+
+              <p className="text-[11px] text-slate-500 bg-amber-50/80 border border-amber-200/80 p-2.5 rounded-lg leading-normal">
+                <strong>Nota:</strong> Si utilizas proveedores como Gmail u Outlook, debes generar una <em>contraseña de aplicación</em> desde la seguridad de tu cuenta para permitir el inicio de sesión. Si dejas la configuración en blanco, el correo externo saldrá por el servidor SMTP por defecto del sistema.
+              </p>
             </div>
-            
-            <div className="flex items-center justify-between pt-2">
-              <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
-                <input 
-                  type="checkbox" 
-                  checked={form.correo_ssl} 
-                  onChange={(e) => setForm((f) => ({ ...f, correo_ssl: e.target.checked }))} 
-                  className="rounded border-slate-300 text-sky-600 focus:ring-sky-500" 
-                /> 
-                <span>Usar SSL/TLS para conexiones seguras</span>
-              </label>
-            </div>
-            <p className="text-[11px] text-slate-400 bg-amber-50 border border-amber-200/50 p-2.5 rounded-lg leading-normal mt-2">
-              <strong>Nota:</strong> Si utilizas proveedores como Gmail u Outlook, debes generar una <em>contraseña de aplicación</em> desde la seguridad de tu cuenta para permitir el inicio de sesión. Si dejas la configuración en blanco, el correo externo saldrá por el servidor SMTP por defecto del sistema.
-            </p>
           </div>
-
         </div>
-        <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button disabled={guardarMutation.isPending} onClick={() => guardarMutation.mutate()} className="bg-[#1e3a5f] hover:bg-[#152a45]">
-            {guardarMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+
+        <DialogFooter className="flex flex-col-reverse sm:flex-row items-center justify-between gap-2 border-t pt-3 mt-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={probarMutation.isPending}
+            onClick={() => probarMutation.mutate()}
+            className="text-xs text-slate-700 hover:text-slate-900 border-slate-300 w-full sm:w-auto"
+          >
+            {probarMutation.isPending ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                Probando conexión...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+                Probar conexión
+              </>
+            )}
           </Button>
+          
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Cancelar</Button>
+            <Button disabled={guardarMutation.isPending} onClick={() => guardarMutation.mutate()} className="bg-[#1e3a5f] hover:bg-[#152a45] w-full sm:w-auto">
+              {guardarMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
