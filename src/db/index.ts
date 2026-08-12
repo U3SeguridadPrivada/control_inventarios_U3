@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { mkdirSync, existsSync } from 'fs';
+import { mkdirSync, existsSync, readFileSync } from 'fs';
 import path from 'path';
 import * as schema from './schema';
 
@@ -416,6 +416,46 @@ function initDb(): DrizzleDB {
     `ALTER TABLE protocolos ADD COLUMN contenido TEXT;`,
   ]) {
     try { sqlite.exec(stmt); } catch (e) { /* Column might already exist */ }
+  }
+
+  try {
+    const rowB = sqlite.prepare("SELECT COUNT(*) as count FROM movimientos_financieros WHERE libro = 'B'").get() as { count: number };
+    if (rowB && rowB.count === 0) {
+      const rutaCuentaB = path.join(process.cwd(), 'src', 'data', 'movimientos-cuenta-b.json');
+      if (existsSync(rutaCuentaB)) {
+        const dataB = JSON.parse(readFileSync(rutaCuentaB, 'utf8'));
+        if (Array.isArray(dataB) && dataB.length > 0) {
+          const insertStmt = sqlite.prepare(`
+            INSERT INTO movimientos_financieros
+              (fecha, tipo, categoria, monto, descripcion, libro, medio_pago, nombre, tipo_detalle, turno, alimentos, servicio)
+            VALUES
+              (@fecha, @tipo, @categoria, @monto, @descripcion, @libro, @medio_pago, @nombre, @tipo_detalle, @turno, @alimentos, @servicio)
+          `);
+          const seedTx = sqlite.transaction((items: any[]) => {
+            for (const item of items) {
+              insertStmt.run({
+                fecha: item.fecha,
+                tipo: item.tipo,
+                categoria: item.categoria,
+                monto: item.monto,
+                descripcion: item.descripcion ?? null,
+                libro: item.libro || 'B',
+                medio_pago: item.medio_pago ?? null,
+                nombre: item.nombre ?? null,
+                tipo_detalle: item.tipo_detalle ?? null,
+                turno: item.turno ?? null,
+                alimentos: item.alimentos ?? null,
+                servicio: item.servicio ?? null,
+              });
+            }
+          });
+          seedTx(dataB);
+          console.log(`[auto-seed] ${dataB.length} movimientos de Cuenta B sembrados en la base de datos.`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[auto-seed] Error sembrando datos iniciales:', err);
   }
 
   _db = drizzle(sqlite, { schema });
