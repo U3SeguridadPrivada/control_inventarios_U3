@@ -74,7 +74,7 @@ export default function BajasApp() {
         <div><h1 className="text-2xl font-bold tracking-tight">Procesos de Baja</h1><p className="text-muted-foreground mt-0.5 text-sm">Gestión del checklist de equipo adeudado por guardias dados de baja.</p></div>
       </div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
-        <div className="flex space-x-0 border-b border-border">
+        <div className="flex space-x-0 border-b border-border overflow-x-auto scroll-touch no-scrollbar [&>button]:flex-shrink-0 [&>button]:whitespace-nowrap">
           <button className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === 'Pendiente' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`} onClick={() => setTab('Pendiente')}>
             Pendientes
             {(bajas as any[]).filter((b: any) => b.estado_general !== 'Completada').length > 0 && <span className="ml-2 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4">{(bajas as any[]).filter((b: any) => b.estado_general !== 'Completada').length}</span>}

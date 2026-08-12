@@ -1,9 +1,13 @@
 import * as React from "react"
 import { cn } from "@/src/lib/utils"
 
+/**
+ * En movil la tabla no se comprime: se desplaza en horizontal con inercia y sin
+ * arrastrar el scroll de la pagina (overscroll-behavior-x en .scroll-touch).
+ */
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
+    <div className="relative w-full max-w-full overflow-x-auto scroll-touch">
       <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   )
@@ -39,7 +43,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
   ({ className, ...props }, ref) => (
     <th
       ref={ref}
-      className={cn("h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0", className)}
+      className={cn("h-11 sm:h-12 px-3 sm:px-4 text-left align-middle font-medium text-muted-foreground whitespace-nowrap [&:has([role=checkbox])]:pr-0", className)}
       {...props}
     />
   )
@@ -48,7 +52,7 @@ TableHead.displayName = "TableHead"
 
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
-    <td ref={ref} className={cn("p-4 align-middle [&:has([role=checkbox])]:pr-0", className)} {...props} />
+    <td ref={ref} className={cn("p-3 sm:p-4 align-middle [&:has([role=checkbox])]:pr-0", className)} {...props} />
   )
 )
 TableCell.displayName = "TableCell"

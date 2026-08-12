@@ -8,12 +8,21 @@ export interface AuthUser {
 }
 
 export function verifyAuth(req: NextRequest): AuthUser | null {
+  let token: string | undefined;
+
   const auth = req.headers.get('authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
+  if (auth?.startsWith('Bearer ')) {
+    token = auth.slice(7);
+  } else {
+    token = req.cookies.get('auth_token')?.value;
+  }
+
+  if (!token) return null;
+
   try {
     const secret = process.env.JWT_SECRET;
     if (!secret) return null;
-    return jwt.verify(auth.slice(7), secret) as AuthUser;
+    return jwt.verify(token, secret) as AuthUser;
   } catch {
     return null;
   }

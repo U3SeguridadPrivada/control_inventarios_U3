@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Package, ArrowDownToLine, ArrowUpFromLine,
   Users, UserMinus, ShieldCheck, UserPlus, Lock, LucideIcon,
   Mail, CalendarDays, MapPin, ShoppingCart, Contact2, FileSpreadsheet,
-  Landmark, KeyRound, Settings, UserSearch, MessageCircle,
+  Landmark, KeyRound, Settings, UserSearch, MessageCircle, ClipboardList,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -82,6 +82,7 @@ export const NAV_BOTTOM: NavItem[] = [
   { id: 'correo', href: '/correo', title: 'Correo', shortLabel: 'Correo', icon: Mail },
   { id: 'whatsapp', href: '/whatsapp', title: 'WhatsApp en Vivo', shortLabel: 'WhatsApp', icon: MessageCircle },
   { id: 'mapa-operaciones', href: '/mapa-operaciones', title: 'Mapa de Operaciones', shortLabel: 'Mapa', icon: MapPin },
+  { id: 'protocolos', href: '/protocolos', title: 'Protocolos Operativos', shortLabel: 'Protocolos', icon: ClipboardList },
   { id: 'ajustes', href: '/ajustes', title: 'Ajustes del Sitio', shortLabel: 'Ajustes', icon: Settings, isAdminOnly: true },
 ];
 
@@ -90,6 +91,16 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   ...NAV_GROUPS.flatMap((g) => g.items),
   ...NAV_BOTTOM,
 ];
+
+/**
+ * Accesos fijos de la barra inferior en movil. El quinto lugar lo ocupa el
+ * boton "Más", que abre el resto del menu.
+ */
+export const NAV_MOBILE_PRIMARY_IDS = ['dashboard', 'inventario', 'guardias', 'calendario'] as const;
+
+export const NAV_MOBILE_PRIMARY: NavItem[] = NAV_MOBILE_PRIMARY_IDS.map(
+  (id) => ALL_NAV_ITEMS.find((item) => item.id === id)!
+);
 
 export function getPageTitle(pathname: string): string {
   if (pathname === '/') return 'Dashboard General';

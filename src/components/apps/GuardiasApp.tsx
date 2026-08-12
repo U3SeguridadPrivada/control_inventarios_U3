@@ -365,7 +365,7 @@ export default function GuardiasApp() {
             </div>
 
             {/* Tabs Selector */}
-            <div className="flex border-b border-border mb-4">
+            <div className="flex border-b border-border mb-4 overflow-x-auto scroll-touch no-scrollbar [&>button]:flex-shrink-0 [&>button]:whitespace-nowrap">
               <button
                 type="button"
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${

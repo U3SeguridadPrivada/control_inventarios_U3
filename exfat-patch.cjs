@@ -28,3 +28,16 @@ fs.readlinkSync = (path, options) => {
     throw e;
   }
 };
+
+// Next collects page data through fs.promises, which is a separate implementation
+// from the callback API above and needs the same EISDIR -> EINVAL remap.
+const _rlp = fs.promises.readlink.bind(fs.promises);
+fs.promises.readlink = async (path, options) => {
+  try { return await _rlp(path, options); }
+  catch (e) {
+    if (e && e.code === 'EISDIR') {
+      throw Object.assign(new Error(`EINVAL: invalid argument, readlink '${path}'`), { code: 'EINVAL', syscall: 'readlink', path });
+    }
+    throw e;
+  }
+};

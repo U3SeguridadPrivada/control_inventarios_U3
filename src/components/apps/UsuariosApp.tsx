@@ -43,7 +43,7 @@ export default function UsuariosApp() {
         <div><h1 className="text-2xl font-bold tracking-tight">Gestión de Usuarios</h1><p className="text-sm text-muted-foreground mt-0.5">{(users as User[]).length} usuario{(users as User[]).length !== 1 ? 's' : ''} registrado{(users as User[]).length !== 1 ? 's' : ''} en el sistema.</p></div>
         <button onClick={() => router.push('/usuarios/nuevo')} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg bg-primary hover:bg-primary/90 transition"><UserPlus className="w-4 h-4" /> Crear usuario</button>
       </div>
-      <div className="rounded-xl border border-border bg-card shadow-sm overflow-x-auto">
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-x-auto scroll-touch">
         {isLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Cargando usuarios...</div> : (
           <table className="w-full text-sm min-w-[700px]">
             <thead><tr className="border-b border-border bg-muted/40">

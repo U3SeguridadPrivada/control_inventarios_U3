@@ -13,7 +13,7 @@ import { fmtDate } from '@/src/lib/utils';
 export default function DashboardApp() {
   const { isEditor } = useAuth();
   const router = useRouter();
-  
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboardMetrics'],
     queryFn: () => apiFetch<{ metrics: any; chartData: any[]; recentMovements: any[] }>('/api/dashboard/metrics'),
@@ -59,7 +59,7 @@ export default function DashboardApp() {
           <p className="text-sm text-muted-foreground mt-0.5">Resumen general del sistema de inventario</p>
         </div>
         {isEditor && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" onClick={() => router.push('/entradas')}><ArrowDownToLine className="w-4 h-4 mr-1.5" /> Nueva Entrada</Button>
             <Button size="sm" onClick={() => router.push('/salidas')} className="bg-accent hover:bg-accent/90 text-white"><ArrowUpFromLine className="w-4 h-4 mr-1.5" /> Nueva Salida</Button>
             <Button size="sm" onClick={() => router.push('/uniformes-campo')} variant="outline"><ShieldCheck className="w-4 h-4 mr-1.5" /> En Campo</Button>

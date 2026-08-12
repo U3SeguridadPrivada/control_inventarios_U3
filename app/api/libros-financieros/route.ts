@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/src/db';
-import { users } from '@/src/db/schema';
-import { eq } from 'drizzle-orm';
+import { users, movimientos_financieros } from '@/src/db/schema';
+import { eq, sql } from 'drizzle-orm';
 import { verifyAuth, unauthorized } from '@/src/lib/auth';
 import { librosVisibles } from '@/src/lib/librosAcceso';
 
@@ -12,11 +12,17 @@ export async function GET(req: NextRequest) {
   const esAdmin = authUser.role === 'admin';
   const libros = librosVisibles(authUser).map((l) => {
     const responsable = l.usuario_id ? db.select({ id: users.id, username: users.username }).from(users).where(eq(users.id, l.usuario_id)).get() : null;
+    // Cuántos movimientos tiene: sirve para que el módulo no abra en una cuenta
+    // vacía cuando otra sí tiene historia.
+    const movimientos = db.select({ n: sql<number>`COUNT(*)` })
+      .from(movimientos_financieros)
+      .where(eq(movimientos_financieros.libro, l.id)).get()?.n ?? 0;
     return {
       id: l.id,
       nombre: l.nombre,
       usuario_id: l.usuario_id,
       responsable: responsable?.username || null,
+      movimientos: Number(movimientos),
       puede_editar: esAdmin || (authUser.role !== 'viewer' && l.usuario_id === authUser.id),
       // Config IMAP solo visible para el admin; la contraseña nunca se devuelve
       ...(esAdmin ? {

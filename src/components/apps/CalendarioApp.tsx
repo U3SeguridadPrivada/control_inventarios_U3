@@ -172,22 +172,24 @@ export default function CalendarioApp() {
   const hoy = new Date().toDateString();
 
   return (
-    <div className="flex flex-col h-full -m-6 p-6">
-      <div className="flex border-b border-border mb-4 flex-shrink-0">
-        <button onClick={() => setTab('calendario')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'calendario' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Calendario</button>
-        <button onClick={() => setTab('incidencias')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'incidencias' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Incidencias por guardia</button>
+    <div className="flex flex-col h-full -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8">
+      <div className="flex border-b border-border mb-4 flex-shrink-0 overflow-x-auto scroll-touch no-scrollbar">
+        <button onClick={() => setTab('calendario')} className={`flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${tab === 'calendario' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Calendario</button>
+        <button onClick={() => setTab('incidencias')} className={`flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${tab === 'incidencias' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Incidencias por guardia</button>
       </div>
 
       {tab === 'calendario' ? (
-        <div className="flex flex-1 gap-4 min-h-0">
+        <div className="flex flex-col lg:flex-row flex-1 gap-4 min-h-0">
           <div className="flex-1 flex flex-col min-w-0">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">{MESES[cursor.getMonth()]} {cursor.getFullYear()}</h2>
-              <div className="flex items-center gap-1.5">
-                <Button size="sm" variant="outline" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}><ChevronLeft className="w-4 h-4" /></Button>
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <h2 className="text-base sm:text-lg font-bold truncate">{MESES[cursor.getMonth()]} {cursor.getFullYear()}</h2>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <Button size="sm" variant="outline" aria-label="Mes anterior" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}><ChevronLeft className="w-4 h-4" /></Button>
                 <Button size="sm" variant="outline" onClick={() => setCursor(new Date())}>Hoy</Button>
-                <Button size="sm" variant="outline" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}><ChevronRight className="w-4 h-4" /></Button>
-                <Button size="sm" onClick={() => openCreate(selectedDay ?? undefined)}><Plus className="w-4 h-4 mr-1.5" /> Nuevo evento</Button>
+                <Button size="sm" variant="outline" aria-label="Mes siguiente" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}><ChevronRight className="w-4 h-4" /></Button>
+                <Button size="sm" aria-label="Nuevo evento" onClick={() => openCreate(selectedDay ?? undefined)}>
+                  <Plus className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Nuevo evento</span>
+                </Button>
               </div>
             </div>
             <div className="grid grid-cols-7 text-center text-xs font-semibold text-muted-foreground mb-1">
@@ -204,7 +206,7 @@ export default function CalendarioApp() {
                     key={i}
                     onClick={() => setSelectedDay(day)}
                     onDoubleClick={() => openCreate(day)}
-                    className={`border border-border rounded-lg p-1.5 text-left flex flex-col gap-0.5 min-h-[64px] hover:border-primary/40 transition-colors ${isToday ? 'bg-primary/5 border-primary/40' : 'bg-card'} ${selectedDay?.toDateString() === key ? 'ring-2 ring-primary/40' : ''}`}
+                    className={`border border-border rounded-lg p-1 sm:p-1.5 text-left flex flex-col gap-0.5 min-h-[54px] sm:min-h-[64px] overflow-hidden hover:border-primary/40 transition-colors ${isToday ? 'bg-primary/5 border-primary/40' : 'bg-card'} ${selectedDay?.toDateString() === key ? 'ring-2 ring-primary/40' : ''}`}
                   >
                     <span className={`text-xs font-semibold ${isToday ? 'text-primary' : ''}`}>{day.getDate()}</span>
                     {evs.slice(0, 2).map((ev) => (
@@ -217,7 +219,7 @@ export default function CalendarioApp() {
             </div>
           </div>
 
-          <div className="w-72 flex-shrink-0 border-l border-border pl-4 space-y-3 overflow-y-auto">
+          <div className="w-full lg:w-72 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border pt-4 lg:pt-0 lg:pl-4 space-y-3 overflow-y-auto scroll-touch">
             <h3 className="text-sm font-semibold">Próximos eventos</h3>
             {proximosEventos.length === 0 ? (
               <p className="text-sm text-muted-foreground">Sin eventos próximos</p>

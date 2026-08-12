@@ -81,7 +81,7 @@ export default function MapaOperacionesApp() {
   };
 
   return (
-    <div className="flex flex-col h-full -m-6">
+    <div className="flex flex-col h-full -m-4 sm:-m-6 lg:-m-8">
       <div className="flex items-center justify-between px-6 py-3 border-b border-border flex-shrink-0">
         <div>
           <h2 className="text-base font-bold flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" /> Mapa de Operaciones — CDMX</h2>

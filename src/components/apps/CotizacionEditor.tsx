@@ -131,7 +131,7 @@ export default function CotizacionEditor({ clientes, form, setForm, items, setIt
           <button onClick={() => scrollToSection('hoja-1')} className="text-xs font-medium px-2.5 py-1 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">Página 1</button>
           <button onClick={() => scrollToSection('hoja-2')} className="text-xs font-medium px-2.5 py-1 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">Página 2</button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onGenerarPdf} disabled={generando}><FileDown className="w-3.5 h-3.5 mr-1.5" /> {generando ? 'Generando vista previa...' : 'Vista previa'}</Button>
           <Button size="sm" onClick={onGuardar} disabled={guardando}><Save className="w-3.5 h-3.5 mr-1.5" /> Guardar cotización</Button>
         </div>

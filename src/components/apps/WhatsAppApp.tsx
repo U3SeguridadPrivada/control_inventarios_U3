@@ -163,7 +163,7 @@ export default function WhatsAppApp() {
 
   return (
     // Márgenes negativos para escapar del padding del layout y aprovechar casi toda la ventana
-    <div className="-m-6 lg:-m-8 h-[calc(100vh-4rem)] flex flex-col animate-in fade-in duration-500">
+    <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100svh-4rem-var(--safe-top)-var(--mobile-nav-height)-var(--safe-bottom))] flex flex-col animate-in fade-in duration-500">
       <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-border bg-card">
         <h1 className="text-base font-bold tracking-tight flex items-center gap-2"><MessageCircle className="w-5 h-5" /> WhatsApp <span className="text-xs font-normal text-muted-foreground hidden sm:inline">— bandeja en vivo del asistente</span></h1>
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> En vivo</span>

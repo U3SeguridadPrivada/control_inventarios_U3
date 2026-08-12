@@ -72,7 +72,7 @@ export default function VentasApp() {
         {isEditor && <Button onClick={() => setModalOpen(true)}><Plus className="w-4 h-4 mr-2" /> Nueva venta</Button>}
       </div>
 
-      <div className="flex border-b border-border">
+      <div className="flex border-b border-border overflow-x-auto scroll-touch no-scrollbar [&>button]:flex-shrink-0 [&>button]:whitespace-nowrap">
         <button onClick={() => setTab('listado')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'listado' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Listado</button>
         <button onClick={() => setTab('reportes')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'reportes' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Reportes</button>
       </div>

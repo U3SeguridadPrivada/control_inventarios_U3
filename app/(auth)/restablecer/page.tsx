@@ -72,7 +72,7 @@ function RestablecerForm() {
 
 export default function RestablecerPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-[100svh] flex items-center justify-center bg-background px-4 py-8 pt-[calc(2rem+var(--safe-top))] pb-[calc(2rem+var(--safe-bottom))]">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8 gap-3">
           <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center"><KeyRound className="w-7 h-7 text-primary" /></div>

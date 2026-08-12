@@ -285,6 +285,20 @@ CREATE TABLE IF NOT EXISTS whatsapp_chats (
   ultima_actividad TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS protocolos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titulo TEXT NOT NULL,
+  categoria TEXT NOT NULL DEFAULT 'Operativo',
+  descripcion TEXT,
+  tipo TEXT NOT NULL DEFAULT 'lista',
+  pasos TEXT NOT NULL,
+  contenido TEXT,
+  prioridad TEXT NOT NULL DEFAULT 'Media',
+  activo INTEGER NOT NULL DEFAULT 1,
+  creado_por INTEGER REFERENCES users(id),
+  actualizado_en TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS movimiento_evidencias (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   movimiento_id INTEGER NOT NULL REFERENCES movimientos_financieros(id),
@@ -398,6 +412,8 @@ function initDb(): DrizzleDB {
     `ALTER TABLE users ADD COLUMN correo_usuario TEXT;`,
     `ALTER TABLE users ADD COLUMN correo_password TEXT;`,
     `ALTER TABLE whatsapp_conversaciones ADD COLUMN autor TEXT DEFAULT 'bot';`,
+    `ALTER TABLE protocolos ADD COLUMN tipo TEXT NOT NULL DEFAULT 'lista';`,
+    `ALTER TABLE protocolos ADD COLUMN contenido TEXT;`,
   ]) {
     try { sqlite.exec(stmt); } catch (e) { /* Column might already exist */ }
   }

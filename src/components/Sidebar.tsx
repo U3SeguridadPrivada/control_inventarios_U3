@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useAuth } from '@/src/context/AuthContext';
 import { NAV_TOP, NAV_GROUPS, NAV_BOTTOM, getActiveGroupId, type NavItem, type NavGroup } from '@/src/config/nav';
 import { cn } from '@/src/lib/utils';
@@ -68,12 +68,11 @@ function NavGroupAccordion({
   );
 }
 
-interface SidebarProps {
-  mobileOpen: boolean;
-  onCloseMobile: () => void;
-}
-
-export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
+/**
+ * Barra lateral de escritorio. En movil la navegacion la resuelve MobileNav
+ * con una barra de pestañas inferior.
+ */
+export default function Sidebar() {
   const pathname = usePathname();
   const { isAdmin } = useAuth();
   const [openGroupId, setOpenGroupId] = useState<string | null>(() => getActiveGroupId(pathname));
@@ -87,8 +86,8 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const topItems = NAV_TOP.filter((item) => !item.isAdminOnly || isAdmin);
   const bottomItems = NAV_BOTTOM.filter((item) => !item.isAdminOnly || isAdmin);
 
-  const content = (
-    <>
+  return (
+    <aside className="hidden md:flex md:flex-col w-20 flex-shrink-0 h-screen sticky top-0 bg-card border-r border-border">
       <div className="flex items-center justify-center h-16 flex-shrink-0">
         <img src="/logo_b.png" alt="U3" className="w-9 h-9 object-contain" />
       </div>
@@ -96,7 +95,7 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto px-2.5 space-y-2 pb-4">
         <div className="space-y-1">
           {topItems.map((item) => (
-            <NavLink key={item.id} item={item} active={isActive(pathname, item.href)} onNavigate={onCloseMobile} />
+            <NavLink key={item.id} item={item} active={isActive(pathname, item.href)} />
           ))}
         </div>
 
@@ -108,41 +107,16 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
               isOpen={openGroupId === group.id}
               onToggle={() => setOpenGroupId((cur) => (cur === group.id ? null : group.id))}
               pathname={pathname}
-              onNavigate={onCloseMobile}
             />
           ))}
         </div>
 
         <div className="space-y-1 pt-2 border-t border-border/70">
           {bottomItems.map((item) => (
-            <NavLink key={item.id} item={item} active={isActive(pathname, item.href)} onNavigate={onCloseMobile} />
+            <NavLink key={item.id} item={item} active={isActive(pathname, item.href)} />
           ))}
         </div>
       </nav>
-    </>
-  );
-
-  return (
-    <>
-      <aside className="hidden md:flex md:flex-col w-20 flex-shrink-0 h-screen sticky top-0 bg-card border-r border-border">
-        {content}
-      </aside>
-
-      {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-40">
-          <div className="absolute inset-0 bg-black/40" onClick={onCloseMobile} />
-          <aside className="absolute left-0 top-0 h-full w-24 bg-card border-r border-border flex flex-col shadow-2xl">
-            <button
-              onClick={onCloseMobile}
-              className="absolute -right-9 top-4 w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground"
-              aria-label="Cerrar menú"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            {content}
-          </aside>
-        </div>
-      )}
-    </>
+    </aside>
   );
 }

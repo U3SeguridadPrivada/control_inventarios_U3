@@ -86,6 +86,10 @@ export default function CorreoApp() {
   const [selected, setSelected] = useState<Mensaje | null>(null);
   const [selectedExterno, setSelectedExterno] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  // En movil la columna de carpetas se muestra como cajon lateral.
+  const [carpetasOpen, setCarpetasOpen] = useState(false);
+  // Elegir carpeta cierra el cajon; en escritorio no hay cajon que cerrar.
+  useEffect(() => setCarpetasOpen(false), [folder, imapFolder]);
 
   // Control del Compose Flotante
   const [composeOpen, setComposeOpen] = useState(false);
@@ -319,19 +323,24 @@ export default function CorreoApp() {
   };
 
   return (
-    <div className="flex flex-col h-[85vh] bg-[#f6f8fc] -m-6 p-4 overflow-hidden rounded-xl font-sans">
-      
+    <div className="flex flex-col h-[85svh] bg-[#f6f8fc] -m-4 sm:-m-6 p-3 sm:p-4 overflow-hidden rounded-xl font-sans">
+
       {/* ── BARRA SUPERIOR (HEADER ESTILO GMAIL) ── */}
-      <div className="flex items-center justify-between bg-transparent pb-3 px-2">
-        <div className="flex items-center gap-3 w-64">
-          <button className="p-2 hover:bg-slate-200/80 rounded-full transition-colors hidden md:block">
+      <div className="flex items-center justify-between bg-transparent pb-3 px-1 sm:px-2 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 md:w-64 min-w-0">
+          {/* En movil este boton abre las carpetas, que estan ocultas por espacio. */}
+          <button
+            onClick={() => setCarpetasOpen(true)}
+            aria-label="Abrir carpetas"
+            className="p-2 hover:bg-slate-200/80 active:bg-slate-200 rounded-full transition-colors md:hidden flex-shrink-0"
+          >
             <Menu className="w-5 h-5 text-slate-600" />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#1e3a5f] text-white flex items-center justify-center font-bold text-lg shadow-sm border border-slate-300">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-[#1e3a5f] text-white flex items-center justify-center font-bold text-lg shadow-sm border border-slate-300 flex-shrink-0">
               M
             </div>
-            <span className="text-xl font-semibold text-slate-800 tracking-tight">U3 Mail</span>
+            <span className="text-lg sm:text-xl font-semibold text-slate-800 tracking-tight truncate">U3 Mail</span>
           </div>
         </div>
 
@@ -356,7 +365,7 @@ export default function CorreoApp() {
 
         {/* Herramientas de Perfil */}
         <div className="flex items-center gap-1.5">
-          <button className="p-2 hover:bg-slate-200/80 rounded-full transition-colors text-slate-600" title="Ayuda">
+          <button className="hidden sm:block p-2 hover:bg-slate-200/80 rounded-full transition-colors text-slate-600" title="Ayuda">
             <HelpCircle className="w-5 h-5" />
           </button>
           <button 
@@ -374,13 +383,23 @@ export default function CorreoApp() {
 
       {/* ── CUERPO PRINCIPAL (SIDEBAR + MAIN CONTENT CARD) ── */}
       <div className="flex flex-1 gap-4 overflow-hidden">
-        
-        {/* BARRA LATERAL (SIDEBAR) */}
-        <div className="w-60 flex-shrink-0 flex flex-col justify-between overflow-y-auto pr-1">
+
+        {/* Fondo del cajon de carpetas en movil */}
+        {carpetasOpen && (
+          <div className="md:hidden fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-sm" onClick={() => setCarpetasOpen(false)} />
+        )}
+
+        {/* BARRA LATERAL (SIDEBAR) — cajon en movil, columna fija en escritorio */}
+        <div
+          className={`${carpetasOpen
+            ? 'flex fixed inset-y-0 left-0 z-50 w-[16rem] bg-[#f6f8fc] p-3 pt-[calc(0.75rem+var(--safe-top))] shadow-2xl'
+            : 'hidden'
+            } md:static md:z-auto md:flex md:w-60 md:bg-transparent md:p-0 md:shadow-none flex-shrink-0 flex-col justify-between overflow-y-auto scroll-touch pr-1`}
+        >
           <div className="space-y-1">
             {/* Botón Redactar */}
             <button 
-              onClick={() => abrirCompose({ ...COMPOSE_VACIO, modo: folder === 'externo' ? 'externo' : 'interno' })}
+              onClick={() => { setCarpetasOpen(false); abrirCompose({ ...COMPOSE_VACIO, modo: folder === 'externo' ? 'externo' : 'interno' }); }}
               className="flex items-center gap-3 px-6 py-4 bg-sky-100 hover:bg-sky-200 text-sky-900 rounded-2xl font-semibold shadow-sm hover:shadow transition-all duration-200 mb-4 w-44"
             >
               <Pencil className="w-5 h-5 text-sky-900" />
@@ -476,8 +495,8 @@ export default function CorreoApp() {
           </div>
 
           {/* Botón Firma inferior */}
-          <button 
-            onClick={() => setPerfilOpen(true)}
+          <button
+            onClick={() => { setCarpetasOpen(false); setPerfilOpen(true); }}
             className="flex items-center gap-2 px-4 py-2.5 mx-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/50 rounded-xl transition-all border border-slate-200 bg-white shadow-sm"
           >
             <Settings className="w-4 h-4 text-slate-500" />
@@ -668,7 +687,8 @@ export default function CorreoApp() {
 
               {/* CATEGORÍAS GMAIL EN LA PARTE SUPERIOR */}
               {folder === 'inbox' && (
-                <div className="grid grid-cols-4 border-b border-slate-100 text-slate-500 text-xs font-semibold select-none">
+                /* En movil las categorias se deslizan en horizontal en vez de apretarse en 4 columnas. */
+                <div className="flex overflow-x-auto scroll-touch no-scrollbar snap-row sm:grid sm:grid-cols-4 border-b border-slate-100 text-slate-500 text-xs font-semibold select-none">
                   {[
                     { id: 'primary' as GmailCategory, label: 'Principal', icon: Inbox, colorClass: 'border-blue-600 text-blue-600 bg-blue-50/20' },
                     { id: 'social' as GmailCategory, label: 'Social', icon: Users, colorClass: 'border-purple-600 text-purple-600 bg-purple-50/20' },
@@ -681,7 +701,7 @@ export default function CorreoApp() {
                       <button
                         key={cat.id}
                         onClick={() => { setActiveCategory(cat.id); setSelected(null); }}
-                        className={`flex items-center justify-center gap-2 py-3 border-b-2 transition-all duration-150 ${isSelected ? cat.colorClass : 'border-transparent hover:bg-slate-50 text-slate-500'}`}
+                        className={`flex-shrink-0 sm:flex-shrink flex items-center justify-center gap-2 px-4 sm:px-0 py-3 whitespace-nowrap border-b-2 transition-all duration-150 ${isSelected ? cat.colorClass : 'border-transparent hover:bg-slate-50 text-slate-500'}`}
                       >
                         <CatIcon className="w-4 h-4" />
                         <span>{cat.label}</span>
@@ -799,12 +819,13 @@ export default function CorreoApp() {
       {/* ── VENTANA DE COMPOSE FLOTANTE (ESTILO GMAIL EN LA ESQUINA INFERIOR DERECHA) ── */}
       {composeOpen && (
         <div 
+          /* En movil ocupa toda la pantalla; el modo esquina solo aplica desde sm. */
           className={`z-50 bg-white border border-slate-300 shadow-2xl flex flex-col overflow-hidden transition-all duration-200
-            ${composeMinimized 
-              ? 'fixed bottom-0 right-12 w-[280px] h-[40px] rounded-t-xl' 
-              : composeMaximized 
-                ? 'fixed inset-4 sm:inset-10 md:inset-16 rounded-xl' 
-                : 'fixed bottom-0 right-12 w-[540px] h-[580px] rounded-t-xl'
+            ${composeMinimized
+              ? 'fixed bottom-0 inset-x-0 h-[40px] pb-[var(--safe-bottom)] sm:inset-x-auto sm:right-12 sm:w-[280px] sm:pb-0 rounded-t-xl'
+              : composeMaximized
+                ? 'fixed inset-0 sm:inset-10 md:inset-16 pt-[var(--safe-top)] pb-[var(--safe-bottom)] sm:pt-0 sm:pb-0 rounded-none sm:rounded-xl'
+                : 'fixed inset-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)] sm:inset-auto sm:bottom-0 sm:right-12 sm:w-[540px] sm:h-[580px] sm:pt-0 sm:pb-0 rounded-none sm:rounded-t-xl'
             }`}
         >
           {/* Header de la ventana */}

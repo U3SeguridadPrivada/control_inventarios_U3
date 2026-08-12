@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Menu, Mail, LogOut } from 'lucide-react';
+import { Mail, LogOut } from 'lucide-react';
 import { useAuth } from '@/src/context/AuthContext';
 import { apiFetch } from '@/src/lib/api';
 import { getPageTitle } from '@/src/config/nav';
@@ -22,11 +22,7 @@ function useClock() {
   return now;
 }
 
-interface HeaderProps {
-  onOpenMobileNav: () => void;
-}
-
-export default function Header({ onOpenMobileNav }: HeaderProps) {
+export default function Header() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const now = useClock();
@@ -41,19 +37,13 @@ export default function Header({ onOpenMobileNav }: HeaderProps) {
   const title = getPageTitle(pathname);
 
   return (
-    <header className="sticky top-0 z-30 h-16 flex items-center justify-between gap-3 px-4 sm:px-6 bg-card border-b border-border">
-      <div className="flex items-center gap-3 min-w-0">
-        <button
-          onClick={onOpenMobileNav}
-          className="md:hidden flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted"
-          aria-label="Abrir menú"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-        <h1 className="text-lg font-semibold tracking-tight truncate">{title}</h1>
+    <header className="sticky top-0 z-30 pt-[var(--safe-top)] h-[calc(4rem+var(--safe-top))] flex items-center justify-between gap-3 px-4 sm:px-6 bg-card border-b border-border">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <img src="/logo_b.png" alt="U3" className="md:hidden w-7 h-7 object-contain flex-shrink-0" />
+        <h1 className="text-base sm:text-lg font-semibold tracking-tight truncate">{title}</h1>
       </div>
 
-      <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
         <span className="hidden sm:inline text-xs text-muted-foreground tabular-nums">
           {now.toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'short' })} · {now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
         </span>
@@ -75,7 +65,8 @@ export default function Header({ onOpenMobileNav }: HeaderProps) {
             <span className="text-xs font-medium truncate max-w-[120px]">{user?.username}</span>
             <span className="text-[10px] text-muted-foreground truncate">{ROLE_LABELS[user?.role ?? ''] ?? user?.role}</span>
           </div>
-          <button onClick={logout} title="Cerrar sesión" className="p-1.5 rounded-md hover:bg-muted transition flex-shrink-0">
+          {/* En movil el cierre de sesion vive en la hoja "Más" de la barra inferior. */}
+          <button onClick={logout} title="Cerrar sesión" className="hidden sm:block p-1.5 rounded-md hover:bg-muted transition flex-shrink-0">
             <LogOut className="w-4 h-4 text-muted-foreground hover:text-foreground" />
           </button>
         </div>

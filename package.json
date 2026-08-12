@@ -1,13 +1,14 @@
 {
-  "name": "control-de-inventarios-u3",
+  "name": "suite-u3",
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "cross-env NODE_OPTIONS=\"--require ./exfat-patch.cjs\" next dev",
     "build": "next build",
     "build:local": "cross-env NODE_OPTIONS=\"--require ./exfat-patch.cjs\" next build --turbopack",
     "start": "next start",
-    "create-admin": "node scripts/create-admin.mjs"
+    "create-admin": "node scripts/create-admin.mjs",
+    "pwa-icons": "node scripts/generate-pwa-icons.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -50,6 +51,7 @@
     "@types/react-dom": "^19.0.0",
     "cross-env": "^10.1.0",
     "drizzle-kit": "^0.30.0",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.1.8",
     "typescript": "^5.4.5"
   }

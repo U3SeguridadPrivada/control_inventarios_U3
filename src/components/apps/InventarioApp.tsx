@@ -69,7 +69,7 @@ export default function InventarioApp() {
           <h1 className="text-2xl font-bold tracking-tight">Inventario General</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Estado actual del almacén, equipo en uso y bajas definitivas</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleExportCSV}><Download className="w-4 h-4 mr-1.5" /> Exportar Excel</Button>
           <Button variant="outline" size="sm" onClick={handleExportPDF}><Download className="w-4 h-4 mr-1.5" /> Exportar PDF</Button>
           <Button variant="outline" size="sm" onClick={handlePrint}><Printer className="w-4 h-4 mr-1.5" /> Imprimir Vista</Button>

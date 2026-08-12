@@ -501,7 +501,7 @@ export default function ReclutamientoApp() {
           <h1 className="text-2xl font-bold tracking-tight">Reclutamiento</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Candidatos captados por el asistente de WhatsApp y vacantes publicadas</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={generarInforme} disabled={generando}>
             {generando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileText className="w-4 h-4 mr-1.5" />}
             {generando ? 'Generando...' : 'Generar informe'}

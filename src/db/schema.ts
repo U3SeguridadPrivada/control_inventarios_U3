@@ -328,6 +328,24 @@ export const whatsapp_chats = sqliteTable('whatsapp_chats', {
   created_at: text('created_at').default(sql`(datetime('now'))`),
 });
 
+// Biblioteca de protocolos operativos (emergencias, rondines, RRHH...).
+// Un protocolo `lista` es un procedimiento corto y vive en `pasos`; un protocolo
+// `documento` es un manual con capitulado y vive en `contenido` (secciones y bloques).
+export const protocolos = sqliteTable('protocolos', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  titulo: text('titulo').notNull(),
+  categoria: text('categoria').notNull().default('Operativo'),
+  descripcion: text('descripcion'),
+  tipo: text('tipo').notNull().default('lista'),
+  pasos: text('pasos', { mode: 'json' }).notNull().$type<string[]>(),
+  contenido: text('contenido', { mode: 'json' }).$type<Record<string, any> | null>(),
+  prioridad: text('prioridad').notNull().default('Media'),
+  activo: integer('activo').notNull().default(1),
+  creado_por: integer('creado_por').references(() => users.id),
+  actualizado_en: text('actualizado_en'),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+});
+
 export const movimiento_evidencias = sqliteTable('movimiento_evidencias', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   movimiento_id: integer('movimiento_id').notNull().references(() => movimientos_financieros.id),

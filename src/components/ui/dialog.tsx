@@ -1,15 +1,45 @@
+'use client'
 import * as React from "react"
 import { cn } from "@/src/lib/utils"
 
+/**
+ * En movil se presenta como hoja anclada abajo (pulgar al alcance) y en
+ * escritorio como modal centrado. Bloquea el scroll de fondo mientras esta
+ * abierto para que el gesto no arrastre la pagina.
+ */
 export function Dialog({ open, onOpenChange, children, className }: { open: boolean, onOpenChange: (open: boolean) => void, children: React.ReactNode, className?: string }) {
+  React.useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onOpenChange(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open, onOpenChange]);
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/45 backdrop-blur-sm print:static print:block print:p-0 print:bg-transparent print:backdrop-blur-none">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/45 backdrop-blur-sm print:static print:block print:p-0 print:bg-transparent print:backdrop-blur-none">
       <div
         className="fixed inset-0 z-[-1] print:hidden"
         onClick={() => onOpenChange(false)}
       />
-      <div id="dialog-print-wrapper" className={cn("z-50 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden print:max-w-none print:w-full print:rounded-none print:border-none print:shadow-none print:p-0 print:overflow-visible print:bg-white", className)}>
+      <div
+        id="dialog-print-wrapper"
+        role="dialog"
+        aria-modal="true"
+        className={cn(
+          "dialog-panel z-50 w-full max-w-lg max-h-[92svh] border border-border bg-card shadow-2xl",
+          "rounded-t-2xl sm:rounded-2xl",
+          "print:max-w-none print:max-h-none print:w-full print:rounded-none print:border-none print:shadow-none print:bg-white",
+          className
+        )}
+      >
         {children}
       </div>
     </div>
@@ -33,5 +63,15 @@ export function DialogDescription({ children, className }: { children: React.Rea
 }
 
 export function DialogFooter({ children, className }: { children: React.ReactNode, className?: string }) {
-  return <div className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}>{children}</div>
+  // En movil los botones se apilan a ancho completo; en escritorio van a la derecha.
+  return (
+    <div
+      className={cn(
+        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2 [&>button]:w-full sm:[&>button]:w-auto",
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
 }

@@ -1,0 +1,1266 @@
+{
+  "titulo": "Protocolos de Seguridad para Planteles de Educación Primaria",
+  "categoria": "Seguridad",
+  "prioridad": "Alta",
+  "resumen": "Documento rector de prevención, atención y gestión de contingencias en planteles de educación primaria bajo resguardo de U3 Seguridad Privada. Comprende la Red de Seguridad Escolar, la bitácora, las acciones preventivas, veintiún protocolos de contingencia, el directorio de emergencia, la señalización y los formatos anexos.",
+  "contenido": {
+    "version": "1.0",
+    "subtitulo": "Documento rector de prevención, atención y gestión de contingencias en planteles de educación primaria bajo resguardo de U3 Seguridad Privada.",
+    "nivelEducativo": "Primaria (6 a 12 años)",
+    "secciones": [
+      {
+        "id": "presentacion",
+        "tipo": "capitulo",
+        "numero": "Documento base",
+        "titulo": "Presentación",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "Los presentes Protocolos establecen las reglas, conductas y acciones que la comunidad escolar y el personal de seguridad deben observar para prevenir, atender y resolver las contingencias que se presenten en un plantel de educación primaria. Su propósito es proteger la integridad física, psicológica y social de niñas y niños de 6 a 12 años, una población que depende por completo de las personas adultas que la cuidan."
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "La escuela primaria responde por la seguridad de cada alumna y alumno desde que cruza la puerta del plantel hasta que es entregado a una persona autorizada. Esa responsabilidad continua es la que da forma a todos los procedimientos de este documento y se expresa en tres reglas que no admiten excepción:"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "upper-roman",
+            "items": [
+              "Ninguna niña o niño permanece solo en ningún momento de una contingencia, ni siquiera unos segundos.",
+              "Ninguna alumna o alumno se entrega a una persona que no esté en el Registro de Personas Autorizadas.",
+              "Ningún menor de edad recibe encargos operativos durante una contingencia; las tareas son siempre de personas adultas."
+            ]
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El documento se integra por ocho capítulos y cuatro anexos. Los capítulos I a IV establecen el marco, la organización y la prevención; el capítulo V contiene los veintiún protocolos de contingencia con sus fases de actuación y seguimiento; los capítulos VI a VIII resuelven el directorio de emergencia, la señalización y la vigencia. Los anexos son los formatos de uso obligatorio en el plantel."
+          },
+          {
+            "tipo": "nota",
+            "texto": "Este documento no sustituye el Plan de Protección Civil del plantel ni los protocolos emitidos por la autoridad educativa. Es un instrumento operativo de seguridad que los complementa y que debe adecuarse al contexto de cada plantel mediante la Estrategia de Seguridad correspondiente."
+          }
+        ]
+      },
+      {
+        "id": "cap-1",
+        "tipo": "capitulo",
+        "numero": "Capítulo I",
+        "titulo": "Generalidades",
+        "bloques": [
+          { "tipo": "subtitulo", "texto": "1. Objetivo general" },
+          {
+            "tipo": "parrafo",
+            "texto": "Guiar y acompañar al personal directivo, al personal escolar, al servicio de seguridad privada y a las familias de los planteles de educación primaria en la prevención, atención y gestión de las contingencias que puedan poner en riesgo la integridad física, psicológica y social de las niñas y los niños, considerando su edad, su desarrollo y su dependencia de las personas adultas que los cuidan."
+          },
+          { "tipo": "subtitulo", "texto": "2. Objetivos específicos" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Establecer y coordinar las acciones necesarias para proteger y garantizar el ejercicio efectivo de los derechos de las niñas y los niños que resulten víctimas de una contingencia.",
+              "Asegurar que la respuesta institucional sea inmediata, acompañada y coordinada con las autoridades de salud, seguridad y protección de la niñez.",
+              "Garantizar en todo momento la entrega segura del alumnado a personas autorizadas, como eje de la responsabilidad del plantel.",
+              "Reconocer que algunas niñas y niños se encuentran en mayor situación de vulnerabilidad —con discapacidad, con condiciones de salud crónicas, de menor edad o en contextos familiares de riesgo— y prever su atención específica en cada procedimiento.",
+              "Incorporar la perspectiva de género y el enfoque de protección a la infancia, reconociendo distintos niveles de exposición al riesgo.",
+              "Proteger la intimidad, los datos personales y la seguridad jurídica de las niñas y los niños, evitando su exposición pública o su revictimización.",
+              "Desarrollar en el alumnado, con lenguaje y actividades adecuadas a su edad, nociones básicas de autocuidado sin trasladarle responsabilidades que corresponden a las personas adultas."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "3. Ámbito de aplicación" },
+          {
+            "tipo": "parrafo",
+            "texto": "Los presentes Protocolos son de observancia general y aplicación obligatoria para el personal directivo, el personal docente, el personal administrativo y de apoyo, el personal del servicio de seguridad privada asignado al plantel, así como para las madres, padres, tutoras, tutores, cuidadoras y cuidadores de las niñas y los niños matriculados. El alumnado participa conforme a su edad, mediante actividades formativas y simulacros."
+          },
+          { "tipo": "subtitulo", "texto": "4. Glosario" },
+          {
+            "tipo": "lista",
+            "estilo": "glosario",
+            "items": [
+              "Acoso escolar (bullying): acto u omisión que de manera reiterada agrede física, psicoemocional, patrimonial o sexualmente a una alumna o alumno, bajo el cuidado de la escuela.",
+              "Alumnado: conjunto de niñas y niños inscritos en el plantel de educación primaria.",
+              "Ambiente escolar positivo: convivencia libre de violencia o maltrato, ya sea psicológico, físico o cibernético, en el ámbito escolar.",
+              "Cédula del Alumno: expediente con los datos de identificación, salud y contactos de emergencia de cada niña o niño, de resguardo confidencial y actualización semestral.",
+              "Comunidad escolar: alumnado; madres, padres, tutores, cuidadoras y cuidadores; personal escolar, personal directivo y personal del servicio de seguridad.",
+              "Contingencia: riesgo o probable riesgo a la seguridad física, personal, psicológica o cibernética de la comunidad escolar en el plantel.",
+              "Estrategia de Seguridad del Plantel: acciones y responsabilidades concretas que define la dirección del plantel a partir de estos Protocolos y del contexto comunitario, local y regional.",
+              "Filtro escolar: revisión visual y de estado general del alumnado y sus pertenencias al ingreso, realizada con respeto a su dignidad e intimidad.",
+              "Persona autorizada: persona adulta inscrita por la madre, padre o tutor en el Registro de Personas Autorizadas, única facultada para retirar a una alumna o alumno del plantel.",
+              "Punto de reunión: espacio seguro, validado por protección civil, al que se traslada la comunidad escolar en una evacuación.",
+              "Red de Seguridad Escolar: personal escolar, familias, servicio de seguridad privada y autoridades locales que auxilian a la dirección en la implementación de la Estrategia de Seguridad.",
+              "Resguardo interno: medida por la cual la comunidad escolar permanece dentro del plantel, con accesos cerrados, ante un riesgo exterior. Sustituye a la evacuación mientras dure la amenaza.",
+              "Revictimización: daño adicional que sufre una niña o un niño cuando se le obliga a repetir su relato, se le interroga, se le expone o se le culpa.",
+              "Señal de alarma: aviso emitido por el personal directivo o escolar que indica a la comunidad la acción obligatoria a seguir: resguardo en el aula, evacuación o repliegue a zona de menor riesgo.",
+              "Violencia: uso deliberado de la fuerza física o el poder, en grado de amenaza o efectivo, que cause o pueda causar lesiones, muerte, daño psicológico, trastornos del desarrollo o privaciones."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "5. Principios rectores" },
+          {
+            "tipo": "lista",
+            "estilo": "glosario",
+            "items": [
+              "Supervivencia y desarrollo: el plantel garantiza las condiciones de seguridad, salud y cuidado que permiten a cada niña y niño desarrollarse plenamente.",
+              "No discriminación: todas las niñas y los niños acceden a la misma protección, sin distinción por origen, condición, discapacidad, apariencia o situación familiar.",
+              "Interés superior de la niñez: ante cualquier decisión que afecte a una niña o un niño, se elige la alternativa que mejor proteja sus derechos, aunque resulte más costosa u operativamente más difícil para el plantel.",
+              "Derecho a ser escuchado: se escucha a la niña o el niño y se toma en cuenta su opinión conforme a su edad y madurez, sin someterlo a interrogatorios.",
+              "Autonomía progresiva: las responsabilidades que se le asignan corresponden a su etapa de desarrollo; la protección nunca se delega en el alumnado.",
+              "Confidencialidad y no revictimización: la información de cada caso se maneja con acceso restringido, y ningún procedimiento expone, señala ni obliga a repetir un relato doloroso."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cap-2",
+        "tipo": "capitulo",
+        "numero": "Capítulo II",
+        "titulo": "Red de Seguridad Escolar",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "En cada plantel se desarrolla la Estrategia de Seguridad del Plantel, que contiene las acciones de seguridad que define la dirección conforme a estos Protocolos y al contexto de la comunidad. La dirección se auxilia de la Red de Seguridad Escolar, integrada por el personal escolar, el servicio de seguridad privada, representantes de madres y padres de familia y las autoridades locales de seguridad y protección civil."
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "En primaria el alumnado no integra la Red de Seguridad con funciones operativas. Su participación se da a través de actividades formativas, simulacros y comités de convivencia con funciones exclusivamente educativas."
+          },
+          { "tipo": "subtitulo", "texto": "1. Funcionamiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Celebrar sesiones ordinarias al menos una vez al mes para evaluar las condiciones de seguridad del plantel.",
+              "Celebrar sesión extraordinaria cada vez que se presente una contingencia, dentro de los tres días hábiles siguientes.",
+              "Proponer mejoras a las acciones de prevención, protección y atención.",
+              "Designar por escrito, al inicio del ciclo escolar, a las personas responsables de cada función y a sus suplentes, y levantar el acta correspondiente.",
+              "Revisar y actualizar la Estrategia de Seguridad al inicio de cada ciclo escolar y después de cada contingencia relevante."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "2. Personal participante y responsabilidades" },
+          {
+            "tipo": "tabla",
+            "encabezados": ["Figura", "Responsabilidades"],
+            "filas": [
+              ["Personal directivo", "Preside la Red de Seguridad; da a conocer e implementa la Estrategia; gestiona recursos; programa simulacros; alerta al plantel; reporta a la autoridad educativa y a las autoridades competentes; resguarda los datos personales y de salud del alumnado; supervisa que ninguna acción vulnere los derechos de las niñas y los niños; autoriza toda entrega de alumnado en situaciones no ordinarias."],
+              ["Personal docente", "Conduce y acompaña a su grupo en toda contingencia; realiza el pase de lista y lo reporta; resguarda la integridad del alumnado; identifica y comunica contingencias; brinda primeros auxilios y contención emocional; nunca deja al grupo sin persona adulta a cargo; porta la lista de su grupo en toda evacuación y salida escolar."],
+              ["Personal administrativo y de apoyo", "Opera el control de acceso y el Registro de Personas Autorizadas; integra y resguarda el botiquín; apoya la vigilancia por zonas en recreo, baños y accesos; auxilia en la evacuación y en el punto de entrega."],
+              ["Servicio de seguridad privada", "Controla el acceso y la identificación de personas visitantes; impide el ingreso o el retiro no autorizado; mantiene el perímetro; da aviso inmediato a la dirección y al 911; resguarda las grabaciones de cámaras; no interviene físicamente en conflictos entre personas adultas salvo riesgo directo al alumnado; jamás permanece a solas con una niña o un niño."],
+              ["Madres, padres, tutoras y tutores", "Conocen y acatan el reglamento y los horarios; mantienen actualizados los datos de la Cédula del Alumno y el Registro de Personas Autorizadas; se identifican al recoger al menor; comunican al plantel cualquier resolución judicial de guarda o custodia; siguen las indicaciones de la dirección durante una contingencia y no acuden al plantel hasta que se les indique."],
+              ["Alumnado", "Atiende las indicaciones de su docente; participa en simulacros; conoce las reglas de autocuidado y sabe a qué persona adulta acudir; favorece la convivencia con sus pares."]
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cap-3",
+        "tipo": "capitulo",
+        "numero": "Capítulo III",
+        "titulo": "Bitácora de seguridad",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "La dirección del plantel es responsable del registro y análisis de las contingencias que se susciten. La bitácora se integra por tres registros complementarios, todos de resguardo confidencial:"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "glosario",
+            "items": [
+              "Bitácora de acceso: entradas y salidas de personas visitantes y proveedores, con nombre, identificación, motivo, persona que autoriza, hora de entrada y hora de salida.",
+              "Bitácora de incidencias: contingencia suscitada, fecha y hora de los hechos, personas involucradas, resumen objetivo, acciones aplicadas y autoridad notificada.",
+              "Registro de entregas no ordinarias: todo retiro fuera del horario habitual, por persona distinta a la habitual o con incidencia, con firma de la persona que recibe y de dos testigos del personal."
+            ]
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "La bitácora se informa de forma semestral a la autoridad educativa correspondiente y se analiza en la Red de Seguridad para identificar la recurrencia de contingencias y corregir sus causas. Los registros que contengan datos de salud, de violencia familiar o de abuso se resguardan con acceso restringido a la dirección y a la autoridad competente."
+          }
+        ]
+      },
+      {
+        "id": "cap-4",
+        "tipo": "capitulo",
+        "numero": "Capítulo IV",
+        "titulo": "Acciones preventivas",
+        "bloques": [
+          { "tipo": "subtitulo", "texto": "A. Con el alumnado" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Integrar la Cédula del Alumno (Anexo A) con fotografía reciente, tres teléfonos de contacto, tipo de sangre, alergias, padecimientos crónicos y medicamentos de uso permanente.",
+              "Elaborar un plan de atención individual para cada niña o niño con condición crónica (asma, epilepsia, diabetes, alergia grave), y darlo a conocer al personal que lo atiende.",
+              "Integrar el Registro de Personas Autorizadas (Anexo B), con fotografía e identificación oficial de cada persona facultada para retirar al menor.",
+              "Actualizar ambos registros al inicio de cada ciclo escolar y cada vez que la familia informe un cambio.",
+              "Realizar actividades formativas de autocuidado con lenguaje adecuado a la edad: partes privadas del cuerpo, secretos que no se guardan, a qué persona adulta acudir, qué hacer si se separa del grupo.",
+              "Ensayar con el alumnado las señales de alarma —evacuación y resguardo interno— en simulacros periódicos, presentados de forma que no generen miedo."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Con el personal escolar y de seguridad" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Capacitación periódica en primeros auxilios pediátricos, incluida la desobstrucción de vía aérea en menores.",
+              "Capacitación en detección temprana de maltrato y abuso sexual infantil, y en el deber legal de reportar.",
+              "Verificación de antecedentes y evaluación del personal que tiene contacto directo con el alumnado, incluido el servicio de seguridad y el personal externo.",
+              "Regla permanente: ninguna persona adulta permanece a solas y sin visibilidad con una niña o un niño; las puertas de oficinas y aulas permanecen abiertas o con visibilidad al exterior.",
+              "Prohibición de fotografiar o difundir imágenes del alumnado sin autorización escrita de la familia y sin fines institucionales.",
+              "Asignación por escrito de zonas de vigilancia durante el recreo, la entrada y la salida."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "C. En el plantel" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Mantener infraestructura, mobiliario y juegos en condiciones seguras, con revisión documentada al menos cada bimestre.",
+              "Operar un único acceso controlado durante la jornada, con puerta cerrada y personal permanente.",
+              "Contar con señalización de protección civil visible y colocada también a la altura de la vista de las niñas y los niños.",
+              "Marcar rutas de evacuación, zonas de menor riesgo y punto de reunión validado por protección civil, así como un punto de reunión alterno fuera del plantel.",
+              "Instalar alarma o altavoces audibles en todo el plantel, con señales distintas para evacuación y para resguardo interno.",
+              "Contar con botiquín de primeros auxilios completo y accesible, con material apto para población infantil, y verificar caducidades cada bimestre.",
+              "Resguardar bajo llave productos de limpieza, herramientas, medicamentos y cualquier sustancia peligrosa.",
+              "Mantener cámaras operando en accesos y perímetro, con respaldo de grabación suficiente para revisar incidentes.",
+              "Colocar en el acceso las reglas de ingreso, el horario de salida y el procedimiento de entrega del alumnado.",
+              "Integrar y mantener actualizado el directorio de emergencias del Capítulo VI con los números locales.",
+              "Realizar simulacros de evacuación y de resguardo interno al menos una vez por trimestre, y evaluar cada uno por escrito."
+            ]
+          },
+          {
+            "tipo": "nota",
+            "texto": "La revisión de mochilas se realiza de forma periódica, anunciada y general, con la presencia de dos personas adultas y, cuando sea posible, de la madre, padre o tutor. Nunca se realiza de forma dirigida por sospecha hacia una niña o un niño en particular, ni de manera que exponga sus pertenencias frente al grupo."
+          }
+        ]
+      },
+      {
+        "id": "cap-5",
+        "tipo": "capitulo",
+        "numero": "Capítulo V",
+        "titulo": "Contingencias",
+        "bloques": [
+          { "tipo": "subtitulo", "texto": "Generalidades: contención emocional en la niñez" },
+          {
+            "tipo": "parrafo",
+            "texto": "Ante cualquier contingencia, la primera tarea de la persona adulta es sostener la calma del grupo. En primaria las crisis nerviosas se manifiestan de manera particular: llanto incontrolable, mutismo, temblor, aferrarse a la persona adulta, conductas regresivas, pérdida de control de esfínteres, dolor de estómago o de cabeza, agitación o inmovilidad. Ninguna de estas reacciones se corrige, se regaña ni se comenta frente a las demás niñas y niños."
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Mantener la calma: el estado emocional de la persona adulta determina el del grupo.",
+              "Usar frases breves, concretas y repetidas: «estoy aquí», «estamos juntos», «yo te cuido».",
+              "Acercarse individualmente a quien presente crisis, colocarse a su altura y ofrecer contacto físico tranquilizador si lo acepta.",
+              "Ayudar a situar a la niña o el niño en el momento presente y acompañar respiraciones lentas.",
+              "Si no logra escuchar ni comprender, dar espacio sin perder la vigilancia.",
+              "No mentir sobre lo que ocurre: explicar con verdad y con palabras adecuadas a su edad.",
+              "Canalizar a atención psicológica a quien lo requiera y avisar a la familia de las reacciones observadas."
+            ]
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Los protocolos V.1 a V.21 desarrollan cada contingencia en dos fases: actuación, que comprende lo que se hace mientras ocurre el hecho, y seguimiento, que comprende lo que se hace después para atender a las personas afectadas, informar a las autoridades y corregir la causa."
+          }
+        ]
+      },
+      {
+        "id": "accidente-lesion",
+        "tipo": "protocolo",
+        "numero": "V.1",
+        "titulo": "Accidente o lesión dentro del plantel",
+        "categoria": "Emergencia",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Cualquier incidente ocurrido durante actividades académicas, deportivas, de recreo o de convivencia dentro del plantel que ponga en riesgo la salud física de una alumna o alumno o de cualquier integrante de la comunidad escolar. En primaria la mayoría de los accidentes ocurre en el patio, escaleras, baños y juegos, por lo que la vigilancia por zonas durante el recreo es la principal medida preventiva." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "No mover a la niña o el niño lesionado. Pedir a otra persona adulta que avise de inmediato a la dirección; nunca enviar a un alumno solo a pedir ayuda.",
+              "Retirar del área al resto del grupo y mantenerlo acompañado por una persona adulta, evitando que se aglomeren alrededor de la persona lesionada.",
+              "Valorar el tipo de lesión con el personal capacitado en primeros auxilios pediátricos.",
+              "Si la lesión es leve: aplicar primeros auxilios con el botiquín, registrar el hecho en la bitácora y notificar a la familia el mismo día, aunque la niña o el niño regrese a clase.",
+              "Si la lesión es grave: llamar al 911 y solicitar ambulancia, indicando que se trata de un menor de edad y su edad aproximada.",
+              "Consultar de inmediato la Cédula del Alumno para informar a los paramédicos tipo de sangre, alergias, padecimientos y medicamentos.",
+              "Llamar a la madre, padre o tutor por los teléfonos de contacto registrados, en el orden en que aparecen en la cédula.",
+              "No administrar medicamentos ni alimentos sin indicación médica y sin autorización escrita de la familia.",
+              "Designar a una persona del personal escolar para que acompañe a la niña o el niño en el traslado y permanezca con ella o él hasta que llegue la familia. Ninguna alumna o alumno debe quedar solo en el hospital.",
+              "Anotar los datos del hospital de traslado, la hora y el nombre de quien recibe, y registrarlo en la bitácora de seguridad."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Dar seguimiento al estado de salud y mantener comunicación con la familia hasta el alta.",
+              "Orientar a la familia sobre el seguro escolar contra accidentes y los trámites correspondientes.",
+              "Levantar el acta de hechos con circunstancias de modo, tiempo y lugar, e informar a la autoridad educativa superior.",
+              "Revisar el área donde ocurrió el accidente y corregir la condición insegura que lo originó (piso, mobiliario, juego, escalera).",
+              "Brindar contención emocional al grupo que presenció el accidente, con lenguaje adecuado a su edad.",
+              "Apoyar a la alumna o alumno en la recuperación de tareas y evaluaciones durante su ausencia."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "enfermedad-subita",
+        "tipo": "protocolo",
+        "numero": "V.2",
+        "titulo": "Enfermedad súbita, crisis convulsiva, atragantamiento o reacción alérgica",
+        "categoria": "Emergencia",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Situación de salud que aparece de manera repentina durante la jornada escolar: desmayo, crisis convulsiva, crisis asmática, atragantamiento, reacción alérgica grave, fiebre alta o descompensación por una enfermedad crónica. En primaria es una de las contingencias más frecuentes y el alumnado no puede describir con precisión lo que le ocurre, por lo que el expediente de salud actualizado es indispensable." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Mantener la calma y solicitar apoyo del personal capacitado en primeros auxilios; no dejar sola a la niña o el niño en ningún momento.",
+              "Consultar la Cédula del Alumno para identificar padecimientos crónicos, alergias y medicamentos de uso permanente.",
+              "En crisis convulsiva: retirar objetos alrededor, colocar a la niña o el niño de costado, proteger la cabeza, no introducir nada en la boca, no sujetar los movimientos y medir la duración de la crisis.",
+              "En atragantamiento: aplicar las maniobras de desobstrucción de vía aérea para menores únicamente por personal capacitado y llamar al 911 simultáneamente.",
+              "En crisis asmática o reacción alérgica: aplicar el medicamento de rescate solo si está autorizado por escrito por la familia y resguardado en la escuela con indicaciones médicas.",
+              "Llamar al 911 cuando haya pérdida de conciencia, dificultad para respirar, crisis convulsiva de más de cinco minutos o repetida, o cuando no se identifique la causa.",
+              "Contactar a la familia por los teléfonos de la cédula y describir con precisión lo observado, sin emitir diagnósticos.",
+              "Trasladar al resto del grupo a otra área acompañado por una persona adulta.",
+              "Registrar hora de inicio, signos observados, acciones aplicadas y hora de llegada de la ayuda médica."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Solicitar a la familia la constancia médica y las indicaciones para el regreso a clases.",
+              "Actualizar la Cédula del Alumno con el nuevo padecimiento, medicamento o restricción identificada.",
+              "Acordar con la familia un plan de atención individual si se trata de una condición crónica, y darlo a conocer al personal que atiende al grupo.",
+              "Verificar y reponer el material del botiquín utilizado.",
+              "Informar a la autoridad educativa superior y registrar el hecho en la bitácora."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "accidente-salida-escolar",
+        "tipo": "protocolo",
+        "numero": "V.3",
+        "titulo": "Accidente en salida o viaje escolar",
+        "categoria": "Emergencia",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Accidente que ocurre durante el traslado o el desarrollo de una visita, excursión o actividad fuera del plantel. Toda salida requiere autorización firmada por la familia, una proporción mínima de una persona adulta por cada diez alumnas y alumnos, y gafete de identificación con el nombre de la escuela y un teléfono de contacto, nunca con el nombre del alumno visible." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Verificar de inmediato el estado del grupo y realizar pase de lista completo antes de cualquier otra acción.",
+              "Identificar a las alumnas y alumnos lesionados y avisar a la persona responsable de la salida.",
+              "No mover a las personas lesionadas y esperar a los servicios de emergencia, salvo riesgo inminente en el lugar.",
+              "Llamar al 911 e indicar que se trata de un grupo escolar de primaria, el número de menores y la ubicación exacta.",
+              "Entregar a los paramédicos la ficha de información de cada menor lesionado (nombre, edad, tipo de sangre, alergias, padecimientos).",
+              "Mantener al resto del grupo reunido, alejado de la zona del accidente y acompañado en todo momento por personal escolar.",
+              "Avisar a la dirección del plantel, que a su vez contactará a las familias de las y los menores lesionados; evitar que la información llegue primero por redes sociales.",
+              "Designar a una persona del personal escolar por cada menor trasladado, para que lo acompañe hasta la llegada de su familia.",
+              "Contactar a la empresa o permisionario del transporte para hacer efectivo el seguro correspondiente.",
+              "Asegurar que el resto del grupo regrese al plantel acompañado y que cada alumna o alumno sea entregado únicamente a una persona autorizada."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Dar seguimiento al estado de salud de las y los menores y del personal lesionado hasta el alta médica.",
+              "Verificar que el seguro de viaje y el seguro escolar se hagan efectivos.",
+              "Entregar justificantes escolares con base en la constancia médica y recalendarizar tareas y evaluaciones.",
+              "Brindar contención emocional al grupo, a las familias y al personal que participó en la salida.",
+              "Informar por escrito y por teléfono a la autoridad educativa superior.",
+              "Revisar las condiciones de contratación del transporte y los criterios de autorización de salidas antes de la siguiente actividad."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "crisis-emocional-autolesion",
+        "tipo": "protocolo",
+        "numero": "V.4",
+        "titulo": "Crisis emocional grave, autolesión o expresiones de querer morir",
+        "categoria": "Emergencia",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "En la niñez estas situaciones se expresan de forma particular: golpearse, rasguñarse o morderse, dibujos o frases sobre desaparecer o morir, retraimiento súbito o llanto incontrolable. Toda expresión de este tipo se atiende como una señal de alarma y nunca se minimiza, se ridiculiza ni se comenta frente al grupo." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Avisar de inmediato a la dirección; la atención la asume personal adulto, nunca otro alumno o alumna.",
+              "Acompañar a la niña o el niño en todo momento, sin dejarlo solo ni siquiera unos segundos, incluyendo el baño.",
+              "Trasladarlo a un espacio privado y tranquilo de la dirección o del área de orientación, retirando del alcance objetos con los que pueda dañarse.",
+              "Hablar con voz calmada y sin interrogar; escuchar sin juzgar, sin prometer secretos y sin emitir diagnósticos.",
+              "Si presenta una lesión leve, brindar primeros auxilios; si la lesión es grave, llamar al 911 y solicitar ambulancia.",
+              "Trasladar al resto del grupo a un área separada, previamente definida en la Estrategia de Seguridad del plantel.",
+              "Contactar de inmediato a la madre, padre o tutor para que acuda al plantel y explicarle la situación en privado y sin juicios.",
+              "Comunicar a la familia la necesidad de valoración por personal de salud especializado y proporcionar los datos de la Línea de la Vida (800 911 2000) y de las instituciones de salud pública de la localidad.",
+              "Si se identifica que la causa puede estar en el entorno familiar, activar además el protocolo V.17 y dar aviso a la Procuraduría de Protección de Niñas, Niños y Adolescentes.",
+              "Registrar el hecho con estricta confidencialidad, sin difundir el nombre de la niña o el niño ni detalles del suceso."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Verificar con la familia que se haya realizado la valoración profesional y solicitar las recomendaciones para el manejo escolar.",
+              "Asignar a una persona del personal escolar como figura de confianza y contacto cotidiano para la niña o el niño.",
+              "Coordinar con las y los docentes la recalendarización de tareas y evaluaciones.",
+              "Realizar actividades de convivencia y manejo de emociones con el grupo, con acompañamiento de personal especializado y sin exponer el caso.",
+              "Vigilar que no se generen señalamientos, burlas ni estigmatización hacia la niña o el niño a su regreso.",
+              "Informar por escrito a la autoridad educativa superior, resguardando la identidad del menor."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "armas-fuego-plantel",
+        "tipo": "protocolo",
+        "numero": "V.5",
+        "titulo": "Presencia, portación o uso de armas de fuego dentro del plantel",
+        "categoria": "Emergencia",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Situación en la que una persona de la comunidad escolar o ajena a ella se encuentra armada dentro del plantel. En primaria el escenario más probable es que una niña o un niño lleve a la escuela el arma de una persona adulta de su casa, sin conciencia del riesgo; por ello la actuación evita la confrontación y prioriza el resguardo del grupo." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Avisar a la dirección con prontitud y prudencia mediante el código de seguridad preestablecido, sin gritar ni alarmar al alumnado.",
+              "Si es una niña o un niño quien porta el arma: no arrebatarla, no confrontarlo y no rodearlo; hablar con voz tranquila, pedirle que la coloque sobre una superficie y retirar al resto del grupo del área.",
+              "Si es una persona adulta armada: no confrontarla, activar la señal de alarma de resguardo interno y llamar al 911.",
+              "Mantener a todo el alumnado dentro de las aulas hasta nuevo aviso; cerrar la puerta con llave o atrancarla y apagar las luces.",
+              "Instruir al grupo a colocarse en el piso, lejos de puertas y ventanas, en silencio, en un tono calmado que reduzca el pánico en los más pequeños.",
+              "Permitir con precaución el ingreso al aula del alumnado que se encontraba fuera al momento de la alerta.",
+              "Realizar pase de lista y reportar a la dirección quién está presente y quién falta.",
+              "Acompañar de manera cercana a las niñas y niños con crisis nerviosas, con contacto físico tranquilizador si lo aceptan.",
+              "Informar a la dirección y a los servicios de emergencia si alguien resultó herido, por teléfono celular en modo silencioso.",
+              "Resguardar el arma únicamente por parte de la autoridad competente; el personal escolar no la manipula ni la traslada."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Notificar a toda la comunidad escolar que es seguro salir, solo cuando las autoridades lo determinen.",
+              "Llamar a las familias para el retiro ordenado del alumnado, aplicando el control de personas autorizadas.",
+              "Dar vista a la autoridad competente y, cuando el arma provenga del domicilio de una alumna o alumno, dar aviso a la Procuraduría de Protección de Niñas, Niños y Adolescentes.",
+              "Canalizar a atención psicológica a quienes lo requieran y realizar contención grupal.",
+              "Evitar cualquier señalamiento público hacia la niña o el niño involucrado y su familia.",
+              "Informar por escrito y por teléfono a la autoridad educativa superior y reforzar el filtro de acceso."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "objetos-punzocortantes",
+        "tipo": "protocolo",
+        "numero": "V.6",
+        "titulo": "Objetos punzocortantes, réplicas o armas de juguete en mochilas",
+        "categoria": "Seguridad",
+        "prioridad": "Media",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Detección de navajas, cúteres, encendedores, réplicas o armas de juguete, herramientas u otros objetos que representan un riesgo dentro del plantel. La revisión de mochilas se realiza de forma periódica, consentida, en presencia de la madre, padre o tutor cuando sea posible, sin exhibir a la niña o el niño y cuidando su intimidad y sus pertenencias." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Realizar la revisión de mochilas de manera general y anunciada, nunca dirigida a una sola niña o niño por sospecha, y siempre acompañada por dos personas adultas.",
+              "Al detectar el objeto, retirarlo con discreción y sin exponerlo frente al grupo.",
+              "Llevar a la niña o el niño a la dirección y preguntar, sin interrogatorio ni tono acusatorio, cómo obtuvo el objeto y para qué lo llevaba.",
+              "Resguardar el objeto en la dirección, bajo registro escrito con fecha, hora y descripción.",
+              "Citar a la madre, padre o tutor el mismo día para informar la situación y entregar el objeto únicamente a la persona adulta responsable.",
+              "Si el objeto es un arma de fuego real, no manipularlo y activar el protocolo V.5.",
+              "Explicar a la niña o el niño el riesgo con lenguaje adecuado a su edad, sin sanciones que atenten contra su dignidad."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Registrar el hecho en la bitácora de seguridad, resguardando la identidad del menor.",
+              "Acordar con la familia medidas de resguardo de objetos peligrosos en el domicilio.",
+              "Realizar actividades formativas de autocuidado con el grupo, sin exponer el caso.",
+              "Valorar, junto con la Red de Seguridad, la frecuencia y el alcance de las revisiones de mochila.",
+              "Dar aviso a la Procuraduría de Protección cuando la reincidencia sugiera un entorno de riesgo en el hogar."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "enfrentamiento-alrededores",
+        "tipo": "protocolo",
+        "numero": "V.7",
+        "titulo": "Enfrentamiento con armas de fuego en los alrededores del plantel",
+        "categoria": "Emergencia",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Detonaciones o enfrentamiento entre grupos armados, o de éstos con fuerzas de seguridad, en las inmediaciones del plantel. La regla es el resguardo interno: bajo ninguna circunstancia se evacua ni se entrega alumnado mientras dure la situación." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Dar la señal de alarma de resguardo interno, previamente ensayada con el alumnado en simulacros.",
+              "Ingresar de inmediato a todas las niñas y niños que se encuentren en patio, canchas o accesos.",
+              "Cerrar y asegurar accesos, puertas y ventanas; bajar cortinas o persianas y apagar las luces.",
+              "Colocar al alumnado en el piso, alejado de ventanas y muros exteriores, en silencio y acompañado por su docente.",
+              "Realizar pase de lista y reportar a la dirección la situación de cada grupo por el medio de comunicación interno definido.",
+              "Llamar al 911 e informar que se trata de una escuela primaria con población infantil y el número aproximado de personas en el plantel.",
+              "No permitir la salida ni la entrada de nadie, incluidas madres y padres que acudan por sus hijas e hijos; explicarles por teléfono que salir es más peligroso.",
+              "Enviar un mensaje único y oficial a las familias por el canal institucional, indicando que el alumnado está resguardado y que se avisará cuando sea seguro el retiro.",
+              "Brindar primeros auxilios a quien resulte herido y mantenerlo recostado hasta que sea seguro el arribo de los servicios de emergencia.",
+              "Mantener comunicación permanente con las autoridades para conocer la evolución."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Notificar el fin del resguardo únicamente cuando las fuerzas de seguridad lo determinen.",
+              "Organizar el retiro escalonado del alumnado, por grupos y con control estricto de personas autorizadas.",
+              "Realizar el recuento de daños en infraestructura y presentar denuncia ante la autoridad ministerial.",
+              "Canalizar a atención psicológica al alumnado y personal afectado; vigilar señales como pesadillas, regresiones o miedo a volver a la escuela.",
+              "Valorar con la autoridad educativa la suspensión o el ajuste de horarios los días siguientes.",
+              "Informar por escrito a la autoridad educativa superior y actualizar la Estrategia de Seguridad del plantel."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "despliegue-fuerzas",
+        "tipo": "protocolo",
+        "numero": "V.8",
+        "titulo": "Despliegue de fuerzas militares o policiacas cerca del plantel",
+        "categoria": "Seguridad",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Operativo de seguridad con elementos armados en la vía pública, en domicilios cercanos o en el plantel, con fines de búsqueda o aseguramiento. La actuación busca que el alumnado permanezca resguardado, informado con lenguaje adecuado a su edad y sin exposición visual al operativo." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Dar la señal de alarma de resguardo interno y verificar que todo el alumnado esté dentro de las aulas.",
+              "Instruir el cierre de los accesos del plantel y evitar que el alumnado se asome por ventanas o rejas.",
+              "Contactar a la autoridad competente para conocer la naturaleza y la duración estimada del operativo.",
+              "Acatar las indicaciones de las fuerzas de seguridad cuando arriben; solicitar que ningún elemento armado ingrese a las aulas.",
+              "Evitar correr o gritar; mantener actividades tranquilas dentro del aula para reducir la ansiedad de las niñas y niños.",
+              "Informar a las familias por el canal institucional que el plantel se encuentra en resguardo y que no acudan hasta nuevo aviso.",
+              "Atender a quien resulte herido y esperar a los servicios de emergencia.",
+              "No evacuar el plantel por ningún motivo mientras dure el operativo."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Notificar el fin del resguardo cuando las autoridades lo determinen y organizar el retiro escalonado.",
+              "Explicar al alumnado lo ocurrido con lenguaje sencillo y veraz, para reducir rumores y miedo.",
+              "Dar seguimiento a quienes fueron canalizados a atención médica o psicológica.",
+              "Hacer el recuento de daños y, en su caso, presentar denuncia.",
+              "Informar por escrito y por teléfono a la autoridad educativa superior."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sustancias",
+        "tipo": "protocolo",
+        "numero": "V.9",
+        "titulo": "Presencia o consumo de alcohol, tabaco, inhalables o medicamentos",
+        "categoria": "Seguridad",
+        "prioridad": "Media",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Comprende tres situaciones distintas: que una alumna o alumno lleve al plantel sustancias o medicamentos sin prescripción; que presente signos de haber consumido inhalables, alcohol o medicamentos; y que una persona adulta se presente en el plantel bajo el influjo de alcohol o drogas, especialmente al recoger a una niña o un niño. El hallazgo se trata siempre como una señal de riesgo del entorno familiar, no como una falta disciplinaria." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Ante signos de intoxicación en una alumna o alumno (aliento alcohólico, olor a solvente, desorientación, lenguaje incoherente, somnolencia): acompañarlo en todo momento y avisar a la dirección.",
+              "Llevar a la niña o el niño a un espacio discreto de la dirección, mantenerlo despierto y vigilar su respiración.",
+              "Llamar al 911 si presenta pérdida de conciencia, vómito persistente o dificultad para respirar.",
+              "Contactar de inmediato a la madre, padre o tutor y solicitar su presencia en el plantel.",
+              "Si se detecta la sustancia entre las pertenencias, resguardarla bajo registro escrito y entregarla únicamente a la autoridad competente o a la persona adulta responsable.",
+              "Cuando una persona adulta acuda por la niña o el niño en evidente estado de intoxicación: no entregar al menor, ofrecer contactar a otra persona autorizada de la lista y, si insiste o se torna agresiva, llamar al 911.",
+              "Documentar la negativa de entrega en el acta correspondiente, con la firma de dos testigos del personal escolar.",
+              "En todos los casos, tratar la situación con absoluta discreción y sin señalar a la niña o el niño frente a sus compañeras y compañeros."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Canalizar a la familia a servicios de salud y de orientación; proporcionar los datos de la Línea de la Vida (800 911 2000).",
+              "Dar aviso a la Procuraduría de Protección de Niñas, Niños y Adolescentes cuando exista riesgo por negligencia o exposición en el hogar.",
+              "Realizar actividades preventivas con el grupo sobre cuidado del cuerpo y sustancias peligrosas, sin exponer el caso.",
+              "Revisar y actualizar el Registro de Personas Autorizadas.",
+              "No estigmatizar el caso ni difundir el nombre de la familia; registrar el hecho con acceso restringido."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "robo-plantel",
+        "tipo": "protocolo",
+        "numero": "V.10",
+        "titulo": "Robo en el plantel y desaparición de objetos",
+        "categoria": "Seguridad",
+        "prioridad": "Media",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Sustracción de bienes del plantel o desaparición de objetos personales, dentro o fuera del horario escolar, con o sin flagrancia. La desaparición de objetos personales (loncheras, suéteres, dispositivos, dinero) se atiende sin interrogatorios ni revisiones individuales que expongan o culpen a una niña o un niño." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Si hay una persona asaltante armada dentro del plantel: no confrontarla, no intentar desarmarla, no discutir y permitir que se lleve los bienes materiales.",
+              "Dar la señal de alarma de resguardo interno y mantener a todo el alumnado en las aulas, en silencio y lejos de puertas y ventanas.",
+              "Llamar al 911 en cuanto sea seguro hacerlo.",
+              "Si el hecho ocurre sin flagrancia durante el horario escolar: llamar a la autoridad competente y no realizar revisiones individuales ni interrogar al alumnado.",
+              "Si hay testigos y la persona ya no se encuentra en el plantel: recabar el testimonio de las personas adultas, cuidando el anonimato y sin exponer al alumnado.",
+              "Si el robo ocurre fuera del horario escolar: no tocar nada, impedir el ingreso de la comunidad escolar, cerrar los accesos y esperar a la autoridad.",
+              "Ante la desaparición de un objeto personal, realizar una búsqueda grupal en tono formativo, sin señalar ni revisar a niñas y niños de forma individual.",
+              "Levantar acta de hechos con circunstancias de modo, tiempo y lugar."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Presentar denuncia ante la autoridad ministerial competente por los bienes del plantel.",
+              "Hacer el recuento de daños en infraestructura y equipamiento.",
+              "Informar a las familias por el canal institucional, con información veraz y sin especulaciones.",
+              "Revisar controles de acceso, iluminación, cerraduras y cobertura de cámaras.",
+              "Reforzar con el alumnado, en clase, el cuidado de las pertenencias y el marcado de objetos personales.",
+              "Informar por escrito y por teléfono a la autoridad educativa superior."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "amenaza-bomba",
+        "tipo": "protocolo",
+        "numero": "V.11",
+        "titulo": "Amenaza de bomba u objeto sospechoso",
+        "categoria": "Emergencia",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Información sobre la presencia de un artefacto explosivo o hallazgo de un bulto sospechoso dentro o en las inmediaciones del plantel. Toda amenaza se atiende como verdadera, con prontitud y sin transmitir pánico a las niñas y niños." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Atender de inmediato cualquier aviso de amenaza, sin importar la vía por la que se reciba.",
+              "Quien reciba la llamada debe prolongarla lo más posible y anotar el timbre de voz, ruidos de fondo, palabras exactas y cualquier dato del interlocutor.",
+              "Llamar al 911 y a los bomberos, y proporcionar todos los detalles recabados.",
+              "No tocar, mover ni acercarse al objeto sospechoso; delimitar el área y mantener a todas las personas alejadas.",
+              "Instruir a todo el personal para apagar teléfonos celulares y radios, ya que estas señales pueden activar un explosivo.",
+              "Evacuar el plantel por las rutas previamente establecidas, en orden y en silencio, presentando la salida al alumnado como un simulacro para evitar el pánico.",
+              "Cada docente evacua con su lista de grupo y realiza pase de lista en el punto de reunión externo.",
+              "Trasladar al alumnado al punto de reunión alterno, alejado del plantel y validado por protección civil.",
+              "Entregar a las niñas y niños únicamente a personas autorizadas, con registro escrito, aun en el punto de reunión externo.",
+              "Seguir en todo momento las indicaciones de la autoridad."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Reingresar al plantel solo cuando los equipos de emergencia determinen que es seguro.",
+              "Evaluar con la autoridad educativa la conveniencia de continuar o suspender las clases.",
+              "Reforzar la vigilancia de accesos, áreas aisladas y espacios con poca visibilidad.",
+              "Informar a las familias por el canal institucional y evitar la difusión de rumores.",
+              "Brindar contención emocional al alumnado y al personal.",
+              "Presentar denuncia por la amenaza e informar por escrito a la autoridad educativa superior."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "entrega-persona-no-autorizada",
+        "tipo": "protocolo",
+        "numero": "V.12",
+        "titulo": "Intento de retiro por persona no autorizada",
+        "categoria": "Seguridad",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Situación en la que una persona que no aparece en el registro de personas autorizadas pretende retirar a una alumna o alumno del plantel, incluidos familiares sin autorización vigente o progenitores con restricción judicial. Es la contingencia más frecuente y más delicada de la educación primaria: la escuela es responsable del menor hasta que lo entrega a la persona autorizada." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "No entregar a la niña o el niño hasta verificar plenamente la identidad y la autorización de quien lo solicita.",
+              "Cotejar el nombre y la identificación oficial contra el Registro de Personas Autorizadas y la fotografía que obra en el expediente.",
+              "Mantener a la alumna o alumno dentro del plantel, acompañado y fuera de la vista de la persona que lo solicita, para no generarle presión ni angustia.",
+              "Comunicarse con la madre, padre o tutor registrado para confirmar o negar la autorización; si autoriza de manera verbal, solicitar autorización por escrito o mensaje verificable y registrar el hecho.",
+              "Si existe una resolución judicial de guarda, custodia o restricción, cumplirla estrictamente y solicitar copia para el expediente.",
+              "Si la persona insiste, se torna agresiva o intenta llevarse al menor por la fuerza: activar el código de seguridad, no forcejear, resguardar a la niña o el niño en la dirección y llamar al 911.",
+              "Registrar en la bitácora fecha, hora, nombre, identificación presentada, motivo y resolución del caso, con la firma de dos testigos del personal.",
+              "Nunca entregar a una alumna o alumno en la vía pública, ni a través de la reja, ni a una persona menor de edad no autorizada."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Informar a la madre, padre o tutor lo ocurrido el mismo día, por escrito.",
+              "Actualizar el Registro de Personas Autorizadas y solicitar fotografía e identificación vigente.",
+              "Dar aviso a la Procuraduría de Protección de Niñas, Niños y Adolescentes cuando se presuma un intento de sustracción.",
+              "Reforzar la instrucción al personal de acceso y al elemento de seguridad sobre el procedimiento de verificación.",
+              "Informar a la autoridad educativa superior cuando el caso haya requerido intervención policial."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "alumno-no-recogido",
+        "tipo": "protocolo",
+        "numero": "V.13",
+        "titulo": "Alumna o alumno no recogido al término de la jornada",
+        "categoria": "Operativo",
+        "prioridad": "Media",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Situación en la que, concluido el horario de salida, ninguna persona autorizada se presenta por una niña o un niño. La escuela conserva la responsabilidad sobre el menor y en ningún caso puede dejarlo salir solo ni esperar fuera del plantel." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Ingresar a la niña o el niño al plantel y mantenerlo acompañado por dos personas adultas del personal escolar; nunca por una sola persona a solas.",
+              "Registrar la hora en que concluyó la salida y comenzó la espera.",
+              "Llamar a los teléfonos de contacto de la Cédula del Alumno, en el orden registrado, y agotar la lista completa de personas autorizadas.",
+              "Ofrecer a la niña o el niño un espacio tranquilo, agua y actividades de espera; explicarle que su familia viene en camino y evitar comentarios que lo angustien.",
+              "Transcurridos 60 minutos sin localizar a ninguna persona autorizada, dar aviso a la autoridad educativa superior.",
+              "Transcurridos 90 minutos, dar aviso a la Procuraduría de Protección de Niñas, Niños y Adolescentes o al 911 para recibir instrucciones.",
+              "Entregar al menor únicamente a una persona autorizada o a la autoridad de protección de la niñez, con acta de entrega firmada.",
+              "Bajo ninguna circunstancia el personal escolar traslada por su cuenta a la niña o el niño a su domicilio."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Citar a la familia al día siguiente para recordar el horario de salida y las consecuencias del retraso reiterado.",
+              "Actualizar el Registro de Personas Autorizadas y ampliar los contactos de emergencia.",
+              "Registrar el hecho en la bitácora y llevar control de la reincidencia.",
+              "Ante retrasos reiterados o falta de respuesta, dar aviso formal a la Procuraduría de Protección por posible negligencia.",
+              "Valorar apoyos con la familia cuando el retraso obedezca a causas laborales o de salud."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "extravio-alumno",
+        "tipo": "protocolo",
+        "numero": "V.14",
+        "titulo": "Extravío de una alumna o alumno dentro del plantel o en salida escolar",
+        "categoria": "Emergencia",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Ausencia no justificada de una niña o un niño de su grupo, detectada en el pase de lista, al regreso del recreo, durante una salida escolar o a la hora de la salida. Cada minuto cuenta: la búsqueda se organiza de inmediato y en paralelo, no de manera sucesiva." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Confirmar la ausencia con un pase de lista inmediato y verificar con el grupo cuándo fue vista o visto por última vez.",
+              "Dar aviso a la dirección y activar el código de búsqueda; el resto del alumnado permanece en las aulas con su docente.",
+              "Cerrar de inmediato todos los accesos del plantel y colocar al elemento de seguridad en la puerta principal.",
+              "Asignar por escrito zonas de búsqueda a personas adultas específicas: baños, bodegas, azotea, escaleras, patios, cisternas, salones vacíos, área de intendencia y vehículos.",
+              "Revisar de inmediato las cámaras de vigilancia de los accesos, comenzando por la hora en que fue vista o visto por última vez.",
+              "Si en 10 minutos no se le localiza dentro del plantel, llamar al 911 y a la Procuraduría de Protección; no esperar ningún plazo para reportar.",
+              "Contactar a la madre, padre o tutor y verificar si alguien lo retiró; solicitar que revisen el domicilio y con familiares cercanos.",
+              "Tener listos la fotografía reciente, la media filiación, la descripción de la ropa del día y los datos de la Cédula del Alumno para las autoridades.",
+              "En salida escolar: detener la actividad, reunir al grupo en un punto fijo con dos personas adultas, avisar a seguridad del lugar y solicitar el cierre de salidas.",
+              "Designar a una sola persona como enlace con la autoridad y con la familia, para evitar información contradictoria."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Levantar acta de hechos con la cronología detallada de la búsqueda, minuto a minuto.",
+              "Informar por escrito y por teléfono a la autoridad educativa superior desde el momento de la activación.",
+              "Brindar contención emocional a la niña o el niño localizado, sin regañarlo ni interrogarlo frente al grupo.",
+              "Revisar y corregir la falla que permitió el extravío: control de accesos, vigilancia por zonas, proporción de personas adultas en salidas.",
+              "Dar acompañamiento al grupo y al personal involucrado.",
+              "Actualizar la Estrategia de Seguridad del plantel con las lecciones del caso."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sustraccion-intento",
+        "tipo": "protocolo",
+        "numero": "V.15",
+        "titulo": "Sustracción o intento de sustracción de una alumna o alumno",
+        "categoria": "Emergencia",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Intento o consumación del retiro de una niña o un niño por la fuerza, mediante engaño o por una persona sin derecho para hacerlo, dentro del plantel, en sus accesos o en el trayecto inmediato. Incluye la sustracción por parte de un familiar sin custodia." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Interponer al personal adulto entre la persona agresora y la niña o el niño, sin forcejear ni arriesgar la integridad de nadie.",
+              "Activar la señal de alarma y cerrar los accesos del plantel de inmediato.",
+              "Llamar al 911 en el mismo momento, no después, e informar que se trata de la sustracción de un menor.",
+              "Registrar y transmitir a la autoridad: media filiación de la persona, vestimenta, dirección de huida, vehículo, color y placas.",
+              "Resguardar y preservar la grabación de las cámaras del acceso y del perímetro.",
+              "Contactar a la madre, padre o tutor de inmediato y mantener comunicación permanente.",
+              "Reunir la fotografía reciente, la media filiación y la ropa del día de la niña o el niño para la autoridad.",
+              "Dar aviso a la Procuraduría de Protección de Niñas, Niños y Adolescentes.",
+              "Resguardar al resto del alumnado en las aulas y no permitir salidas hasta que la autoridad lo indique.",
+              "Designar una sola vocería institucional; ningún integrante del personal difunde datos o imágenes del menor por redes sociales."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Presentar denuncia ante el Ministerio Público y entregar formalmente los videos y el acta de hechos.",
+              "Acompañar a la familia en el trámite y mantenerla informada de todo lo que la escuela documente.",
+              "Brindar contención psicológica al grupo, al personal y, al retorno, a la niña o el niño.",
+              "Revisar y reforzar de inmediato el control de accesos, el perímetro y la operación de entrada y salida.",
+              "Informar por escrito a la autoridad educativa superior y conservar el expediente completo del caso."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "intrusion-merodeo",
+        "tipo": "protocolo",
+        "numero": "V.16",
+        "titulo": "Persona ajena merodeando o intento de intrusión al plantel",
+        "categoria": "Seguridad",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Presencia de una persona ajena a la comunidad escolar que permanece en los accesos, fotografía o graba a las niñas y niños, intenta entablar conversación con ellos o pretende ingresar sin autorización. Es un riesgo característico de los planteles de primaria por la vulnerabilidad de su población." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "El elemento de seguridad o el personal de acceso mantiene la puerta cerrada y no permite el ingreso sin registro y motivo verificable.",
+              "Avisar a la dirección de inmediato y no confrontar a la persona.",
+              "Ingresar al alumnado que se encuentre en patio o accesos y suspender las actividades al aire libre.",
+              "Registrar media filiación, vestimenta, vehículo, placas, hora y conducta observada.",
+              "Si la persona graba o fotografía al alumnado, solicitarle con firmeza que se retire y dar aviso al 911.",
+              "Si intenta ingresar por la fuerza: activar la señal de resguardo interno, asegurar accesos y llamar al 911.",
+              "Solicitar a toda persona visitante identificación oficial, registro en bitácora y gafete visible; ninguna persona visitante circula sin acompañamiento.",
+              "Resguardar la grabación de cámaras del periodo correspondiente."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Reportar el hecho a la autoridad de seguridad pública de la demarcación y solicitar rondines en horarios de entrada y salida.",
+              "Informar a las familias por el canal institucional, con datos objetivos y sin alarmismo.",
+              "Reforzar con el alumnado, en clase, las reglas de autocuidado frente a personas desconocidas.",
+              "Evaluar mejoras de perímetro: iluminación, mallas, cámaras y ubicación del punto de acceso.",
+              "Registrar el evento en la bitácora e informar a la autoridad educativa superior si hay reincidencia."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "maltrato-negligencia",
+        "tipo": "protocolo",
+        "numero": "V.17",
+        "titulo": "Sospecha de maltrato, violencia familiar o negligencia",
+        "categoria": "Seguridad",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Indicios de que una niña o un niño sufre violencia física, psicológica o negligencia en su entorno familiar: lesiones sin explicación congruente, temor a regresar a casa, higiene o alimentación deficientes de manera sostenida, ausentismo, retraimiento súbito o relatos espontáneos. La escuela no investiga ni confirma: detecta, protege y reporta." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Escuchar a la niña o el niño sin interrogar, sin pedir detalles y sin hacerlo repetir su relato; no prometer guardar el secreto.",
+              "Registrar textualmente lo que la niña o el niño dijo, con sus propias palabras, y lo observado de manera objetiva, sin interpretaciones.",
+              "No fotografiar lesiones ni exponer el cuerpo de la niña o el niño; describir por escrito lo visible.",
+              "Informar de inmediato y por escrito a la dirección; la información se maneja con acceso restringido.",
+              "No confrontar ni citar a la persona presuntamente agresora, ya que puede incrementar el riesgo para el menor.",
+              "Dar aviso a la Procuraduría de Protección de Niñas, Niños y Adolescentes y, cuando exista riesgo inminente o lesiones, al 911 y al Ministerio Público. El reporte es obligatorio para el personal escolar.",
+              "Si hay lesiones, solicitar valoración médica por la institución de salud, sin condicionarla a la autorización de la persona señalada.",
+              "Mantener a la niña o el niño en un entorno protegido dentro del plantel mientras se recibe instrucción de la autoridad.",
+              "No entregar al menor a la persona señalada cuando la autoridad haya dictado una medida de protección."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Dar seguimiento al caso ante la Procuraduría de Protección y conservar los acuses de todos los reportes.",
+              "Designar una figura de confianza dentro del personal para el acompañamiento cotidiano.",
+              "Cuidar la asistencia y el desempeño escolar, y reportar cualquier cambio a la autoridad de protección.",
+              "Resguardar el expediente con estricta confidencialidad; el caso no se comenta en reuniones generales ni con otras familias.",
+              "Capacitar al personal en detección temprana y en el deber legal de reportar.",
+              "Informar a la autoridad educativa superior conforme a los lineamientos aplicables."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "abuso-sexual-sospecha",
+        "tipo": "protocolo",
+        "numero": "V.18",
+        "titulo": "Sospecha o revelación de abuso sexual infantil",
+        "categoria": "Seguridad",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Revelación espontánea de una niña o un niño, o indicios que hagan presumir la existencia de abuso sexual, ocurrido dentro o fuera del plantel. La prioridad absoluta es proteger al menor, evitar la revictimización y activar a la autoridad competente. La escuela nunca investiga los hechos." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Escuchar con calma y sin expresar alarma; creer en lo que la niña o el niño dice y agradecerle la confianza.",
+              "No interrogar, no pedir precisiones, no hacer repetir el relato y no confrontar a la persona señalada.",
+              "Registrar de inmediato y de manera textual lo dicho, con fecha, hora, lugar y nombre de quien escuchó.",
+              "No realizar revisiones corporales ni tomar fotografías.",
+              "Informar de inmediato a la dirección; el conocimiento del caso se limita a las personas indispensables.",
+              "Dar aviso el mismo día a la Procuraduría de Protección de Niñas, Niños y Adolescentes y al Ministerio Público; ante lesiones o riesgo inminente, llamar al 911.",
+              "Si la persona señalada forma parte del personal escolar o del servicio de seguridad, separarla de inmediato de toda función que implique contacto con el alumnado, sin prejuzgar y conforme a la normativa laboral aplicable.",
+              "Mantener a la niña o el niño en un espacio seguro y acompañado por una persona adulta de su confianza dentro del plantel.",
+              "No informar a la persona señalada ni a la familia cuando ésta sea la presunta agresora; seguir la instrucción de la autoridad.",
+              "Resguardar cualquier evidencia material sin manipularla y entregarla a la autoridad."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Acompañar el proceso ante las autoridades y conservar acuses y constancias.",
+              "Facilitar la canalización a atención psicológica especializada y adecuar la carga escolar de la niña o el niño.",
+              "Garantizar la confidencialidad absoluta: ningún dato del caso se comparte con otras familias ni con el personal no involucrado.",
+              "Reforzar los programas de educación en autocuidado y prevención con lenguaje adecuado a la edad.",
+              "Revisar las medidas preventivas del plantel: acompañamiento en baños, espacios sin visibilidad, presencia de personas adultas a solas con alumnado, filtros de contratación.",
+              "Informar a la autoridad educativa superior conforme a los lineamientos aplicables."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "acoso-escolar",
+        "tipo": "protocolo",
+        "numero": "V.19",
+        "titulo": "Acoso escolar (bullying) y violencia entre pares",
+        "categoria": "Operativo",
+        "prioridad": "Media",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Actos u omisiones reiterados que agreden física, psicológica, patrimonial o sexualmente a una alumna o alumno, realizados por sus pares bajo el cuidado de la escuela. Se distingue del conflicto ocasional por su repetición y por la desigualdad de poder entre quienes participan." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Detener la agresión en el momento, sin exponer, sin gritar y sin castigos frente al grupo.",
+              "Atender primero a la alumna o alumno agredido: valorar lesiones, brindar contención y acompañarlo a un espacio tranquilo.",
+              "Escuchar por separado a quienes participaron y a las personas testigo, sin careos y sin obligar a nadie a hablar frente al grupo.",
+              "Registrar los hechos por escrito: fecha, lugar, personas involucradas, descripción objetiva y antecedentes conocidos.",
+              "Informar a la dirección el mismo día y activar el acompañamiento del área de orientación cuando exista.",
+              "Citar por separado a las familias de las alumnas y alumnos involucrados; no confrontarlas entre sí en la misma reunión.",
+              "Acordar medidas de protección inmediatas: supervisión en recreo, cambio de ubicación en el aula, acompañamiento en trayectos internos.",
+              "Aplicar medidas formativas y restaurativas compatibles con la dignidad de la niñez; no se permiten castigos humillantes ni expulsiones del aula sin supervisión.",
+              "Ante lesiones, contenido sexual o difusión de imágenes, activar además los protocolos V.1, V.17 o V.18 según corresponda."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Dar seguimiento semanal durante al menos un mes y dejar constancia escrita de cada revisión.",
+              "Verificar que la agresión haya cesado, preguntando directamente a la alumna o alumno agredido.",
+              "Trabajar con el grupo actividades de convivencia y cultura de paz, sin exponer los casos.",
+              "Canalizar a atención psicológica a quienes lo requieran, incluida la parte agresora.",
+              "Informar a las familias los avances y acuerdos, por escrito.",
+              "Registrar el caso en la bitácora e informar a la autoridad educativa superior cuando persista o se agrave."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "agresion-entre-adultos",
+        "tipo": "protocolo",
+        "numero": "V.20",
+        "titulo": "Conflicto o agresión entre personas adultas en el plantel",
+        "categoria": "Operativo",
+        "prioridad": "Media",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Discusión, agresión verbal o física entre madres, padres, tutores o personal escolar dentro del plantel o en sus accesos, generalmente en el horario de entrada o salida. Aunque no involucra directamente al alumnado, ocurre a la vista de las niñas y niños y constituye un riesgo real." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Retirar de inmediato al alumnado del área e ingresarlo a las aulas o al interior del plantel.",
+              "El personal no interviene físicamente en la agresión; solicita a las personas que se retiren o pasen a la dirección por separado.",
+              "Activar el apoyo del elemento de seguridad para mantener despejado el acceso y el flujo de salida.",
+              "Llamar al 911 si hay agresión física, armas, amenazas o si las personas se niegan a retirarse.",
+              "Suspender temporalmente la entrega de alumnado en ese acceso y habilitar la salida alterna prevista en la Estrategia.",
+              "No entregar a ninguna niña o niño a una persona alterada mientras dure el conflicto; ofrecer esperar dentro del plantel.",
+              "Registrar el hecho con nombres, hora y descripción objetiva, y recabar la firma de dos testigos del personal."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Citar por separado a las personas involucradas para acordar reglas de convivencia dentro del plantel.",
+              "Informar a la comunidad escolar, por el canal institucional, las normas de acceso y permanencia.",
+              "Brindar contención al alumnado que presenció el hecho, con lenguaje adecuado a su edad.",
+              "Valorar, con la autoridad educativa, restringir el acceso al plantel a la persona agresora y establecer un enlace alterno para el retiro del menor.",
+              "Presentar denuncia cuando el personal escolar haya resultado agredido."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "evacuacion-entrega-segura",
+        "tipo": "protocolo",
+        "numero": "V.21",
+        "titulo": "Evacuación por sismo, incendio o fuga: conteo y entrega segura",
+        "categoria": "Emergencia",
+        "prioridad": "Alta",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Complemento de seguridad al Plan de Protección Civil del plantel. No sustituye el procedimiento de evacuación, sino que cubre lo que ocurre después: el conteo del alumnado, el control del perímetro y la entrega ordenada a las familias, que es el momento de mayor riesgo de extravío en una escuela primaria." },
+          { "tipo": "subtitulo", "texto": "A. Actuación" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Evacuar conforme al Plan de Protección Civil del plantel, por las rutas señalizadas y hacia el punto de reunión validado.",
+              "Cada docente evacua con la lista de su grupo y realiza pase de lista en el punto de reunión; reporta de inmediato a la dirección altas y faltantes.",
+              "Si falta una alumna o alumno, informar a la dirección y a los cuerpos de emergencia; el personal escolar no reingresa al inmueble.",
+              "Mantener los grupos formados y acompañados; ninguna niña o niño se separa de su docente por ningún motivo.",
+              "Establecer un solo punto de entrega con el elemento de seguridad y una persona con el Registro de Personas Autorizadas.",
+              "Entregar a cada alumna o alumno únicamente a persona autorizada, con identificación y firma de recibido, incluso en la vía pública.",
+              "Enviar un mensaje único y oficial a las familias indicando el estado del plantel y el punto de entrega, para evitar aglomeraciones.",
+              "Atender a las personas lesionadas y solicitar apoyo médico por el 911.",
+              "No permitir el reingreso al plantel hasta que protección civil lo autorice."
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "B. Seguimiento" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Realizar el conteo final y confirmar por escrito que la totalidad del alumnado fue entregada.",
+              "Elaborar el acta de hechos con el registro de entregas y el reporte de daños.",
+              "Solicitar la revisión estructural del inmueble antes del reingreso.",
+              "Brindar contención emocional al alumnado y al personal; vigilar reacciones tardías en las niñas y niños.",
+              "Evaluar el desempeño del simulacro real y actualizar rutas, señalización y puntos de reunión.",
+              "Informar por escrito y por teléfono a la autoridad educativa superior."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cap-6",
+        "tipo": "capitulo",
+        "numero": "Capítulo VI",
+        "titulo": "Directorio de teléfonos de emergencia",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "Cada plantel debe integrar su propio directorio con los números de su entidad, demarcación y localidad. Los siguientes son de referencia nacional y de la Ciudad de México; los marcados deben completarse con el dato local antes de dar por vigente este documento."
+          },
+          {
+            "tipo": "tabla",
+            "encabezados": ["Servicio", "Teléfono"],
+            "filas": [
+              ["Emergencias", "911"],
+              ["Denuncia anónima", "089"],
+              ["Cruz Roja", "55 5395 1111"],
+              ["LOCATEL", "55 5658 1111"],
+              ["Protección Civil (CDMX)", "55 5128 0000"],
+              ["Heroico Cuerpo de Bomberos", "068"],
+              ["Línea de la Vida (salud mental y adicciones)", "800 911 2000"],
+              ["Procuraduría de Protección de Niñas, Niños y Adolescentes", "Registrar el número local"],
+              ["Ministerio Público / Fiscalía de la demarcación", "Registrar el número local"],
+              ["Centro de salud u hospital más cercano", "Registrar el número local"],
+              ["Central de Operaciones U3 (24/7)", "55 9246 3700 al 09"]
+            ]
+          },
+          {
+            "tipo": "nota",
+            "texto": "El directorio se coloca impreso junto a cada teléfono del plantel, en la dirección y en la caseta de acceso, y se verifica al inicio de cada ciclo escolar."
+          }
+        ]
+      },
+      {
+        "id": "cap-7",
+        "tipo": "capitulo",
+        "numero": "Capítulo VII",
+        "titulo": "Señalización",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "La señalización del plantel se apega a la Norma Oficial Mexicana NOM-003-SEGOB-2011, Señales y avisos para protección civil. Colores, formas y símbolos a utilizar. En primaria, además, se coloca a una altura visible para las niñas y los niños y se acompaña de pictogramas trabajados en clase, de modo que el alumnado la reconozca antes de necesitarla."
+          },
+          {
+            "tipo": "tabla",
+            "encabezados": ["Color de seguridad", "Finalidad en el plantel"],
+            "filas": [
+              ["Rojo — Alto / Prohibición", "Prohibir una acción susceptible de riesgo y ubicar equipo contra incendio."],
+              ["Amarillo — Precaución / Riesgo", "Advertir un peligro: piso resbaloso, desnivel, obra en curso."],
+              ["Verde — Condición segura", "Ruta de evacuación, punto de reunión, zona de menor riesgo, primeros auxilios."],
+              ["Azul — Obligación", "Prescribir una acción determinada: uso de barandal, lavado de manos."]
+            ]
+          },
+          { "tipo": "subtitulo", "texto": "Señalización mínima obligatoria" },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Rutas de evacuación y salidas de emergencia.",
+              "Punto de reunión y zonas de menor riesgo.",
+              "Ubicación de extintores y de dispositivos de alarma.",
+              "Ubicación del botiquín y del punto de primeros auxilios.",
+              "Teléfono de emergencia y directorio visible.",
+              "Áreas restringidas: bodegas, cisternas, azoteas, tableros eléctricos y área de intendencia.",
+              "Señales de precaución: piso resbaloso, desnivel, obra en curso."
+            ]
+          },
+          {
+            "tipo": "nota",
+            "texto": "Estos Protocolos no abordan las contingencias por fenómenos naturales ni las especificaciones de infraestructura, que corresponden al Plan de Protección Civil del plantel. La actuación de seguridad posterior a una evacuación se encuentra en el protocolo V.21 de este documento."
+          }
+        ]
+      },
+      {
+        "id": "cap-8",
+        "tipo": "capitulo",
+        "numero": "Capítulo VIII",
+        "titulo": "Casos no previstos, interpretación y vigencia",
+        "bloques": [
+          { "tipo": "subtitulo", "texto": "1. Casos no previstos" },
+          {
+            "tipo": "parrafo",
+            "texto": "Las situaciones no previstas se atienden conforme a la Ley General de Educación; la Ley General de los Derechos de Niñas, Niños y Adolescentes; la Ley General de Acceso de las Mujeres a una Vida Libre de Violencia; la Ley General de Protección Civil; la Ley General de Víctimas; el Código Penal aplicable y demás ordenamientos vigentes, privilegiando siempre el interés superior de la niñez."
+          },
+          { "tipo": "subtitulo", "texto": "2. Interpretación" },
+          {
+            "tipo": "parrafo",
+            "texto": "La Dirección de Operaciones de U3 Seguridad Privada, en coordinación con la dirección del plantel, interpreta los presentes Protocolos y resuelve las consultas que se formulen sobre su aplicación. Ante duda razonable, se adopta la alternativa que ofrezca mayor protección a la niña o el niño."
+          },
+          { "tipo": "subtitulo", "texto": "3. Vigencia" },
+          {
+            "tipo": "parrafo",
+            "texto": "Los presentes Protocolos entran en vigor al día hábil siguiente de su firma y permanecen vigentes hasta que se emita una versión posterior. Se revisan al inicio de cada ciclo escolar y después de cada contingencia relevante."
+          },
+          { "tipo": "firma", "texto": "Dirección de Operaciones" }
+        ]
+      },
+      {
+        "id": "anexo-a",
+        "tipo": "capitulo",
+        "numero": "Anexo A",
+        "titulo": "Cédula del alumno",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Resguardo confidencial. Actualización semestral o ante cualquier cambio informado por la familia." },
+          {
+            "tipo": "campos",
+            "items": [
+              "Plantel", "Nombre de la alumna o alumno", "Grado y grupo", "Fecha de nacimiento", "Domicilio",
+              "Madre, padre o tutor", "Teléfono de contacto 1", "Teléfono de contacto 2", "Teléfono de contacto 3",
+              "Tipo de sangre", "Alergias", "Padecimientos o enfermedades crónicas", "Medicamentos permanentes y dosis",
+              "Discapacidad o apoyo requerido", "Institución de salud y número de afiliación",
+              "Autorización escrita para administrar medicamento de rescate"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "anexo-b",
+        "tipo": "capitulo",
+        "numero": "Anexo B",
+        "titulo": "Registro de personas autorizadas para retirar al alumnado",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Solo las personas registradas pueden retirar a la alumna o alumno. Debe anexarse copia de identificación oficial y fotografía de cada una. Cualquier cambio requiere solicitud escrita de la madre, padre o tutor." },
+          {
+            "tipo": "tabla",
+            "encabezados": ["Nombre completo", "Parentesco", "Identificación oficial", "Teléfono", "Firma"],
+            "filas": [["", "", "", "", ""], ["", "", "", "", ""], ["", "", "", "", ""], ["", "", "", "", ""]]
+          },
+          {
+            "tipo": "campos",
+            "items": [
+              "Resolución judicial de guarda o custodia (en su caso)",
+              "Personas con restricción para acercarse al menor",
+              "Nombre y firma de la madre, padre o tutor",
+              "Fecha"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "anexo-c",
+        "tipo": "capitulo",
+        "numero": "Anexo C",
+        "titulo": "Registro de bitácora de incidencias",
+        "bloques": [
+          {
+            "tipo": "tabla",
+            "encabezados": ["Fecha y hora", "Contingencia", "Personas involucradas", "Acciones aplicadas", "Autoridad notificada", "Responsable"],
+            "filas": [["", "", "", "", "", ""], ["", "", "", "", "", ""], ["", "", "", "", "", ""], ["", "", "", "", "", ""]]
+          }
+        ]
+      },
+      {
+        "id": "anexo-d",
+        "tipo": "capitulo",
+        "numero": "Anexo D",
+        "titulo": "Acta de entrega de alumna o alumno",
+        "bloques": [
+          { "tipo": "parrafo", "texto": "Se levanta en toda entrega no ordinaria: fuera de horario, a persona distinta a la habitual, con negativa de entrega o por instrucción de autoridad." },
+          {
+            "tipo": "campos",
+            "items": [
+              "Plantel", "Fecha y hora", "Nombre de la alumna o alumno", "Grado y grupo",
+              "Persona que recibe", "Parentesco o cargo", "Identificación presentada",
+              "Motivo de la entrega", "Observaciones",
+              "Nombre y firma de quien entrega", "Nombre y firma de la persona que recibe",
+              "Testigo 1 (personal escolar)", "Testigo 2 (personal escolar)"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
