@@ -1145,7 +1145,7 @@ function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose:
   };
 
   const probarMutation = useMutation({
-    mutationFn: () => apiFetch('/api/auth/perfil-correo/test', {
+    mutationFn: () => apiFetch('/api/auth/perfil-correo-test', {
       method: 'POST',
       body: JSON.stringify(form),
     }),

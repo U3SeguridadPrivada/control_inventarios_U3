@@ -87,7 +87,7 @@ function SmtpConfigCard() {
   });
 
   const probarMutation = useMutation({
-    mutationFn: () => apiFetch('/api/ajustes/smtp/test', { method: 'POST', body: JSON.stringify({ para: pruebaPara }) }),
+    mutationFn: () => apiFetch('/api/ajustes/smtp-test', { method: 'POST', body: JSON.stringify({ para: pruebaPara }) }),
     onSuccess: () => toast.success('Correo de prueba enviado — revisa la bandeja'),
     onError: (e: Error) => toast.error(e.message),
   });
