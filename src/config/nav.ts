@@ -24,7 +24,7 @@ export interface NavGroup {
 }
 
 export const NAV_TOP: NavItem[] = [
-  { id: 'dashboard', href: '/', title: 'Dashboard General', shortLabel: 'Inicio', icon: LayoutDashboard },
+  { id: 'dashboard', href: '/', title: 'Panel Principal', shortLabel: 'Inicio', icon: LayoutDashboard },
 ];
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -103,7 +103,7 @@ export const NAV_MOBILE_PRIMARY: NavItem[] = NAV_MOBILE_PRIMARY_IDS.map(
 );
 
 export function getPageTitle(pathname: string): string {
-  if (pathname === '/') return 'Dashboard General';
+  if (pathname === '/') return 'Panel Principal';
   const match = ALL_NAV_ITEMS.find((item) => item.href !== '/' && pathname.startsWith(item.href));
   return match?.title ?? 'Panel';
 }

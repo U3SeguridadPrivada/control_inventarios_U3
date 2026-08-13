@@ -10,10 +10,12 @@ import RichTextEditor from '@/src/components/RichTextEditor';
 import {
   Pencil, Inbox, Send, Trash2, Reply, Globe, Settings, RefreshCw, Paperclip, X, FileText,
   Search, Maximize2, Minimize2, ChevronDown, Menu, ArrowLeft, MailOpen, Mail,
-  FolderClosed, AlertOctagon, Eye, EyeOff, CheckCircle2
+  FolderClosed, AlertOctagon, Eye, EyeOff, CheckCircle2, Download, Bell, BellOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DOMPurify from 'isomorphic-dompurify';
+import { usePwaInstall } from '@/src/lib/pwa';
+import { getNotificationPermission, requestNotificationPermission, sendDeviceNotification } from '@/src/lib/deviceNotifications';
 
 const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -63,11 +65,28 @@ function FirmaPreview({ firma }: { firma: { nombre: string; puesto: string; tele
 export default function CorreoApp() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { canInstall, installed, triggerInstall } = usePwaInstall();
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
+
+  useEffect(() => {
+    setNotifPermission(getNotificationPermission());
+  }, []);
+
+  const handleToggleNotifications = async () => {
+    const perm = await requestNotificationPermission();
+    setNotifPermission(perm);
+    if (perm === 'granted') {
+      toast.success('Notificaciones activadas en el dispositivo');
+      sendDeviceNotification('Notificaciones U3 Activadas', { body: 'Recibirás avisos de nuevos correos.' });
+    }
+  };
 
   // Estados de vista
   const [imapFolder, setImapFolder] = useState<string>('INBOX');
   const [selectedExterno, setSelectedExterno] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+
   // En movil la columna de carpetas se muestra como cajon lateral.
   const [carpetasOpen, setCarpetasOpen] = useState(false);
   // Elegir carpeta cierra el cajon; en escritorio no hay cajon que cerrar.
@@ -250,103 +269,138 @@ export default function CorreoApp() {
   };
 
   return (
-    <div className="flex flex-col h-[85svh] bg-[#f6f8fc] -m-4 sm:-m-6 p-3 sm:p-4 overflow-hidden rounded-xl font-sans">
+    <div className="flex flex-col h-full w-full bg-white font-sans overflow-hidden min-h-0">
 
-      {/* ── BARRA SUPERIOR (HEADER ESTILO GMAIL) ── */}
-      <div className="flex items-center justify-between bg-transparent pb-3 px-1 sm:px-2 gap-2">
-        <div className="flex items-center gap-2 sm:gap-3 md:w-64 min-w-0">
+
+      {/* ── BARRA SUPERIOR (HEADER ESTILO GMAIL / WEBMAIL COMPLETO) ── */}
+      <div className="h-16 flex items-center justify-between bg-white border-b border-slate-200 px-3 sm:px-6 shrink-0 gap-2 sm:gap-4 z-10 select-none shadow-2xs">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* En movil este boton abre las carpetas, que estan ocultas por espacio. */}
           <button
             onClick={() => setCarpetasOpen(true)}
             aria-label="Abrir carpetas"
-            className="p-2 hover:bg-slate-200/80 active:bg-slate-200 rounded-full transition-colors md:hidden flex-shrink-0"
+            className="p-2 hover:bg-slate-100 active:bg-slate-200 rounded-full transition-colors md:hidden flex-shrink-0"
           >
-            <Menu className="w-5 h-5 text-slate-600" />
+            <Menu className="w-5 h-5 text-slate-700" />
           </button>
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-[#1e3a5f] text-white flex items-center justify-center font-bold text-lg shadow-sm border border-slate-300 flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center font-bold text-lg shadow-sm border border-slate-300 flex-shrink-0">
               M
             </div>
-            <span className="text-lg sm:text-xl font-semibold text-slate-800 tracking-tight truncate">U3 Mail</span>
+            <span className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate">U3 Mail</span>
           </div>
         </div>
 
-        {/* Buscador */}
-        <div className="flex-1 max-w-2xl mx-4 relative hidden sm:flex items-center">
-          <div className="w-full flex items-center bg-slate-200/50 hover:bg-slate-200/85 hover:shadow-sm focus-within:bg-white focus-within:shadow-md focus-within:ring-1 focus-within:ring-slate-200 transition-all rounded-full px-4 py-2 border border-transparent">
-            <Search className="w-5 h-5 text-slate-500 mr-2 flex-shrink-0" />
+        {/* Buscador Escritorio / Tablet */}
+        <div className="flex-1 max-w-2xl mx-2 sm:mx-6 relative hidden sm:flex items-center">
+          <div className="w-full flex items-center bg-slate-100/90 hover:bg-slate-100 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#1e3a5f]/20 transition-all rounded-full px-4 py-2 border border-slate-200/80">
+            <Search className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" />
             <input 
               type="text" 
-              placeholder="Buscar en los correos cargados"
+              placeholder="Buscar en correos cargados..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-transparent outline-none text-sm text-slate-800 placeholder-slate-500"
+              className="w-full bg-transparent outline-none text-xs sm:text-sm text-slate-800 placeholder-slate-400"
             />
             {searchTerm && (
               <button onClick={() => setSearchTerm('')} className="p-1 hover:bg-slate-200 rounded-full">
-                <X className="w-4 h-4 text-slate-500" />
+                <X className="w-3.5 h-3.5 text-slate-500" />
               </button>
             )}
           </div>
         </div>
 
         {/* Herramientas de Perfil */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+          {/* Botón Buscar Móvil */}
+          <button
+            onClick={() => setShowMobileSearch(!showMobileSearch)}
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-600 sm:hidden"
+            title="Buscar correos"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+
+          {/* Botón Ajustes del buzón */}
           <button
             onClick={() => setPerfilOpen(true)}
-            className="p-2 hover:bg-slate-200/80 rounded-full transition-colors text-slate-600" 
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-600" 
             title="Configuración de buzón y firma"
           >
             <Settings className="w-5 h-5" />
           </button>
-          <div className="w-8 h-8 rounded-full bg-[#1e3a5f] text-white flex items-center justify-center font-semibold text-sm border shadow-sm select-none" title={user?.username}>
+
+          {/* Avatar del usuario */}
+          <div className="w-8 h-8 rounded-full bg-[#1e3a5f] text-white flex items-center justify-center font-bold text-xs shadow-xs border border-slate-200 select-none ml-1" title={user?.username}>
             {user?.username?.charAt(0).toUpperCase() || 'U'}
           </div>
         </div>
+
       </div>
 
-      {/* ── CUERPO PRINCIPAL (SIDEBAR + MAIN CONTENT CARD) ── */}
-      <div className="flex flex-1 gap-4 overflow-hidden">
+      {/* Buscador Desplegable en Móvil */}
+      {showMobileSearch && (
+        <div className="sm:hidden px-3 py-2 bg-slate-50 border-b border-slate-200 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center bg-white rounded-xl px-3 py-2 border border-slate-300 shadow-xs">
+            <Search className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Buscar en correos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-transparent outline-none text-xs text-slate-800 placeholder-slate-400"
+              autoFocus
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')} className="p-1 hover:bg-slate-100 rounded-full">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── CUERPO PRINCIPAL (SIDEBAR DE CARPETAS + PANEL DE MENSAJES FULL-BLEED) ── */}
+      <div className="flex flex-1 overflow-hidden min-h-0 bg-white">
 
         {/* Fondo del cajon de carpetas en movil */}
         {carpetasOpen && (
           <div className="md:hidden fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-sm" onClick={() => setCarpetasOpen(false)} />
         )}
 
-        {/* BARRA LATERAL (SIDEBAR) — cajon en movil, columna fija en escritorio */}
+        {/* BARRA LATERAL (SIDEBAR DE CARPETAS) */}
         <div
           className={`${carpetasOpen
-            ? 'flex fixed inset-y-0 left-0 z-50 w-[16rem] bg-[#f6f8fc] p-3 pt-[calc(0.75rem+var(--safe-top))] shadow-2xl'
+            ? 'flex fixed inset-y-0 left-0 z-50 w-64 bg-white p-4 pt-[calc(1rem+var(--safe-top))] shadow-2xl border-r border-slate-200'
             : 'hidden'
-            } md:static md:z-auto md:flex md:w-60 md:bg-transparent md:p-0 md:shadow-none flex-shrink-0 flex-col justify-between overflow-y-auto scroll-touch pr-1`}
+            } md:static md:z-auto md:flex md:w-60 lg:w-64 md:bg-slate-50/70 md:p-3 md:shadow-none border-r border-slate-200 flex-shrink-0 flex-col justify-between overflow-y-auto scroll-touch`}
         >
-          <div className="space-y-1">
+          <div className="space-y-3">
             {/* Botón Redactar */}
             <button
               onClick={() => { setCarpetasOpen(false); abrirCompose({ ...COMPOSE_VACIO }); }}
-              className="flex items-center gap-3 px-6 py-4 bg-sky-100 hover:bg-sky-200 text-sky-900 rounded-2xl font-semibold shadow-sm hover:shadow transition-all duration-200 mb-4 w-44"
+              className="flex items-center justify-center gap-3 px-6 py-3.5 bg-sky-100 hover:bg-sky-200/90 text-sky-950 rounded-2xl font-bold shadow-xs hover:shadow transition-all duration-200 w-full"
             >
               <Pencil className="w-5 h-5 text-sky-900" />
               <span>Redactar</span>
             </button>
 
-            {/* Carpetas del buzón IMAP: son las únicas que hay, el sistema ya no
-                guarda mensajes internos propios. */}
+            {/* Carpetas del buzón IMAP */}
             <div className="pt-1">
-              <div className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-500 tracking-wider uppercase">
+              <div className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold text-slate-400 tracking-wider uppercase">
                 <Globe className="w-3.5 h-3.5" />
                 <span>Buzón Personal (IMAP)</span>
               </div>
 
-              <div className="mt-1 space-y-0.5 pl-2">
+              <div className="mt-1 space-y-0.5">
                 {!perfil?.buzon_configurado ? (
-                  <div className="p-3 mx-2 bg-slate-100/50 border border-slate-200 rounded-lg text-xs text-slate-500 text-center">
-                    <p className="mb-2">Buzón no configurado.</p>
-                    <Button size="sm" variant="outline" onClick={() => setPerfilOpen(true)} className="h-6 text-[10px]">Configurar</Button>
+                  <div className="p-3 bg-white border border-slate-200/80 rounded-xl text-xs text-slate-500 text-center shadow-2xs space-y-2">
+                    <p className="m-0 leading-tight">Buzón no configurado.</p>
+                    <Button size="sm" variant="outline" onClick={() => setPerfilOpen(true)} className="h-7 text-xs w-full">Configurar</Button>
                   </div>
                 ) : errorFolders ? (
-                  <div className="p-3 mx-2 bg-red-50/60 border border-red-200/60 rounded-lg text-[11px] text-red-600 text-center space-y-2">
-                    <p>No se pudieron cargar las carpetas. Revisa tu servidor y credenciales IMAP.</p>
+                  <div className="p-3 bg-red-50/60 border border-red-200/60 rounded-xl text-[11px] text-red-600 text-center space-y-2">
+                    <p>No se pudieron cargar las carpetas.</p>
                     <div className="flex items-center justify-center gap-1.5">
                       <Button size="sm" variant="outline" onClick={() => refetchFolders()} className="h-6 text-[10px]">Reintentar</Button>
                       <Button size="sm" variant="outline" onClick={() => setPerfilOpen(true)} className="h-6 text-[10px]">Configurar</Button>
@@ -366,10 +420,10 @@ export default function CorreoApp() {
                       <button
                         key={f.path}
                         onClick={() => { setImapFolder(f.path); setSelectedExterno(null); }}
-                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-r-full text-xs transition-all duration-150 ${active ? 'bg-sky-200/60 text-sky-900 font-semibold' : 'text-slate-600 hover:bg-slate-200/40'}`}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-all duration-150 ${active ? 'bg-sky-100 text-sky-950 font-bold shadow-2xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium'}`}
                         title={f.path}
                       >
-                        <FolderIcon className={`w-3.5 h-3.5 ${active ? 'text-sky-950' : 'text-slate-400'}`} />
+                        <FolderIcon className={`w-4 h-4 ${active ? 'text-[#1e3a5f]' : 'text-slate-400'}`} />
                         <span className="truncate">{f.name}</span>
                       </button>
                     );
@@ -382,15 +436,16 @@ export default function CorreoApp() {
           {/* Botón Firma inferior */}
           <button
             onClick={() => { setCarpetasOpen(false); setPerfilOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 mx-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/50 rounded-xl transition-all border border-slate-200 bg-white shadow-sm"
+            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all border border-slate-200/80 bg-white shadow-2xs mt-4"
           >
             <Settings className="w-4 h-4 text-slate-500" />
             <span>Firma y Ajustes</span>
           </button>
         </div>
 
-        {/* CONTENEDOR PRINCIPAL DE CORREOS */}
-        <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+        {/* CONTENEDOR PRINCIPAL DE CORREOS (EDGE-TO-EDGE SIN CAJA CONTENEDORA) */}
+        <div className="flex-1 bg-white flex flex-col overflow-hidden min-w-0">
+
           
           {/* SI SELECCIONA UN CORREO: VISTA DETALLE */}
           {selectedExterno ? (
@@ -431,40 +486,45 @@ export default function CorreoApp() {
                 </div>
               ) : externoDetalle ? (
                 // Detalle Externo IMAP
-                <div className="p-6 space-y-6">
+                <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
                   <div>
-                    <h2 className="text-xl font-bold text-slate-800">{externoDetalle.asunto}</h2>
-                    <div className="flex items-center justify-between mt-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700 border">
+                    <h2 className="text-lg sm:text-xl font-bold text-slate-800 break-words">{externoDetalle.asunto}</h2>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-3 sm:mt-4 gap-2">
+                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700 border flex-shrink-0">
                           {externoDetalle.de.charAt(0).toUpperCase() || 'E'}
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">{externoDetalle.de}</p>
-                          <p className="text-xs text-slate-500">Carpeta IMAP: {imapFolder}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs sm:text-sm font-semibold text-slate-800 truncate">{externoDetalle.de}</p>
+                          <p className="text-[11px] sm:text-xs text-slate-500">Carpeta IMAP: {imapFolder}</p>
                         </div>
                       </div>
-                      <span className="text-xs text-slate-500">{externoDetalle.fecha ? fmtFecha(externoDetalle.fecha) : ''}</span>
+                      <span className="text-[11px] sm:text-xs text-slate-500">{externoDetalle.fecha ? fmtFecha(externoDetalle.fecha) : ''}</span>
                     </div>
 
                     {externoDetalle.adjuntos.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {externoDetalle.adjuntos.map((a, i) => (
-                          <div key={i} className="inline-flex items-center gap-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg p-2">
-                            <Paperclip className="w-3 h-3 text-slate-400" />
-                            <span className="font-medium text-slate-700">{a.nombre}</span>
-                            <span className="text-slate-400 text-[10px]">({a.tipo || 'archivo'})</span>
+                          <div key={i} className="inline-flex items-center gap-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 max-w-full">
+                            <Paperclip className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                            <span className="font-medium text-slate-700 truncate max-w-[180px]">{a.nombre}</span>
+                            <span className="text-slate-400 text-[10px] flex-shrink-0">({a.tipo || 'archivo'})</span>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
 
-                  <div className="border-t border-slate-100 pt-6">
+                  <div className="border-t border-slate-100 pt-4 sm:pt-6">
                     {externoDetalle.html ? (
-                      <div className="text-sm text-slate-700 leading-relaxed max-w-full overflow-x-auto shadow-inner p-4 rounded-lg bg-slate-50/20 border" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(externoDetalle.html) }} />
+                      <div
+                        className="text-sm text-slate-700 leading-relaxed max-w-full overflow-x-auto shadow-inner p-3 sm:p-4 rounded-lg bg-slate-50/20 border [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full [&_table]:table-auto [&_pre]:whitespace-pre-wrap break-words"
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(externoDetalle.html) }}
+                      />
                     ) : (
-                      <div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed p-4 rounded-lg bg-slate-50/20 border">{externoDetalle.texto}</div>
+                      <div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed p-3 sm:p-4 rounded-lg bg-slate-50/20 border break-words">
+                        {externoDetalle.texto}
+                      </div>
                     )}
                   </div>
 
@@ -474,6 +534,7 @@ export default function CorreoApp() {
                     </Button>
                   </div>
                 </div>
+
               ) : (
                 <div className="p-6 text-center text-sm text-slate-400">Error al cargar el mensaje.</div>
               )}
@@ -534,24 +595,42 @@ export default function CorreoApp() {
                       <div
                         key={m.uid}
                         onClick={() => setSelectedExterno(m.uid)}
-                        className={`group flex items-center justify-between px-4 py-2.5 border-b border-slate-100 hover:shadow-[inset_4px_0_0_#1e3a5f] hover:bg-slate-50/50 cursor-pointer transition-all duration-150 ${!m.leido ? 'bg-sky-50/20' : ''}`}
+                        className={`group flex flex-col sm:flex-row sm:items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b border-slate-100 hover:shadow-[inset_4px_0_0_#1e3a5f] hover:bg-slate-50/50 cursor-pointer transition-all duration-150 gap-1 sm:gap-0 ${!m.leido ? 'bg-sky-50/20' : ''}`}
                       >
-                        <div className="flex items-center gap-3 min-w-0 flex-1 mr-4">
+                        {/* Contenedor Fila / Remitente */}
+                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 sm:mr-4">
                           {m.leido
                             ? <MailOpen className="w-4 h-4 flex-shrink-0 text-slate-300" />
                             : <Mail className="w-4 h-4 flex-shrink-0 text-sky-600" />}
-                          <div className={`w-40 flex-shrink-0 truncate text-sm ${!m.leido ? 'font-bold text-slate-900' : 'text-slate-600'}`} title={m.deCorreo}>
+                          
+                          {/* Remitente */}
+                          <div className={`sm:w-44 lg:w-48 flex-shrink-0 truncate text-xs sm:text-sm ${!m.leido ? 'font-bold text-slate-900' : 'text-slate-700 font-medium'}`} title={m.deCorreo}>
                             {m.de}
                           </div>
-                          <div className="min-w-0 flex-1 text-sm truncate">
-                            <span className={!m.leido ? 'font-bold text-slate-900' : 'text-slate-800'}>{m.asunto}</span>
+
+                          {/* Asunto (Escritorio) */}
+                          <div className="hidden sm:block min-w-0 flex-1 text-sm truncate">
+                            <span className={!m.leido ? 'font-bold text-slate-900' : 'text-slate-700'}>{m.asunto}</span>
+                          </div>
+
+                          {/* Fecha (Móvil derecha) */}
+                          <div className="sm:hidden text-[11px] text-slate-400 font-medium whitespace-nowrap ml-auto">
+                            {m.fecha ? fmtFecha(m.fecha) : ''}
                           </div>
                         </div>
-                        <div className="text-xs text-slate-500 font-medium whitespace-nowrap pl-2">
+
+                        {/* Asunto (Móvil segunda línea) */}
+                        <div className="sm:hidden pl-6 text-xs truncate">
+                          <span className={!m.leido ? 'font-semibold text-slate-900' : 'text-slate-600'}>{m.asunto}</span>
+                        </div>
+
+                        {/* Fecha (Escritorio) */}
+                        <div className="hidden sm:block text-xs text-slate-500 font-medium whitespace-nowrap pl-2">
                           {m.fecha ? fmtFecha(m.fecha) : ''}
                         </div>
                       </div>
                     ))}
+
 
                     {/* Pie de paginación: se recorre la carpeta hasta agotarla */}
                     <div className="p-4 flex flex-col items-center gap-2 text-xs text-slate-400">
@@ -802,7 +881,31 @@ export default function CorreoApp() {
 
 function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose: () => void; perfil?: PerfilCorreo }) {
   const queryClient = useQueryClient();
+  const { installed, triggerInstall } = usePwaInstall();
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
+
+  useEffect(() => {
+    setNotifPermission(getNotificationPermission());
+  }, [open]);
+
+  const handleToggleNotifications = async () => {
+    if (notifPermission === 'granted') {
+      sendDeviceNotification('Prueba Suite U3', { body: 'Las notificaciones funcionan correctamente en tu dispositivo.' });
+      toast.success('Notificación de prueba enviada al dispositivo');
+      return;
+    }
+    const perm = await requestNotificationPermission();
+    setNotifPermission(perm);
+    if (perm === 'granted') {
+      toast.success('Notificaciones activadas en el dispositivo');
+      sendDeviceNotification('Notificaciones U3 Activadas', { body: 'Recibirás avisos de nuevos correos.' });
+    } else {
+      toast.error('Permiso de notificaciones no otorgado');
+    }
+  };
+
   const [form, setForm] = useState({
+
     nombre: '', puesto: '', telefono: '', correo: '',
     correo_imap_host: '', correo_imap_puerto: '993',
     correo_smtp_host: '', correo_smtp_puerto: '465',
@@ -898,21 +1001,77 @@ function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose:
   });
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }} className="max-w-2xl">
-      <DialogContent className="space-y-4">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto space-y-4">
         <DialogHeader>
-          <DialogTitle>Mi Firma e Integración de Correo</DialogTitle>
+          <DialogTitle>Mi Firma, Notificaciones e Integración de Correo</DialogTitle>
           <DialogDescription>
-            Configura tu información personal para la firma del correo y tus credenciales de entrada (IMAP) y salida (SMTP).
+            Configura tu firma corporativa, notificaciones del dispositivo y tus credenciales de entrada (IMAP) y salida (SMTP).
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-6 py-1">
+          {/* Ajustes de PWA y Notificaciones */}
+          <div className="space-y-3 bg-slate-50/80 p-3.5 border border-slate-200/80 rounded-xl">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5 text-[#1e3a5f]" /> Dispositivo y Aplicación
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-white p-3 rounded-lg border border-slate-200/80 space-y-2 flex flex-col justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-800 m-0">Aplicación (PWA)</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5 m-0 leading-tight">
+                    {installed ? 'App instalada en este dispositivo.' : 'Acceso directo a pantalla completa sin navegador.'}
+                  </p>
+                </div>
+                {installed ? (
+                  <div className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Instalada
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    type="button"
+                    onClick={async () => {
+                      const success = await triggerInstall();
+                      if (!success) {
+                        toast.info('Para instalar: Selecciona "Agregar a inicio" o "Instalar app" en tu navegador');
+                      }
+                    }}
+                    className="h-8 text-xs font-bold bg-[#1e3a5f] hover:bg-[#152a45]"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1" /> Instalar App
+                  </Button>
+                )}
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-slate-200/80 space-y-2 flex flex-col justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-800 m-0">Notificaciones</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5 m-0 leading-tight">
+                    {notifPermission === 'granted' ? 'Notificaciones nativas activas.' : 'Recibe avisos de correos nuevos en pantalla.'}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  type="button"
+                  variant={notifPermission === 'granted' ? 'outline' : 'default'}
+                  onClick={handleToggleNotifications}
+                  className={`h-8 text-xs font-bold ${notifPermission === 'granted' ? 'border-emerald-300 text-emerald-700' : 'bg-[#1e3a5f] hover:bg-[#152a45]'}`}
+                >
+                  <Bell className="w-3.5 h-3.5 mr-1" />
+                  {notifPermission === 'granted' ? 'Probar Aviso' : 'Activar Notif.'}
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {/* Firma personal */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-slate-800 border-b pb-1.5 flex items-center justify-between">
               <span>Firma Corporativa</span>
             </h3>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">Nombre completo</label>

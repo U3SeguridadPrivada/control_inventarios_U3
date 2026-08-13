@@ -1,29 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Download, Share, SquarePlus, X } from 'lucide-react';
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
+import { Download, Share, SquarePlus, X, Smartphone } from 'lucide-react';
+import { usePwaInstall } from '@/src/lib/pwa';
 
 const DISMISSED_KEY = 'u3_pwa_install_dismissed';
-/** Tras descartar el banner no se vuelve a ofrecer en 14 dias. */
-const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
-
-function isStandalone() {
-  if (typeof window === 'undefined') return false;
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    // iOS expone la app instalada por esta propiedad no estandar.
-    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
-
-function isIos() {
-  if (typeof navigator === 'undefined') return false;
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
-}
+/** Si se descarta el banner flotante, se vuelve a mostrar pasadas 24 horas. */
+const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
 function snoozed() {
   try {
@@ -34,88 +16,72 @@ function snoozed() {
   }
 }
 
-/**
- * Banner de instalacion. En Chrome/Edge/Android usa `beforeinstallprompt`;
- * en iOS, que no lo soporta, muestra las instrucciones de "Agregar a inicio".
- */
 export default function InstallPrompt() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showIosHint, setShowIosHint] = useState(false);
+  const { canInstall, installed, isIosDevice, triggerInstall } = usePwaInstall();
+  const [dismissed, setDismissed] = useState(true);
 
   useEffect(() => {
-    if (isStandalone() || snoozed()) return;
-
-    const onBeforeInstall = (event: Event) => {
-      event.preventDefault();
-      setDeferred(event as BeforeInstallPromptEvent);
-    };
-    const onInstalled = () => {
-      setDeferred(null);
-      setShowIosHint(false);
-    };
-
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
-    window.addEventListener('appinstalled', onInstalled);
-
-    // iOS nunca dispara beforeinstallprompt: se ofrece la guia manual.
-    const iosTimer = isIos() ? window.setTimeout(() => setShowIosHint(true), 2500) : undefined;
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      window.removeEventListener('appinstalled', onInstalled);
-      if (iosTimer) window.clearTimeout(iosTimer);
-    };
+    // Al montar, evaluar si está descartado recientemente
+    setDismissed(snoozed());
   }, []);
 
-  const dismiss = () => {
+  if (installed || !canInstall || dismissed) return null;
+
+  const handleDismiss = () => {
     try {
       localStorage.setItem(DISMISSED_KEY, String(Date.now()));
     } catch {
-      // Modo privado: se descarta solo por esta sesion.
+      // Ignorar en privado
     }
-    setDeferred(null);
-    setShowIosHint(false);
+    setDismissed(true);
   };
 
-  const install = async () => {
-    if (!deferred) return;
-    await deferred.prompt();
-    await deferred.userChoice;
-    setDeferred(null);
+  const handleInstallClick = async () => {
+    const success = await triggerInstall();
+    if (success) {
+      setDismissed(true);
+    }
   };
-
-  if (!deferred && !showIosHint) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[calc(0.75rem+var(--safe-bottom)+var(--mobile-nav-height))] md:pb-4 md:left-auto md:right-4 md:w-[360px] md:px-0 pointer-events-none">
-      <div className="pointer-events-auto flex items-start gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-2xl animate-in slide-in-from-bottom-4 fade-in duration-300">
-        <img src="/icons/icon-192.png" alt="" className="w-11 h-11 rounded-xl border border-border flex-shrink-0" />
+    <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[calc(1rem+var(--safe-bottom)+var(--mobile-nav-height))] md:pb-6 md:left-auto md:right-6 md:w-[380px] md:px-0 pointer-events-none">
+      <div className="pointer-events-auto flex items-start gap-3 rounded-2xl border border-sky-200 bg-white/95 backdrop-blur-md p-4 shadow-2xl ring-1 ring-sky-900/10 animate-in slide-in-from-bottom-4 fade-in duration-300">
+        <div className="w-11 h-11 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+          <Smartphone className="w-6 h-6" />
+        </div>
+
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold leading-tight">Instalar Suite U3</p>
-          {deferred ? (
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-bold text-slate-900 leading-tight">Instalar Suite U3</p>
+            <span className="text-[10px] bg-sky-100 text-sky-800 font-semibold px-1.5 py-0.5 rounded-md">App</span>
+          </div>
+
+          {!isIosDevice ? (
             <>
-              <p className="text-xs text-muted-foreground mt-1 leading-snug">
-                Acceso directo desde tu pantalla de inicio, a pantalla completa y con soporte sin conexión.
+              <p className="text-xs text-slate-600 mt-1 leading-snug">
+                Instala la app en tu dispositivo para acceder más rápido, trabajar a pantalla completa y recibir notificaciones.
               </p>
               <button
-                onClick={install}
-                className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground active:bg-primary/90"
+                onClick={handleInstallClick}
+                className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-[#1e3a5f] hover:bg-[#152a45] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all active:scale-[0.98]"
               >
-                <Download className="w-3.5 h-3.5" /> Instalar app
+                <Download className="w-3.5 h-3.5" /> Instalar app ahora
               </button>
             </>
           ) : (
-            <p className="text-xs text-muted-foreground mt-1 leading-snug">
-              Toca <Share className="inline w-3.5 h-3.5 align-text-bottom" /> <span className="font-medium">Compartir</span> y luego{' '}
-              <SquarePlus className="inline w-3.5 h-3.5 align-text-bottom" />{' '}
-              <span className="font-medium">Agregar a pantalla de inicio</span>.
+            <p className="text-xs text-slate-600 mt-1 leading-snug">
+              En iOS: toca <Share className="inline w-3.5 h-3.5 text-sky-700 align-text-bottom" /> <span className="font-semibold text-slate-800">Compartir</span> y selecciona{' '}
+              <SquarePlus className="inline w-3.5 h-3.5 text-sky-700 align-text-bottom" />{' '}
+              <span className="font-semibold text-slate-800">Agregar a inicio</span>.
             </p>
           )}
         </div>
+
         <button
-          onClick={dismiss}
-          aria-label="Descartar"
-          className="flex-shrink-0 w-8 h-8 -mt-1 -mr-1 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted"
+          onClick={handleDismiss}
+          aria-label="Descartar por hoy"
+          title="Descartar por hoy"
+          className="flex-shrink-0 w-7 h-7 -mt-1 -mr-1 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
         >
           <X className="w-4 h-4" />
         </button>

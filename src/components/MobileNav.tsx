@@ -2,10 +2,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogOut, MoreHorizontal, X } from 'lucide-react';
+import { LogOut, MoreHorizontal, X, Download, Bell, BellOff } from 'lucide-react';
 import { useAuth } from '@/src/context/AuthContext';
 import { NAV_MOBILE_PRIMARY, NAV_MOBILE_PRIMARY_IDS, NAV_GROUPS, NAV_BOTTOM, NAV_TOP, type NavItem } from '@/src/config/nav';
 import { cn } from '@/src/lib/utils';
+import { usePwaInstall } from '@/src/lib/pwa';
+import { getNotificationPermission, requestNotificationPermission, sendDeviceNotification } from '@/src/lib/deviceNotifications';
+import { toast } from 'sonner';
 
 function isActive(pathname: string, href: string) {
   if (href === '/') return pathname === '/';
@@ -46,17 +49,18 @@ function SheetLink({ item, active, onNavigate }: { item: NavItem; active: boolea
   );
 }
 
-/**
- * Barra de pestañas inferior para movil, con una hoja "Más" que contiene el
- * resto del menu. Reemplaza al cajon lateral en pantallas chicas.
- */
 export default function MobileNav() {
   const pathname = usePathname();
   const { isAdmin, puedeVer, user, logout } = useAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const { canInstall, installed, triggerInstall } = usePwaInstall();
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
 
-  // Cerrar la hoja al navegar y al volver atras con el gesto del sistema.
   useEffect(() => setSheetOpen(false), [pathname]);
+
+  useEffect(() => {
+    setNotifPermission(getNotificationPermission());
+  }, []);
 
   useEffect(() => {
     if (!sheetOpen) return;
@@ -71,6 +75,15 @@ export default function MobileNav() {
       window.removeEventListener('keydown', onKey);
     };
   }, [sheetOpen]);
+
+  const handleToggleNotif = async () => {
+    const perm = await requestNotificationPermission();
+    setNotifPermission(perm);
+    if (perm === 'granted') {
+      toast.success('Notificaciones del dispositivo activadas');
+      sendDeviceNotification('Notificaciones U3 Activadas', { body: 'Recibirás avisos de nuevos correos y eventos.' });
+    }
+  };
 
   const visible = (item: NavItem) => (!item.isAdminOnly || isAdmin) && puedeVer(item.id);
   const primary = NAV_MOBILE_PRIMARY.filter(visible);
@@ -138,6 +151,9 @@ export default function MobileNav() {
             </div>
 
             <div className="flex-1 overflow-y-auto scroll-touch px-3 py-3 space-y-4 pb-[calc(0.75rem+var(--safe-bottom))]">
+
+
+
               {restLoose.length > 0 && (
                 <div className="space-y-1">
                   {restLoose.map((item) => (

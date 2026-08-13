@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/src/lib/api';
 import { useAuth } from '@/src/context/AuthContext';
 import { toast } from 'sonner';
+import { sendDeviceNotification } from '@/src/lib/deviceNotifications';
 
 interface EventoProximo {
   id: number;
@@ -29,7 +30,12 @@ export function useEventNotifications() {
       notificadosRef.current.add(evento.id);
       const hora = new Date(evento.fecha_inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
       toast(`Recordatorio: ${evento.titulo}`, { description: `Hoy a las ${hora}` });
+      sendDeviceNotification(`Recordatorio: ${evento.titulo}`, {
+        body: `Hoy a las ${hora}`,
+        data: { url: '/agenda' },
+      });
       apiFetch(`/api/eventos/${evento.id}`, { method: 'PATCH', body: JSON.stringify({ accion: 'notificado' }) }).catch(() => {});
     }
   }, [data]);
 }
+

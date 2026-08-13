@@ -5,10 +5,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Select } from '@/src/components/ui/select';
-import { Settings, Landmark, Mail, UserCircle, Lock, Send, Bot } from 'lucide-react';
+import { Settings, Landmark, Mail, UserCircle, Lock, Send, Bot, Smartphone, Download, Bell, BellOff, CheckCircle2 } from 'lucide-react';
 import { Textarea } from '@/src/components/ui/textarea';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
+import { usePwaInstall } from '@/src/lib/pwa';
+import { getNotificationPermission, requestNotificationPermission, sendDeviceNotification } from '@/src/lib/deviceNotifications';
+
 
 interface SmtpConfig { smtp_host: string; smtp_puerto: string; smtp_ssl: boolean; smtp_usuario: string; smtp_from_nombre: string; app_url: string; tiene_password: boolean }
 
@@ -187,6 +190,107 @@ function BotConfigCard() {
   );
 }
 
+function DispositivoPwaConfigCard() {
+  const { canInstall, installed, isIosDevice, triggerInstall } = usePwaInstall();
+  const [notifPerm, setNotifPerm] = useState<NotificationPermission>('default');
+
+  useEffect(() => {
+    setNotifPerm(getNotificationPermission());
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (installed) {
+      toast.info('Suite U3 ya está instalada en este dispositivo.');
+      return;
+    }
+    const success = await triggerInstall();
+    if (!success) {
+      if (isIosDevice) {
+        toast.info('Para instalar en iOS: Toca Compartir ⎋ y luego "Agregar a inicio" ⊕', { duration: 6000 });
+      } else {
+        toast.info('Para instalar: Haz clic en el menú (⋮ o ⋯) de tu navegador y selecciona "Instalar Suite U3"', { duration: 6000 });
+      }
+    }
+  };
+
+  const handlePermisoNotificaciones = async () => {
+    if (notifPerm === 'granted') {
+      sendDeviceNotification('Prueba Suite U3', { body: 'Las notificaciones funcionan correctamente en este dispositivo.' });
+      toast.success('Notificación de prueba enviada al dispositivo');
+      return;
+    }
+    const perm = await requestNotificationPermission();
+    setNotifPerm(perm);
+    if (perm === 'granted') {
+      toast.success('Notificaciones del dispositivo activadas');
+      sendDeviceNotification('Notificaciones Activadas', { body: 'Suite U3 te enviará avisos en este dispositivo.' });
+    } else {
+      toast.error('Permiso de notificaciones no concedido o bloqueado');
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 space-y-4 max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Estado Instalación PWA */}
+        <div className="border border-border rounded-lg p-3.5 space-y-3 bg-muted/30 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <Smartphone className="w-4 h-4 text-primary" />
+              <h4 className="text-xs font-bold text-foreground">Aplicación (PWA)</h4>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {installed
+                ? 'La aplicación Suite U3 está instalada en modo nativo en este dispositivo.'
+                : 'Instala Suite U3 para abrirla directamente desde tu pantalla de inicio sin barra de navegador.'}
+            </p>
+          </div>
+          <div className="pt-2">
+            {installed ? (
+              <div className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+                <CheckCircle2 className="w-4 h-4" /> App Instalada
+              </div>
+            ) : (
+              <Button size="sm" onClick={handleInstallClick} className="gap-1.5 w-full font-bold">
+                <Download className="w-4 h-4" /> Instalar App Ahora
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Estado Notificaciones del Dispositivo */}
+        <div className="border border-border rounded-lg p-3.5 space-y-3 bg-muted/30 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <Bell className="w-4 h-4 text-primary" />
+              <h4 className="text-xs font-bold text-foreground">Notificaciones del Dispositivo</h4>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {notifPerm === 'granted'
+                ? 'Notificaciones activas. Recibirás avisos directos de correos y eventos.'
+                : 'Permite alertas en tu pantalla o barra del sistema al recibir correos o recordatorios.'}
+            </p>
+          </div>
+          <div className="pt-2">
+            <Button
+              size="sm"
+              variant={notifPerm === 'granted' ? 'outline' : 'default'}
+              onClick={handlePermisoNotificaciones}
+              className={`gap-1.5 w-full font-bold ${
+                notifPerm === 'granted' ? 'border-emerald-300 text-emerald-800 hover:bg-emerald-50' : ''
+              }`}
+            >
+              <Bell className="w-4 h-4" />
+              {notifPerm === 'granted' ? 'Probar Notificación' : 'Activar Notificaciones'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function AjustesApp() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -217,6 +321,14 @@ export default function AjustesApp() {
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Settings className="w-6 h-6" /> Ajustes del Sitio</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Configuración general de la aplicación</p>
       </div>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold flex items-center gap-1.5"><Smartphone className="w-4 h-4" /> Dispositivo y Aplicación PWA</h2>
+          <p className="text-sm text-muted-foreground">Estado de instalación de la app y notificaciones push en este dispositivo.</p>
+        </div>
+        <DispositivoPwaConfigCard />
+      </section>
 
       <section className="space-y-3">
         <div>
@@ -252,3 +364,4 @@ export default function AjustesApp() {
     </div>
   );
 }
+

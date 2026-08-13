@@ -1,11 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Mail, LogOut } from 'lucide-react';
 import { useAuth } from '@/src/context/AuthContext';
 import { apiFetch } from '@/src/lib/api';
 import { getPageTitle } from '@/src/config/nav';
+import { sendDeviceNotification } from '@/src/lib/deviceNotifications';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
@@ -26,10 +27,9 @@ export default function Header() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const now = useClock();
+  const prevUnreadRef = useRef<number | null>(null);
 
-  // Sin leer del buzón IMAP personal. Abrir una conexión al servidor cuesta más
-  // que una consulta local, así que se consulta con menos frecuencia y sin
-  // reintentos: si el usuario no tiene buzón configurado, simplemente no hay globo.
+  // Sin leer del buzón IMAP personal
   const { data: mailUnread } = useQuery({
     queryKey: ['correoNoLeidos'],
     queryFn: () => apiFetch<{ count: number }>('/api/correo/externo?action=unread'),
@@ -37,6 +37,20 @@ export default function Header() {
     retry: false,
     staleTime: 120_000,
   });
+
+  // Notificar al dispositivo cuando aumenta el número de correos no leídos
+  useEffect(() => {
+    if (mailUnread?.count !== undefined) {
+      if (prevUnreadRef.current !== null && mailUnread.count > prevUnreadRef.current) {
+        const diff = mailUnread.count - prevUnreadRef.current;
+        sendDeviceNotification('Nuevo correo en Suite U3', {
+          body: `Tienes ${diff} nuevo(s) correo(s) sin leer en tu buzón.`,
+          data: { url: '/correo' },
+        });
+      }
+      prevUnreadRef.current = mailUnread.count;
+    }
+  }, [mailUnread?.count]);
 
   const initials = user?.username?.slice(0, 2).toUpperCase() ?? 'U';
   const title = getPageTitle(pathname);
@@ -53,7 +67,12 @@ export default function Header() {
           {now.toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'short' })} · {now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
         </span>
 
-        <a href="/correo" className="relative w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Correo">
+        {/* Acceso a Correo */}
+        <a
+          href="/correo"
+          className="relative w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          title="Correo corporativo"
+        >
           <Mail className="w-4.5 h-4.5" />
           {!!mailUnread?.count && (
             <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-white text-[10px] font-bold flex items-center justify-center">
