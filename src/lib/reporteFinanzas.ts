@@ -21,9 +21,30 @@ export function normalizarSecciones(crudo: string | null | undefined): SeccionId
   return (validas.length ? validas : IDS_SECCIONES) as SeccionId[];
 }
 
-async function logoDataUri(): Promise<string> {
-  const buf = await readFile(path.join(process.cwd(), 'public', 'LOGO_PDFS.png'));
-  return `data:image/png;base64,${buf.toString('base64')}`;
+/**
+ * Puppeteer recibe el HTML por `setContent`, sin URL base: logo y tipografía
+ * tienen que viajar dentro del documento como data URI. Se leen una sola vez
+ * porque no cambian entre reportes.
+ */
+let assetsCache: Promise<{ logoSrc: string; fontSrc: string }> | null = null;
+
+function assetsDataUri() {
+  if (!assetsCache) {
+    assetsCache = (async () => {
+      const [logo, font] = await Promise.all([
+        readFile(path.join(process.cwd(), 'public', 'LOGO_PDFS.png')),
+        readFile(path.join(process.cwd(), 'public', 'fonts', 'inter-latin.woff2')),
+      ]);
+      return {
+        logoSrc: `data:image/png;base64,${logo.toString('base64')}`,
+        fontSrc: `data:font/woff2;base64,${font.toString('base64')}`,
+      };
+    })().catch((e) => {
+      assetsCache = null; // un fallo puntual de lectura no debe quedar cacheado
+      throw e;
+    });
+  }
+  return assetsCache;
 }
 
 /**
@@ -88,7 +109,7 @@ export async function construirReporteFinanzas(opts: {
   }).from(movimientos_financieros)
     .where(and(eq(movimientos_financieros.libro, libroId), sql`${movimientos_financieros.fecha} < ${desde}`)).get();
 
-  const logoSrc = await logoDataUri();
+  const { logoSrc, fontSrc } = await assetsDataUri();
   const html = buildReporteFinanzasHtml({
     libroNombre: libro.nombre,
     responsable,
@@ -101,12 +122,12 @@ export async function construirReporteFinanzas(opts: {
     generadoPor,
     fecha: new Date().toISOString(),
     secciones,
-  }, logoSrc, { repeatingHeaderFooter: true });
+  }, logoSrc, { repeatingHeaderFooter: true, fontSrc });
 
   const pdf = await htmlToPdf(html, {
-    margin: { top: '18mm', bottom: '14mm', left: '10mm', right: '10mm' },
-    headerTemplate: buildReporteHeaderTemplate(logoSrc, libro.nombre),
-    footerTemplate: buildReporteFooterTemplate(logoSrc),
+    margin: { top: '20mm', bottom: '16mm', left: '14mm', right: '14mm' },
+    headerTemplate: buildReporteHeaderTemplate(logoSrc, libro.nombre, fontSrc),
+    footerTemplate: buildReporteFooterTemplate(logoSrc, fontSrc),
   });
 
   const limpio = libro.nombre.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');

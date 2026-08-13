@@ -3,15 +3,21 @@ import { db } from '@/src/db';
 import { clientes } from '@/src/db/schema';
 import { desc } from 'drizzle-orm';
 import { verifyAuth, unauthorized, forbidden } from '@/src/lib/auth';
+import { accesoDeUsuario } from '@/src/lib/accesoUsuario';
+import { puedeVerModulo } from '@/src/lib/permisosModulos';
 
 export async function GET(req: NextRequest) {
-  if (!verifyAuth(req)) return unauthorized();
+  const authUser = verifyAuth(req);
+  if (!authUser) return unauthorized();
+  if (!puedeVerModulo('clientes', accesoDeUsuario(authUser.id))) return forbidden();
+
   return Response.json(db.select().from(clientes).orderBy(desc(clientes.id)).all());
 }
 
 export async function POST(req: NextRequest) {
   const authUser = verifyAuth(req);
   if (!authUser) return unauthorized();
+  if (!puedeVerModulo('clientes', accesoDeUsuario(authUser.id))) return forbidden();
   if (authUser.role === 'viewer') return forbidden();
 
   try {

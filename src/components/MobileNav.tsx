@@ -52,7 +52,7 @@ function SheetLink({ item, active, onNavigate }: { item: NavItem; active: boolea
  */
 export default function MobileNav() {
   const pathname = usePathname();
-  const { isAdmin, user, logout } = useAuth();
+  const { isAdmin, puedeVer, user, logout } = useAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   // Cerrar la hoja al navegar y al volver atras con el gesto del sistema.
@@ -72,7 +72,7 @@ export default function MobileNav() {
     };
   }, [sheetOpen]);
 
-  const visible = (item: NavItem) => !item.isAdminOnly || isAdmin;
+  const visible = (item: NavItem) => (!item.isAdminOnly || isAdmin) && puedeVer(item.id);
   const primary = NAV_MOBILE_PRIMARY.filter(visible);
   const inPrimary = (item: NavItem) => (NAV_MOBILE_PRIMARY_IDS as readonly string[]).includes(item.id);
 

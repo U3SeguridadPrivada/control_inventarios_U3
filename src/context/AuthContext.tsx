@@ -1,6 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getRoleByEmail, Role } from '@/src/utils/roleMapping';
+import type { Role } from '@/src/utils/roleMapping';
+import { puedeVerModulo, type AccesoUsuario, type PermisoModulo } from '@/src/lib/permisosModulos';
 
 
 export interface AuthUser {
@@ -8,6 +9,10 @@ export interface AuthUser {
   username: string;
   email: string;
   role: 'admin' | 'editor' | 'viewer';
+  /** Area derivada del correo institucional; la calcula el servidor. */
+  areaRole?: Role;
+  /** Permisos del rol personalizado asignado, si tiene uno. */
+  permisos?: Record<string, PermisoModulo> | null;
 }
 
 interface AuthState {
@@ -29,6 +34,8 @@ interface AuthContextValue extends AuthState {
   isDirector: boolean;
   isMarketing: boolean;
   userRole: Role | null;
+  /** true si el usuario puede ver el modulo indicado (ids de src/config/nav.ts). */
+  puedeVer: (modulo: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -94,21 +101,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ token: null, user: null, isLoading: false });
   }, []);
 
+  // El area y los permisos llegan resueltos del servidor (/api/auth/login y
+  // /api/auth/me): las variables de correo por rol son privadas y nunca
+  // estuvieron disponibles en el navegador.
+  const acceso: AccesoUsuario | null = state.user
+    ? {
+        role: state.user.role,
+        areaRole: state.user.areaRole ?? 'unknown',
+        permisos: state.user.permisos ?? null,
+      }
+    : null;
+
   return (
     <AuthContext.Provider value={{
       ...state,
       login,
       logout,
+      puedeVer: (modulo: string) => puedeVerModulo(modulo, acceso),
       // roles basados en el email institucional
-      userRole: getRoleByEmail(state.user?.email),
+      userRole: acceso?.areaRole ?? null,
       isAdmin: state.user?.role === 'admin',
       isEditor: state.user?.role === 'admin' || state.user?.role === 'editor',
-      isAdministrativos: getRoleByEmail(state.user?.email) === 'administrativos',
-      isVentas: getRoleByEmail(state.user?.email) === 'ventas',
-      isVisualizador: getRoleByEmail(state.user?.email) === 'visualizador',
-      isSupervisor: getRoleByEmail(state.user?.email) === 'supervisor',
-      isDirector: getRoleByEmail(state.user?.email) === 'director',
-      isMarketing: getRoleByEmail(state.user?.email) === 'marketing',
+      isAdministrativos: acceso?.areaRole === 'administrativos',
+      isVentas: acceso?.areaRole === 'ventas',
+      isVisualizador: acceso?.areaRole === 'visualizador',
+      isSupervisor: acceso?.areaRole === 'supervisor',
+      isDirector: acceso?.areaRole === 'director',
+      isMarketing: acceso?.areaRole === 'marketing',
     }}>
       {children}
     </AuthContext.Provider>

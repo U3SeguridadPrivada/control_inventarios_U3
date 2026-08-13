@@ -27,11 +27,8 @@ interface Cliente {
 const FORM_INICIAL = { nombre: '', tipo: 'Prospecto', empresa: '', email: '', telefono: '', direccion: '', notas: '' };
 
 export default function ClientesApp() {
-  const { isVentas, isAdministrativos } = useAuth();
-  if (!isVentas && !isAdministrativos) {
-    return <div className="p-4 text-muted-foreground">No tiene permiso para ver esta sección.</div>;
-  }
-  const { isEditor, isAdmin } = useAuth();
+  const { isEditor, isAdmin, puedeVer } = useAuth();
+  const puedeVerClientes = puedeVer('clientes');
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipo, setFilterTipo] = useState('Todos');
@@ -39,7 +36,7 @@ export default function ClientesApp() {
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [form, setForm] = useState(FORM_INICIAL);
 
-  const { data: clientes = [], isLoading } = useQuery({ queryKey: ['clientes'], queryFn: () => apiFetch<Cliente[]>('/api/clientes') });
+  const { data: clientes = [], isLoading } = useQuery({ queryKey: ['clientes'], queryFn: () => apiFetch<Cliente[]>('/api/clientes'), enabled: puedeVerClientes });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['clientes'] });
 
@@ -78,6 +75,12 @@ export default function ClientesApp() {
     const matchesTipo = filterTipo === 'Todos' || c.tipo === filterTipo;
     return matchesTerm && matchesTipo;
   }), [clientes, searchTerm, filterTipo]);
+
+  // El corte va despues de los hooks: si se hace antes, React cambia la
+  // cantidad de hooks entre renders y revienta al resolverse la sesion.
+  if (!puedeVerClientes) {
+    return <div className="p-4 text-muted-foreground">No tiene permiso para ver esta sección.</div>;
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

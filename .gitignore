@@ -46,5 +46,8 @@ pnpm-debug.log*
 *.sln
 *.sw?
 
+# Local temporary build cache
+.temp/
+
 # OS
 Thumbs.db

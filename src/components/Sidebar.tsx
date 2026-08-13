@@ -37,10 +37,12 @@ function NavGroupAccordion({
 }: {
   group: NavGroup; isOpen: boolean; onToggle: () => void; pathname: string; onNavigate?: () => void;
 }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, puedeVer } = useAuth();
   const Icon = group.icon;
-  const items = group.items.filter((item) => !item.isAdminOnly || isAdmin);
+  const items = group.items.filter((item) => (!item.isAdminOnly || isAdmin) && puedeVer(item.id));
   const groupActive = items.some((item) => isActive(pathname, item.href));
+
+  if (items.length === 0) return null;
 
   return (
     <div className="space-y-0.5">
@@ -74,7 +76,7 @@ function NavGroupAccordion({
  */
 export default function Sidebar() {
   const pathname = usePathname();
-  const { isAdmin } = useAuth();
+  const { isAdmin, puedeVer } = useAuth();
   const [openGroupId, setOpenGroupId] = useState<string | null>(() => getActiveGroupId(pathname));
 
   useEffect(() => {
@@ -83,8 +85,8 @@ export default function Sidebar() {
   }, [pathname]);
 
   const groups = NAV_GROUPS.filter((g) => !g.isAdminOnly || isAdmin);
-  const topItems = NAV_TOP.filter((item) => !item.isAdminOnly || isAdmin);
-  const bottomItems = NAV_BOTTOM.filter((item) => !item.isAdminOnly || isAdmin);
+  const topItems = NAV_TOP.filter((item) => (!item.isAdminOnly || isAdmin) && puedeVer(item.id));
+  const bottomItems = NAV_BOTTOM.filter((item) => (!item.isAdminOnly || isAdmin) && puedeVer(item.id));
 
   return (
     <aside className="hidden md:flex md:flex-col w-20 flex-shrink-0 h-screen sticky top-0 bg-card border-r border-border">

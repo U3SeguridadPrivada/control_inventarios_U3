@@ -4,6 +4,7 @@ import { db } from '@/src/db';
 import { users } from '@/src/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { signToken } from '@/src/lib/auth';
+import { accesoDeUsuario } from '@/src/lib/accesoUsuario';
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,7 +18,18 @@ export async function POST(req: NextRequest) {
     }
 
     const token = signToken({ id: user.id, username: user.username, role: user.role as any });
-    return Response.json({ token, user: { id: user.id, username: user.username, email: user.email, role: user.role } });
+    const acceso = accesoDeUsuario(user.id);
+    return Response.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        areaRole: acceso?.areaRole ?? 'unknown',
+        permisos: acceso?.permisos ?? null,
+      },
+    });
   } catch {
     return Response.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
