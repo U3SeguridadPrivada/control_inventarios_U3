@@ -570,17 +570,31 @@ export default function FinanzasApp() {
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [seccionesSel, setSeccionesSel] = useState<SeccionId[]>(SECCIONES.map((s) => s.id));
 
+  /**
+   * Marca que el periodo se eligió a mano. Sin esto, `togglePdfMenu` volvía a
+   * imponer el rango de la ventana cada vez que se reabría el menú y tiraba en
+   * silencio las fechas que acababas de escoger en el calendario.
+   */
+  const [pdfRangoTocado, setPdfRangoTocado] = useState(false);
+
+  const elegirRangoPdf = (d: string, h: string) => {
+    setPdfDesde(d);
+    setPdfHasta(h);
+    setPdfRangoTocado(true);
+  };
+
+  const elegirModoPdf = (modo: 'rango' | 'historico') => {
+    setPdfModoRango(modo);
+    setPdfRangoTocado(true);
+  };
+
   const togglePdfMenu = () => {
-    if (!pdfMenuAbierto) {
-      if (tab === 'panel' && panelRango) {
-        setPdfModoRango('rango');
-        setPdfDesde(panelRango.desde);
-        setPdfHasta(panelRango.hasta);
-      } else {
-        setPdfModoRango('rango');
-        setPdfDesde(desde);
-        setPdfHasta(hasta);
-      }
+    // Al abrir se propone el periodo de la ventana, salvo que ya lo hayas fijado tú.
+    if (!pdfMenuAbierto && !pdfRangoTocado) {
+      setPdfModoRango('rango');
+      const propuesto = tab === 'panel' && panelRango ? panelRango : { desde, hasta };
+      setPdfDesde(propuesto.desde);
+      setPdfHasta(propuesto.hasta);
     }
     setPdfMenuAbierto((v) => !v);
   };
@@ -596,7 +610,10 @@ export default function FinanzasApp() {
     if ((CATEGORIAS_B as readonly string[]).includes(t)) return [t as SeccionId];
     return ['resumen']; // panel y cuentas bancarias
   };
-  useEffect(() => { setSeccionesSel(seccionesDeTab(tab)); }, [tab]);
+  // Al cambiar de ventana o de cuenta el reporte vuelve a seguir al contexto:
+  // las secciones de esa vista y su periodo, olvidando el ajuste manual previo.
+  useEffect(() => { setSeccionesSel(seccionesDeTab(tab)); setPdfRangoTocado(false); }, [tab]);
+  useEffect(() => { setPdfRangoTocado(false); }, [libroActivo?.id]);
   const [visor, setVisor] = useState<{ url: string; viaFallback: boolean } | null>(null);
 
   const rangoReporte = pdfModoRango === 'rango' ? { desde: pdfDesde, hasta: pdfHasta } : null;
@@ -782,21 +799,23 @@ export default function FinanzasApp() {
             {pdfMenuAbierto && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setPdfMenuAbierto(false)} />
-                <div className="absolute right-0 z-50 mt-2 w-[300px] rounded-2xl border border-border bg-card shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                {/* Sin overflow-hidden: el calendario del rango es un desplegable
+                    absoluto que vive aquí dentro, y recortaba 22 de sus 31 días. */}
+                <div className="absolute right-0 z-50 mt-2 w-[300px] rounded-2xl border border-border bg-card shadow-xl animate-in fade-in zoom-in-95 duration-150">
                   <div className="px-3 py-2.5 border-b border-border space-y-2">
                     <div className="flex items-center justify-between gap-1">
                       <p className="text-xs font-semibold">Período del reporte</p>
                       <div className="flex items-center gap-1 bg-muted p-0.5 rounded-lg text-[10px]">
                         <button
                           type="button"
-                          onClick={() => setPdfModoRango('rango')}
+                          onClick={() => elegirModoPdf('rango')}
                           className={`px-2 py-0.5 rounded font-medium transition-colors ${pdfModoRango === 'rango' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                         >
                           Fechas
                         </button>
                         <button
                           type="button"
-                          onClick={() => setPdfModoRango('historico')}
+                          onClick={() => elegirModoPdf('historico')}
                           className={`px-2 py-0.5 rounded font-medium transition-colors ${pdfModoRango === 'historico' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                         >
                           Histórico
@@ -809,7 +828,7 @@ export default function FinanzasApp() {
                           desde={pdfDesde}
                           hasta={pdfHasta}
                           presets={presetsSemana}
-                          onChange={(d, h) => { setPdfDesde(d); setPdfHasta(h); }}
+                          onChange={elegirRangoPdf}
                           className="w-full"
                         />
                       </div>
@@ -822,7 +841,8 @@ export default function FinanzasApp() {
                   <div className="px-3 pt-2 pb-1 border-b border-border">
                     <p className="text-xs font-semibold">Secciones del reporte</p>
                   </div>
-                  <div className="p-1.5 max-h-[200px] overflow-y-auto">
+                  {/* Las ocho secciones ocupan 224px: con 200px se cortaba la última */}
+                  <div className="p-1.5 max-h-[280px] overflow-y-auto">
                     {SECCIONES.map((s) => {
                       const activa = seccionesSel.includes(s.id);
                       return (

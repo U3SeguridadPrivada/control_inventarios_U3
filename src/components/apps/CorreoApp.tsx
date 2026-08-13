@@ -1,18 +1,16 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/src/lib/api';
 import { useAuth } from '@/src/context/AuthContext';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
-import { Select } from '@/src/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
 import RichTextEditor from '@/src/components/RichTextEditor';
 import {
-  Pencil, Inbox, Send, Trash2, Star, Reply, Globe, Settings, RefreshCw, Paperclip, X, FileText,
-  Search, HelpCircle, Maximize2, Minimize2, ChevronDown, ChevronRight, Menu, ArrowLeft, MoreVertical,
-  Check, MailOpen, Mail, User, Shield, CheckSquare, Square, FolderClosed, ExternalLink, Calendar,
-  Archive, AlertOctagon, Tag, Users, LayoutGrid, Info, Eye, EyeOff, CheckCircle2
+  Pencil, Inbox, Send, Trash2, Reply, Globe, Settings, RefreshCw, Paperclip, X, FileText,
+  Search, Maximize2, Minimize2, ChevronDown, Menu, ArrowLeft, MailOpen, Mail,
+  FolderClosed, AlertOctagon, Eye, EyeOff, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DOMPurify from 'isomorphic-dompurify';
@@ -21,21 +19,8 @@ const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&nbsp
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmtBytes = (n: number) => n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(n / 1024)} KB`;
 
-interface Mensaje {
-  id: number;
-  remitente_id: number;
-  destinatario_id: number;
-  asunto: string;
-  cuerpo: string;
-  leido: number;
-  destacado: number;
-  es_html: number;
-  fecha_envio: string;
-  eliminado_remitente: number;
-  eliminado_destinatario: number;
-}
-interface Contacto { id: number; username: string; email: string; }
 interface CorreoExterno { uid: number; asunto: string; de: string; deCorreo: string; fecha: string | null; leido: boolean }
+interface PaginaCorreos { mensajes: CorreoExterno[]; total: number; offset: number; nextOffset: number; hasMore: boolean }
 interface CorreoExternoDetalle { uid: number; asunto: string; de: string; fecha: string | null; html: string | null; texto: string; adjuntos: { nombre: string; tipo: string }[] }
 interface PerfilCorreo {
   firma: { nombre: string; puesto: string; telefono: string; correo: string };
@@ -51,8 +36,8 @@ interface ImapFolder {
   flags: string[];
 }
 
-type Folder = 'inbox' | 'starred' | 'sent' | 'trash' | 'externo';
-type GmailCategory = 'primary' | 'social' | 'promotions' | 'updates';
+// Cuántos correos se piden por página al servidor IMAP.
+const PAGINA = 50;
 
 function fmtFecha(iso: string) {
   const d = new Date(iso);
@@ -65,12 +50,12 @@ function fmtFecha(iso: string) {
 
 function FirmaPreview({ firma }: { firma: { nombre: string; puesto: string; telefono: string; correo: string } }) {
   return (
-    <div className="border-l-[3px] pl-3.5 py-1" style={{ borderColor: '#1e3a5f' }}>
-      <p className="text-[14px] font-bold text-slate-800 m-0">{firma.nombre || 'Tu nombre'}</p>
-      {firma.puesto && <p className="text-xs text-slate-500 mt-0.5">{firma.puesto}</p>}
-      <p className="text-xs font-bold mt-1" style={{ color: '#1e3a5f' }}>U3 SEGURIDAD PRIVADA, S.A. DE C.V.</p>
-      {firma.telefono && <p className="text-xs text-slate-600 mt-0.5">Tel: {firma.telefono}</p>}
-      {firma.correo && <p className="text-xs text-slate-600 mt-0.5">{firma.correo}</p>}
+    <div className="border-l-[3px] pl-4 py-0.5" style={{ borderColor: '#1e3a5f' }}>
+      <p className="text-[15px] font-bold text-slate-900 m-0 leading-tight">{firma.nombre || 'Tu nombre'}</p>
+      {firma.puesto && <p className="text-xs font-medium text-slate-500 mt-0.5 m-0">{firma.puesto}</p>}
+      <p className="text-[11px] font-bold mt-1.5 mb-1 uppercase tracking-wider" style={{ color: '#1e3a5f' }}>U3 SEGURIDAD PRIVADA, S.A. DE C.V.</p>
+      {firma.telefono && <p className="text-xs text-slate-600 m-0 leading-normal"><span className="text-slate-400 font-semibold mr-1">T.</span>{firma.telefono}</p>}
+      {firma.correo && <p className="text-xs text-slate-600 m-0 leading-normal"><span className="text-slate-400 font-semibold mr-1">E.</span><span className="text-[#1e3a5f]">{firma.correo}</span></p>}
     </div>
   );
 }
@@ -80,29 +65,25 @@ export default function CorreoApp() {
   const queryClient = useQueryClient();
 
   // Estados de vista
-  const [folder, setFolder] = useState<Folder>('inbox');
   const [imapFolder, setImapFolder] = useState<string>('INBOX');
-  const [activeCategory, setActiveCategory] = useState<GmailCategory>('primary');
-  const [selected, setSelected] = useState<Mensaje | null>(null);
   const [selectedExterno, setSelectedExterno] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   // En movil la columna de carpetas se muestra como cajon lateral.
   const [carpetasOpen, setCarpetasOpen] = useState(false);
   // Elegir carpeta cierra el cajon; en escritorio no hay cajon que cerrar.
-  useEffect(() => setCarpetasOpen(false), [folder, imapFolder]);
+  useEffect(() => setCarpetasOpen(false), [imapFolder]);
 
   // Control del Compose Flotante
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMinimized, setComposeMinimized] = useState(false);
   const [composeMaximized, setComposeMaximized] = useState(false);
-  const [composeForm, setComposeForm] = useState({ modo: 'interno' as 'interno' | 'externo', destinatario_id: '', para: '', cc: '', bcc: '', asunto: '', cuerpo: '' });
+  const [composeForm, setComposeForm] = useState({ para: '', cc: '', bcc: '', asunto: '', cuerpo: '' });
   const [mostrarCc, setMostrarCc] = useState(false);
   const [mostrarBcc, setMostrarBcc] = useState(false);
   const [adjuntos, setAdjuntos] = useState<File[]>([]);
 
   // Configuración del perfil de correo
   const [perfilOpen, setPerfilOpen] = useState(false);
-  const [imapFoldersCollapsed, setImapFoldersCollapsed] = useState(false);
 
   // Vista previa del correo completo (logo + cuerpo + firma + footer)
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -130,8 +111,8 @@ export default function CorreoApp() {
     }
   };
 
-  const COMPOSE_VACIO = { modo: 'interno' as const, destinatario_id: '', para: '', cc: '', bcc: '', asunto: '', cuerpo: '' };
-  
+  const COMPOSE_VACIO = { para: '', cc: '', bcc: '', asunto: '', cuerpo: '' };
+
   const abrirCompose = (form: typeof composeForm) => {
     setComposeForm(form);
     setAdjuntos([]);
@@ -143,18 +124,6 @@ export default function CorreoApp() {
   };
 
   // Queries
-  const { data: mensajes = [], isLoading } = useQuery({
-    queryKey: ['mensajes', folder],
-    queryFn: () => apiFetch<Mensaje[]>(`/api/mensajes?folder=${folder === 'starred' ? 'inbox' : folder}`),
-    enabled: folder !== 'externo',
-  });
-
-  const { data: contactos = [] } = useQuery({
-    queryKey: ['mensajesContactos'],
-    queryFn: () => apiFetch<Contacto[]>('/api/mensajes/contactos'),
-  });
-  const contactosMap = useMemo(() => Object.fromEntries(contactos.map((c) => [c.id, c])), [contactos]);
-
   const { data: perfil } = useQuery({
     queryKey: ['perfil-correo'],
     queryFn: () => apiFetch<PerfilCorreo>('/api/auth/perfil-correo')
@@ -168,45 +137,58 @@ export default function CorreoApp() {
     staleTime: 60_000,
   });
 
-  const { data: externos = [], isLoading: loadingExternos, error: errorExternos, refetch: refetchExternos, isFetching: fetchingExternos } = useQuery({
+  // La carpeta se recorre por páginas de PAGINA correos, de los más recientes
+  // hacia atrás, hasta agotarla. El servidor devuelve el offset de la siguiente
+  // página para que no haya huecos ni repetidos si llega correo nuevo entretanto.
+  const {
+    data: paginasExternos,
+    isLoading: loadingExternos,
+    error: errorExternos,
+    refetch: refetchExternos,
+    isFetching: fetchingExternos,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['correo-externo', imapFolder],
-    queryFn: () => apiFetch<CorreoExterno[]>(`/api/correo/externo?folder=${encodeURIComponent(imapFolder)}`),
-    enabled: folder === 'externo' && !!perfil?.buzon_configurado,
+    queryFn: ({ pageParam }) => apiFetch<PaginaCorreos>(`/api/correo/externo?folder=${encodeURIComponent(imapFolder)}&offset=${pageParam}&limit=${PAGINA}`),
+    initialPageParam: 0,
+    getNextPageParam: (ultima) => (ultima.hasMore ? ultima.nextOffset : undefined),
+    enabled: !!perfil?.buzon_configurado,
     retry: false,
     staleTime: 30_000,
   });
 
+  const externos = useMemo(() => paginasExternos?.pages.flatMap((p) => p.mensajes) ?? [], [paginasExternos]);
+  const totalCarpeta = paginasExternos?.pages[0]?.total ?? 0;
+
   const { data: externoDetalle, isLoading: loadingDetalle } = useQuery({
     queryKey: ['correo-externo-detalle', selectedExterno, imapFolder],
     queryFn: () => apiFetch<CorreoExternoDetalle>(`/api/correo/externo?uid=${selectedExterno}&folder=${encodeURIComponent(imapFolder)}`),
-    enabled: folder === 'externo' && !!selectedExterno,
+    enabled: !!selectedExterno,
     staleTime: Infinity,
   });
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['mensajes'] });
-    queryClient.invalidateQueries({ queryKey: ['mensajesNoLeidos'] });
     queryClient.invalidateQueries({ queryKey: ['correo-externo'] });
+    queryClient.invalidateQueries({ queryKey: ['correoNoLeidos'] });
   };
 
   const sendMutation = useMutation({
     mutationFn: (payload: typeof composeForm) => {
-      if (payload.modo === 'externo') {
-        const fd = new FormData();
-        fd.append('para', payload.para);
-        fd.append('cc', payload.cc);
-        fd.append('bcc', payload.bcc);
-        fd.append('asunto', payload.asunto);
-        fd.append('cuerpo', payload.cuerpo);
-        fd.append('es_html', '1');
-        for (const f of adjuntos) fd.append('file', f);
-        return apiFetch('/api/correo/enviar', { method: 'POST', body: fd });
-      }
-      return apiFetch('/api/mensajes', { method: 'POST', body: JSON.stringify({ destinatario_id: Number(payload.destinatario_id), asunto: payload.asunto, cuerpo: payload.cuerpo, es_html: 1 }) });
+      const fd = new FormData();
+      fd.append('para', payload.para);
+      fd.append('cc', payload.cc);
+      fd.append('bcc', payload.bcc);
+      fd.append('asunto', payload.asunto);
+      fd.append('cuerpo', payload.cuerpo);
+      fd.append('es_html', '1');
+      for (const f of adjuntos) fd.append('file', f);
+      return apiFetch('/api/correo/enviar', { method: 'POST', body: fd });
     },
-    onSuccess: (_d, payload) => {
+    onSuccess: () => {
       invalidateAll();
-      toast.success(payload.modo === 'externo' ? 'Correo enviado con tu firma' : 'Mensaje enviado');
+      toast.success('Correo enviado con tu firma');
       setComposeOpen(false);
       setComposeForm(COMPOSE_VACIO);
       setAdjuntos([]);
@@ -214,36 +196,13 @@ export default function CorreoApp() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const accionMutation = useMutation({
-    mutationFn: ({ id, accion }: { id: number; accion: string }) => apiFetch(`/api/mensajes/${id}`, { method: 'PATCH', body: JSON.stringify({ accion }) }),
-    onSuccess: () => invalidateAll(),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const openMensaje = (m: Mensaje) => {
-    setSelected(m);
-    if (folder === 'inbox' && !m.leido) accionMutation.mutate({ id: m.id, accion: 'leido' });
-  };
-
   const citaHtml = (encabezado: string, contenidoHtml: string) =>
     `<br><br><div style="color:#64748b;font-size:12px;border-top:1px solid #e2e8f0;padding-top:8px;margin-top:8px;">${encabezado}</div><blockquote>${contenidoHtml}</blockquote>`;
-
-  const handleReply = (m: Mensaje) => {
-    const remitente = contactosMap[m.remitente_id]?.username ?? '—';
-    abrirCompose({
-      ...COMPOSE_VACIO,
-      modo: 'interno',
-      destinatario_id: String(m.remitente_id === user?.id ? m.destinatario_id : m.remitente_id),
-      asunto: m.asunto.startsWith('Re: ') ? m.asunto : `Re: ${m.asunto}`,
-      cuerpo: citaHtml(`El ${fmtFecha(m.fecha_envio)}, ${remitente} escribió:`, m.es_html ? DOMPurify.sanitize(m.cuerpo) : escapeHtml(m.cuerpo).replace(/\n/g, '<br>')),
-    });
-  };
 
   const handleReplyExterno = (d: CorreoExternoDetalle) => {
     const correoDe = d.de.match(/<([^>]+)>/)?.[1] || d.de;
     abrirCompose({
       ...COMPOSE_VACIO,
-      modo: 'externo',
       para: correoDe,
       asunto: d.asunto.startsWith('Re: ') ? d.asunto : `Re: ${d.asunto}`,
       cuerpo: citaHtml(
@@ -255,62 +214,30 @@ export default function CorreoApp() {
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (composeForm.modo === 'interno' && !composeForm.destinatario_id) { toast.error('Selecciona un destinatario'); return; }
-    if (composeForm.modo === 'externo' && !composeForm.para) { toast.error('Escribe el correo destino'); return; }
+    if (!composeForm.para) { toast.error('Escribe el correo destino'); return; }
     if (!stripHtml(composeForm.cuerpo)) { toast.error('Escribe el mensaje'); return; }
     sendMutation.mutate(composeForm);
   };
 
-  // Filtrado de mensajes locales por Búsqueda y por Categoría
-  const mensajesFiltrados = useMemo(() => {
-    let result = mensajes;
-    if (folder === 'starred') {
-      result = mensajes.filter(m => m.destacado === 1);
-    }
-    
-    // Categorías Gmail ficticias pero interactivas basada en keywords
-    if (folder === 'inbox') {
-      result = result.filter(m => {
-        const txt = (m.asunto + ' ' + m.cuerpo).toLowerCase();
-        const esUpdate = txt.includes('railway') || txt.includes('deployment') || txt.includes('crash') || txt.includes('chatgpt') || txt.includes('wasender') || txt.includes('system') || txt.includes('notificación');
-        const esSocial = txt.includes('social') || txt.includes('facebook') || txt.includes('twitter') || txt.includes('mensaje de') || txt.includes('comentario');
-        const esPromo = txt.includes('promo') || txt.includes('oferta') || txt.includes('descuento') || txt.includes('compra');
-
-        if (activeCategory === 'updates') return esUpdate;
-        if (activeCategory === 'social') return esSocial;
-        if (activeCategory === 'promotions') return esPromo;
-        return !esUpdate && !esSocial && !esPromo; // principal
-      });
-    }
-
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      result = result.filter(m => 
-        m.asunto.toLowerCase().includes(q) || 
-        m.cuerpo.toLowerCase().includes(q) ||
-        (contactosMap[m.remitente_id]?.username ?? '').toLowerCase().includes(q) ||
-        (contactosMap[m.destinatario_id]?.username ?? '').toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [mensajes, folder, activeCategory, searchTerm, contactosMap]);
-
+  // La búsqueda filtra lo que ya se descargó del servidor, no la carpeta entera.
   const externosFiltrados = useMemo(() => {
-    let result = externos;
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      result = result.filter(m => 
-        m.asunto.toLowerCase().includes(q) || 
-        m.de.toLowerCase().includes(q)
-      );
-    }
-    return result;
+    if (!searchTerm.trim()) return externos;
+    const q = searchTerm.toLowerCase();
+    return externos.filter((m) =>
+      m.asunto.toLowerCase().includes(q) ||
+      m.de.toLowerCase().includes(q) ||
+      m.deCorreo.toLowerCase().includes(q)
+    );
   }, [externos, searchTerm]);
 
-  // Contadores
-  const unreadCount = useMemo(() => {
-    return mensajes.filter(m => m.destinatario_id === user?.id && !m.leido && m.eliminado_destinatario === 0).length;
-  }, [mensajes, user]);
+  // Carga automática al llegar al final de la lista; el botón "Cargar más"
+  // queda igualmente visible para quien prefiera pedirlo a mano.
+  const listaRef = useRef<HTMLDivElement | null>(null);
+  const onScrollLista = () => {
+    const el = listaRef.current;
+    if (!el || !hasNextPage || isFetchingNextPage) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) fetchNextPage();
+  };
 
   const getFolderIcon = (path: string) => {
     const p = path.toLowerCase();
@@ -350,7 +277,7 @@ export default function CorreoApp() {
             <Search className="w-5 h-5 text-slate-500 mr-2 flex-shrink-0" />
             <input 
               type="text" 
-              placeholder="Buscar en el correo" 
+              placeholder="Buscar en los correos cargados"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-transparent outline-none text-sm text-slate-800 placeholder-slate-500"
@@ -365,10 +292,7 @@ export default function CorreoApp() {
 
         {/* Herramientas de Perfil */}
         <div className="flex items-center gap-1.5">
-          <button className="hidden sm:block p-2 hover:bg-slate-200/80 rounded-full transition-colors text-slate-600" title="Ayuda">
-            <HelpCircle className="w-5 h-5" />
-          </button>
-          <button 
+          <button
             onClick={() => setPerfilOpen(true)}
             className="p-2 hover:bg-slate-200/80 rounded-full transition-colors text-slate-600" 
             title="Configuración de buzón y firma"
@@ -398,99 +322,60 @@ export default function CorreoApp() {
         >
           <div className="space-y-1">
             {/* Botón Redactar */}
-            <button 
-              onClick={() => { setCarpetasOpen(false); abrirCompose({ ...COMPOSE_VACIO, modo: folder === 'externo' ? 'externo' : 'interno' }); }}
+            <button
+              onClick={() => { setCarpetasOpen(false); abrirCompose({ ...COMPOSE_VACIO }); }}
               className="flex items-center gap-3 px-6 py-4 bg-sky-100 hover:bg-sky-200 text-sky-900 rounded-2xl font-semibold shadow-sm hover:shadow transition-all duration-200 mb-4 w-44"
             >
               <Pencil className="w-5 h-5 text-sky-900" />
               <span>Redactar</span>
             </button>
 
-            {/* Carpetas Estándar (Internas) */}
-            <div className="space-y-0.5">
-              {[
-                { id: 'inbox' as Folder, label: 'Recibidos', icon: Inbox, count: unreadCount },
-                { id: 'starred' as Folder, label: 'Destacados', icon: Star, count: 0 },
-                { id: 'sent' as Folder, label: 'Enviados', icon: Send, count: 0 },
-                { id: 'trash' as Folder, label: 'Papelera', icon: Trash2, count: 0 },
-              ].map((tab) => {
-                const Icon = tab.icon;
-                const active = folder === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => { setFolder(tab.id); setSelected(null); setSelectedExterno(null); }}
-                    className={`w-full flex items-center justify-between px-4 py-2 rounded-r-full text-sm transition-all duration-150 ${active ? 'bg-sky-200/70 text-sky-900 font-semibold' : 'text-slate-700 hover:bg-slate-200/50'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon className={`w-4 h-4 ${active ? 'text-sky-900' : 'text-slate-500'}`} />
-                      <span>{tab.label}</span>
-                    </div>
-                    {tab.count > 0 && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${active ? 'bg-sky-900 text-white' : 'bg-slate-200 text-slate-700'}`}>{tab.count}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Carpetas del buzón IMAP: son las únicas que hay, el sistema ya no
+                guarda mensajes internos propios. */}
+            <div className="pt-1">
+              <div className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-500 tracking-wider uppercase">
+                <Globe className="w-3.5 h-3.5" />
+                <span>Buzón Personal (IMAP)</span>
+              </div>
 
-            {/* SECCIÓN COLLAPSIBLE PARA BUZÓN PERSONAL IMAP */}
-            <div className="pt-4 border-t border-slate-200/80 mt-4">
-              <button 
-                onClick={() => setImapFoldersCollapsed(!imapFoldersCollapsed)}
-                className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 tracking-wider uppercase transition-colors"
-              >
-                <div className="flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5" />
-                  <span>Buzón Personal (IMAP)</span>
-                </div>
-                {imapFoldersCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-
-              {!imapFoldersCollapsed && (
-                <div className="mt-1 space-y-0.5 pl-2">
-                  {!perfil?.buzon_configurado ? (
-                    <div className="p-3 mx-2 bg-slate-100/50 border border-slate-200 rounded-lg text-xs text-slate-500 text-center">
-                      <p className="mb-2">Buzón externo no configurado.</p>
+              <div className="mt-1 space-y-0.5 pl-2">
+                {!perfil?.buzon_configurado ? (
+                  <div className="p-3 mx-2 bg-slate-100/50 border border-slate-200 rounded-lg text-xs text-slate-500 text-center">
+                    <p className="mb-2">Buzón no configurado.</p>
+                    <Button size="sm" variant="outline" onClick={() => setPerfilOpen(true)} className="h-6 text-[10px]">Configurar</Button>
+                  </div>
+                ) : errorFolders ? (
+                  <div className="p-3 mx-2 bg-red-50/60 border border-red-200/60 rounded-lg text-[11px] text-red-600 text-center space-y-2">
+                    <p>No se pudieron cargar las carpetas. Revisa tu servidor y credenciales IMAP.</p>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Button size="sm" variant="outline" onClick={() => refetchFolders()} className="h-6 text-[10px]">Reintentar</Button>
                       <Button size="sm" variant="outline" onClick={() => setPerfilOpen(true)} className="h-6 text-[10px]">Configurar</Button>
                     </div>
-                  ) : (
-                    <>
-                      {errorFolders ? (
-                        <div className="p-3 mx-2 bg-red-50/60 border border-red-200/60 rounded-lg text-[11px] text-red-600 text-center space-y-2">
-                          <p>No se pudieron cargar las carpetas. Revisa tu servidor y credenciales IMAP.</p>
-                          <div className="flex items-center justify-center gap-1.5">
-                            <Button size="sm" variant="outline" onClick={() => refetchFolders()} className="h-6 text-[10px]">Reintentar</Button>
-                            <Button size="sm" variant="outline" onClick={() => setPerfilOpen(true)} className="h-6 text-[10px]">Configurar</Button>
-                          </div>
-                        </div>
-                      ) : fetchingFolders ? (
-                        <div className="text-[11px] text-slate-400 p-3 text-center flex items-center justify-center gap-1.5">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Cargando carpetas...
-                        </div>
-                      ) : imapFolders.length === 0 ? (
-                        <div className="text-[11px] text-slate-400 p-3 text-center">Sin carpetas en el buzón.</div>
-                      ) : (
-                        imapFolders.map((f) => {
-                          const FolderIcon = getFolderIcon(f.path);
-                          const active = folder === 'externo' && imapFolder === f.path;
-                          return (
-                            <button
-                              key={f.path}
-                              onClick={() => { setFolder('externo'); setImapFolder(f.path); setSelected(null); setSelectedExterno(null); }}
-                              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-r-full text-xs transition-all duration-150 ${active ? 'bg-sky-200/60 text-sky-900 font-semibold' : 'text-slate-600 hover:bg-slate-200/40'}`}
-                              title={f.path}
-                            >
-                              <FolderIcon className={`w-3.5 h-3.5 ${active ? 'text-sky-950' : 'text-slate-400'}`} />
-                              <span className="truncate">{f.name}</span>
-                            </button>
-                          );
-                        })
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+                  </div>
+                ) : fetchingFolders ? (
+                  <div className="text-[11px] text-slate-400 p-3 text-center flex items-center justify-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Cargando carpetas...
+                  </div>
+                ) : imapFolders.length === 0 ? (
+                  <div className="text-[11px] text-slate-400 p-3 text-center">Sin carpetas en el buzón.</div>
+                ) : (
+                  imapFolders.map((f) => {
+                    const FolderIcon = getFolderIcon(f.path);
+                    const active = imapFolder === f.path;
+                    return (
+                      <button
+                        key={f.path}
+                        onClick={() => { setImapFolder(f.path); setSelectedExterno(null); }}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-r-full text-xs transition-all duration-150 ${active ? 'bg-sky-200/60 text-sky-900 font-semibold' : 'text-slate-600 hover:bg-slate-200/40'}`}
+                        title={f.path}
+                      >
+                        <FolderIcon className={`w-3.5 h-3.5 ${active ? 'text-sky-950' : 'text-slate-400'}`} />
+                        <span className="truncate">{f.name}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
 
@@ -507,52 +392,31 @@ export default function CorreoApp() {
         {/* CONTENEDOR PRINCIPAL DE CORREOS */}
         <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
           
-          {/* SI SELECCIONA UN MENSAJE INTERNO U EXTERNO: VISTA DETALLE */}
-          {selected || (folder === 'externo' && selectedExterno) ? (
+          {/* SI SELECCIONA UN CORREO: VISTA DETALLE */}
+          {selectedExterno ? (
             <div className="flex-1 flex flex-col overflow-y-auto">
-              
+
               {/* Barra de herramientas superior del Detalle */}
               <div className="flex items-center justify-between border-b border-slate-100 p-3 bg-slate-50/50">
                 <div className="flex items-center gap-1.5">
-                  <button 
-                    onClick={() => { setSelected(null); setSelectedExterno(null); }}
+                  <button
+                    onClick={() => setSelectedExterno(null)}
                     className="p-2 hover:bg-slate-200 rounded-full transition-colors"
                     title="Regresar a la lista"
                   >
                     <ArrowLeft className="w-4 h-4 text-slate-700" />
                   </button>
                   <div className="w-px h-5 bg-slate-200 mx-1" />
-                  
-                  {selected ? (
-                    <>
-                      <button 
-                        onClick={() => accionMutation.mutate({ id: selected.id, accion: selected.destacado ? 'quitar-destacado' : 'destacado' })}
-                        className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-700"
-                        title={selected.destacado ? 'Quitar destacado' : 'Destacar'}
-                      >
-                        <Star className={`w-4 h-4 ${selected.destacado ? 'text-amber-500 fill-amber-500' : ''}`} />
-                      </button>
-                      <button 
-                        onClick={() => {
-                          const acc = folder === 'trash' ? 'restaurar' : 'papelera';
-                          accionMutation.mutate({ id: selected.id, accion: acc });
-                          setSelected(null);
-                        }}
-                        className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-700"
-                        title={folder === 'trash' ? 'Restaurar correo' : 'Enviar a la papelera'}
-                      >
-                        {folder === 'trash' ? <RefreshCw className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
-                    </>
-                  ) : externoDetalle ? (
-                    <button 
+
+                  {externoDetalle && (
+                    <button
                       onClick={() => handleReplyExterno(externoDetalle)}
                       className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-700"
-                      title="Responder correo externo"
+                      title="Responder correo"
                     >
                       <Reply className="w-4 h-4" />
                     </button>
-                  ) : null}
+                  )}
                 </div>
                 <div>
                   <span className="text-xs text-slate-500 font-medium">Detalle de mensaje</span>
@@ -560,44 +424,7 @@ export default function CorreoApp() {
               </div>
 
               {/* Contenido del correo */}
-              {selected ? (
-                // Detalle Interno
-                <div className="p-6 space-y-6">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-800">{selected.asunto}</h2>
-                    <div className="flex items-center justify-between mt-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700 border">
-                          {(contactosMap[selected.remitente_id]?.username ?? '?').charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">
-                            {contactosMap[selected.remitente_id]?.username ?? (selected.remitente_id === user?.id ? 'Tú' : '—')}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            Para: {contactosMap[selected.destinatario_id]?.username ?? '—'}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-xs text-slate-500">{fmtFecha(selected.fecha_envio)}</span>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-6">
-                    {selected.es_html ? (
-                      <div className="text-sm text-slate-700 leading-relaxed max-w-full overflow-x-auto" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selected.cuerpo) }} />
-                    ) : (
-                      <div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed">{selected.cuerpo}</div>
-                    )}
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-4 flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleReply(selected)}>
-                      <Reply className="w-3.5 h-3.5 mr-1.5" /> Responder
-                    </Button>
-                  </div>
-                </div>
-              ) : loadingDetalle ? (
+              {loadingDetalle ? (
                 <div className="flex-1 flex flex-col items-center justify-center p-8 text-slate-400">
                   <RefreshCw className="w-8 h-8 animate-spin text-sky-500 mb-2" />
                   <p className="text-sm">Descargando correo del servidor...</p>
@@ -654,158 +481,94 @@ export default function CorreoApp() {
             </div>
           ) : (
             
-            // LISTA DE MENSAJES (VISTA INBOX / SENT / TRASH / EXTERNO)
+            // LISTA DE CORREOS DE LA CARPETA IMAP ACTIVA
             <div className="flex-1 flex flex-col overflow-hidden">
-              
+
               {/* Barra de herramientas superior de la Lista */}
               <div className="flex items-center justify-between border-b border-slate-100 p-3 bg-slate-50/30">
                 <div className="flex items-center gap-2">
-                  <button className="p-2 hover:bg-slate-200/60 rounded-lg text-slate-500 transition-colors">
-                    <Square className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => {
-                      if (folder === 'externo') refetchExternos();
-                      else invalidateAll();
-                    }} 
+                  <button
+                    onClick={() => refetchExternos()}
                     className="p-2 hover:bg-slate-200/60 rounded-lg text-slate-500 transition-colors"
                     title="Actualizar listado"
                   >
-                    <RefreshCw className={`w-4 h-4 ${(folder === 'externo' && fetchingExternos) ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-4 h-4 ${fetchingExternos && !isFetchingNextPage ? 'animate-spin' : ''}`} />
                   </button>
-                  <button className="p-2 hover:bg-slate-200/60 rounded-lg text-slate-500 transition-colors">
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
+                  <span className="text-xs text-slate-400 font-medium truncate">{imapFolder}</span>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500 select-none">
-                    {folder === 'externo' ? externosFiltrados.length : mensajesFiltrados.length} correos
+                    {searchTerm.trim()
+                      ? `${externosFiltrados.length} de ${externos.length} cargados`
+                      : `${externos.length} de ${totalCarpeta} correos`}
                   </span>
                 </div>
               </div>
 
-              {/* CATEGORÍAS GMAIL EN LA PARTE SUPERIOR */}
-              {folder === 'inbox' && (
-                /* En movil las categorias se deslizan en horizontal en vez de apretarse en 4 columnas. */
-                <div className="flex overflow-x-auto scroll-touch no-scrollbar snap-row sm:grid sm:grid-cols-4 border-b border-slate-100 text-slate-500 text-xs font-semibold select-none">
-                  {[
-                    { id: 'primary' as GmailCategory, label: 'Principal', icon: Inbox, colorClass: 'border-blue-600 text-blue-600 bg-blue-50/20' },
-                    { id: 'social' as GmailCategory, label: 'Social', icon: Users, colorClass: 'border-purple-600 text-purple-600 bg-purple-50/20' },
-                    { id: 'promotions' as GmailCategory, label: 'Promociones', icon: Tag, colorClass: 'border-green-600 text-green-600 bg-green-50/20' },
-                    { id: 'updates' as GmailCategory, label: 'Actualizaciones', icon: Info, colorClass: 'border-amber-600 text-amber-600 bg-amber-50/20' },
-                  ].map((cat) => {
-                    const CatIcon = cat.icon;
-                    const isSelected = activeCategory === cat.id;
-                    return (
-                      <button
-                        key={cat.id}
-                        onClick={() => { setActiveCategory(cat.id); setSelected(null); }}
-                        className={`flex-shrink-0 sm:flex-shrink flex items-center justify-center gap-2 px-4 sm:px-0 py-3 whitespace-nowrap border-b-2 transition-all duration-150 ${isSelected ? cat.colorClass : 'border-transparent hover:bg-slate-50 text-slate-500'}`}
-                      >
-                        <CatIcon className="w-4 h-4" />
-                        <span>{cat.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
               {/* LISTA DE CORREOS */}
-              <div className="flex-1 overflow-y-auto">
-                {folder === 'externo' ? (
-                  // Lista IMAP
-                  !perfil?.buzon_configurado ? (
-                    <div className="p-8 text-center text-sm text-slate-400 space-y-4">
-                      <Globe className="w-12 h-12 mx-auto opacity-30 text-sky-500" />
-                      <p className="max-w-md mx-auto">Configura tu buzón personal (IMAP) en los ajustes para ver tu correo corporativo real aquí.</p>
-                      <Button size="sm" variant="outline" onClick={() => setPerfilOpen(true)}>Configurar Buzón</Button>
-                    </div>
-                  ) : loadingExternos ? (
-                    <div className="p-8 text-center text-sm text-slate-400 flex flex-col items-center justify-center">
-                      <RefreshCw className="w-8 h-8 animate-spin text-sky-500 mb-2" />
-                      <p>Conectando al servidor IMAP y descargando correos...</p>
-                    </div>
-                  ) : errorExternos ? (
-                    <div className="p-8 text-center text-sm text-red-500 space-y-3">
-                      <p>{(errorExternos as Error).message}</p>
-                      <Button size="sm" variant="outline" onClick={() => refetchExternos()}>Reintentar conexión</Button>
-                    </div>
-                  ) : externosFiltrados.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-slate-400">Bandeja vacía en {imapFolder}</div>
-                  ) : (
-                    externosFiltrados.map((m) => (
+              <div ref={listaRef} onScroll={onScrollLista} className="flex-1 overflow-y-auto">
+                {!perfil?.buzon_configurado ? (
+                  <div className="p-8 text-center text-sm text-slate-400 space-y-4">
+                    <Globe className="w-12 h-12 mx-auto opacity-30 text-sky-500" />
+                    <p className="max-w-md mx-auto">Configura tu buzón personal (IMAP) en los ajustes para ver tu correo corporativo real aquí.</p>
+                    <Button size="sm" variant="outline" onClick={() => setPerfilOpen(true)}>Configurar Buzón</Button>
+                  </div>
+                ) : loadingExternos ? (
+                  <div className="p-8 text-center text-sm text-slate-400 flex flex-col items-center justify-center">
+                    <RefreshCw className="w-8 h-8 animate-spin text-sky-500 mb-2" />
+                    <p>Conectando al servidor IMAP y descargando correos...</p>
+                  </div>
+                ) : errorExternos ? (
+                  <div className="p-8 text-center text-sm text-red-500 space-y-3">
+                    <p>{(errorExternos as Error).message}</p>
+                    <Button size="sm" variant="outline" onClick={() => refetchExternos()}>Reintentar conexión</Button>
+                  </div>
+                ) : externosFiltrados.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-slate-400">
+                    {searchTerm.trim() ? 'Ningún correo cargado coincide con la búsqueda.' : `Bandeja vacía en ${imapFolder}`}
+                  </div>
+                ) : (
+                  <>
+                    {externosFiltrados.map((m) => (
                       <div
                         key={m.uid}
                         onClick={() => setSelectedExterno(m.uid)}
                         className={`group flex items-center justify-between px-4 py-2.5 border-b border-slate-100 hover:shadow-[inset_4px_0_0_#1e3a5f] hover:bg-slate-50/50 cursor-pointer transition-all duration-150 ${!m.leido ? 'bg-sky-50/20' : ''}`}
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1 mr-4">
-                          <button onClick={(e) => e.stopPropagation()} className="text-slate-300 hover:text-slate-500">
-                            <Square className="w-4 h-4" />
-                          </button>
-                          <button onClick={(e) => e.stopPropagation()} className="text-slate-300 hover:text-amber-500">
-                            <Star className="w-4 h-4" />
-                          </button>
-                          <div className={`w-40 flex-shrink-0 truncate text-sm ${!m.leido ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
+                          {m.leido
+                            ? <MailOpen className="w-4 h-4 flex-shrink-0 text-slate-300" />
+                            : <Mail className="w-4 h-4 flex-shrink-0 text-sky-600" />}
+                          <div className={`w-40 flex-shrink-0 truncate text-sm ${!m.leido ? 'font-bold text-slate-900' : 'text-slate-600'}`} title={m.deCorreo}>
                             {m.de}
                           </div>
-                          <div className="min-w-0 flex-1 text-sm truncate flex items-center gap-2">
+                          <div className="min-w-0 flex-1 text-sm truncate">
                             <span className={!m.leido ? 'font-bold text-slate-900' : 'text-slate-800'}>{m.asunto}</span>
-                            <span className="text-slate-400 font-normal">- (Mensaje de correo)</span>
                           </div>
                         </div>
                         <div className="text-xs text-slate-500 font-medium whitespace-nowrap pl-2">
                           {m.fecha ? fmtFecha(m.fecha) : ''}
                         </div>
                       </div>
-                    ))
-                  )
-                ) : (
-                  // Lista Interna
-                  isLoading ? (
-                    <div className="p-8 text-center text-sm text-slate-400">Cargando mensajes del sistema...</div>
-                  ) : mensajesFiltrados.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-slate-400">Sin mensajes en esta carpeta</div>
-                  ) : (
-                    mensajesFiltrados.map((m) => {
-                      const otro = folder === 'sent' ? contactosMap[m.destinatario_id] : contactosMap[m.remitente_id];
-                      const noLeido = folder === 'inbox' && !m.leido;
-                      const snippet = stripHtml(m.cuerpo);
-                      return (
-                        <div
-                          key={m.id}
-                          onClick={() => openMensaje(m)}
-                          className={`group flex items-center justify-between px-4 py-2.5 border-b border-slate-100 hover:shadow-[inset_4px_0_0_#1e3a5f] hover:bg-slate-50/50 cursor-pointer transition-all duration-150 ${noLeido ? 'bg-sky-50/30' : ''}`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0 flex-1 mr-4">
-                            <button onClick={(e) => e.stopPropagation()} className="text-slate-300 hover:text-slate-500">
-                              <Square className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                accionMutation.mutate({ id: m.id, accion: m.destacado ? 'quitar-destacado' : 'destacado' });
-                              }} 
-                              className={`transition-colors ${m.destacado ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}
-                            >
-                              <Star className={`w-4 h-4 ${m.destacado ? 'fill-amber-500' : ''}`} />
-                            </button>
-                            <div className={`w-40 flex-shrink-0 truncate text-sm ${noLeido ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
-                              {otro?.username ?? '—'}
-                            </div>
-                            <div className="min-w-0 flex-1 text-sm truncate flex items-center gap-2">
-                              <span className={noLeido ? 'font-bold text-slate-900' : 'text-slate-800'}>{m.asunto}</span>
-                              <span className="text-slate-400 font-normal">- {snippet}</span>
-                            </div>
-                          </div>
-                          <div className="text-xs text-slate-500 font-medium whitespace-nowrap pl-2">
-                            {fmtFecha(m.fecha_envio)}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )
+                    ))}
+
+                    {/* Pie de paginación: se recorre la carpeta hasta agotarla */}
+                    <div className="p-4 flex flex-col items-center gap-2 text-xs text-slate-400">
+                      {isFetchingNextPage ? (
+                        <span className="flex items-center gap-1.5">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Cargando correos anteriores...
+                        </span>
+                      ) : hasNextPage ? (
+                        <Button size="sm" variant="outline" onClick={() => fetchNextPage()}>
+                          <ChevronDown className="w-3.5 h-3.5 mr-1.5" />
+                          Cargar más ({totalCarpeta - externos.length} restantes)
+                        </Button>
+                      ) : (
+                        <span>Fin de la carpeta — {externos.length} correos cargados</span>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -833,9 +596,7 @@ export default function CorreoApp() {
             onClick={() => composeMinimized && setComposeMinimized(false)}
             className="bg-[#202124] text-white px-4 py-2.5 flex items-center justify-between cursor-pointer select-none"
           >
-            <span className="text-xs font-bold font-sans">
-              {composeForm.modo === 'interno' ? 'Mensaje interno' : 'Correo nuevo (SMTP)'}
-            </span>
+            <span className="text-xs font-bold font-sans">Correo nuevo (SMTP)</span>
             <div className="flex items-center gap-2">
               <button 
                 type="button" 
@@ -868,79 +629,45 @@ export default function CorreoApp() {
           {!composeMinimized && (
             <form onSubmit={handleSend} className="flex-1 flex flex-col overflow-hidden bg-white">
               
-              {/* Toggles Modo Interno / Externo */}
-              <div className="p-2 bg-slate-50 border-b flex gap-2">
-                <button 
-                  type="button" 
-                  onClick={() => setComposeForm((f) => ({ ...f, modo: 'interno' }))} 
-                  className={`flex-1 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${composeForm.modo === 'interno' ? 'bg-primary/10 text-primary border-primary/30' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}
-                >
-                  <Inbox className="w-3.5 h-3.5 inline mr-1" /> Interno del sistema
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setComposeForm((f) => ({ ...f, modo: 'externo' }))} 
-                  className={`flex-1 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${composeForm.modo === 'externo' ? 'bg-primary/10 text-primary border-primary/30' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}
-                >
-                  <Globe className="w-3.5 h-3.5 inline mr-1" /> Correo Externo (Real)
-                </button>
-              </div>
-
               {/* Campos Para / Asunto */}
               <div className="px-3 divide-y divide-slate-100 text-sm">
-                
-                {composeForm.modo === 'interno' ? (
-                  <div className="flex items-center gap-2 py-1.5">
-                    <span className="text-xs text-slate-500 w-12">Para:</span>
-                    <Select 
-                      className="border-0 shadow-none focus:ring-0 h-8 text-xs font-semibold w-full" 
-                      value={composeForm.destinatario_id} 
-                      onChange={(e) => setComposeForm((f) => ({ ...f, destinatario_id: e.target.value }))}
-                    >
-                      <option value="" disabled>Seleccionar integrante...</option>
-                      {contactos.map((c) => <option key={c.id} value={c.id}>{c.username} ({c.email})</option>)}
-                    </Select>
+
+                <div className="flex items-center gap-2 py-1.5 relative">
+                  <span className="text-xs text-slate-500 w-12">Para:</span>
+                  <input
+                    type="text"
+                    value={composeForm.para}
+                    onChange={(e) => setComposeForm((f) => ({ ...f, para: e.target.value }))}
+                    placeholder="destinatario@correo.com"
+                    className="flex-1 text-xs bg-transparent outline-none h-8 font-medium text-slate-800"
+                    required
+                  />
+                  <div className="flex items-center gap-2 text-xs text-slate-400 absolute right-2">
+                    {!mostrarCc && <button type="button" className="hover:text-slate-700" onClick={() => setMostrarCc(true)}>Cc</button>}
+                    {!mostrarBcc && <button type="button" className="hover:text-slate-700" onClick={() => setMostrarBcc(true)}>Cco</button>}
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 py-1.5 relative">
-                      <span className="text-xs text-slate-500 w-12">Para:</span>
-                      <input 
-                        type="text" 
-                        value={composeForm.para} 
-                        onChange={(e) => setComposeForm((f) => ({ ...f, para: e.target.value }))} 
-                        placeholder="destinatario@correo.com" 
-                        className="flex-1 text-xs bg-transparent outline-none h-8 font-medium text-slate-800"
-                        required
-                      />
-                      <div className="flex items-center gap-2 text-xs text-slate-400 absolute right-2">
-                        {!mostrarCc && <button type="button" className="hover:text-slate-700" onClick={() => setMostrarCc(true)}>Cc</button>}
-                        {!mostrarBcc && <button type="button" className="hover:text-slate-700" onClick={() => setMostrarBcc(true)}>Cco</button>}
-                      </div>
-                    </div>
-                    {mostrarCc && (
-                      <div className="flex items-center gap-2 py-1.5">
-                        <span className="text-xs text-slate-500 w-12">Cc:</span>
-                        <input 
-                          type="text" 
-                          value={composeForm.cc} 
-                          onChange={(e) => setComposeForm((f) => ({ ...f, cc: e.target.value }))} 
-                          className="flex-1 text-xs bg-transparent outline-none h-8 font-medium text-slate-800" 
-                        />
-                      </div>
-                    )}
-                    {mostrarBcc && (
-                      <div className="flex items-center gap-2 py-1.5">
-                        <span className="text-xs text-slate-500 w-12">Cco:</span>
-                        <input 
-                          type="text" 
-                          value={composeForm.bcc} 
-                          onChange={(e) => setComposeForm((f) => ({ ...f, bcc: e.target.value }))} 
-                          className="flex-1 text-xs bg-transparent outline-none h-8 font-medium text-slate-800" 
-                        />
-                      </div>
-                    )}
-                  </>
+                </div>
+                {mostrarCc && (
+                  <div className="flex items-center gap-2 py-1.5">
+                    <span className="text-xs text-slate-500 w-12">Cc:</span>
+                    <input
+                      type="text"
+                      value={composeForm.cc}
+                      onChange={(e) => setComposeForm((f) => ({ ...f, cc: e.target.value }))}
+                      className="flex-1 text-xs bg-transparent outline-none h-8 font-medium text-slate-800"
+                    />
+                  </div>
+                )}
+                {mostrarBcc && (
+                  <div className="flex items-center gap-2 py-1.5">
+                    <span className="text-xs text-slate-500 w-12">Cco:</span>
+                    <input
+                      type="text"
+                      value={composeForm.bcc}
+                      onChange={(e) => setComposeForm((f) => ({ ...f, bcc: e.target.value }))}
+                      className="flex-1 text-xs bg-transparent outline-none h-8 font-medium text-slate-800"
+                    />
+                  </div>
                 )}
 
                 <div className="flex items-center gap-2 py-1.5">
@@ -964,35 +691,33 @@ export default function CorreoApp() {
                   minHeight={180}
                 />
 
-                {/* Adjuntos y Vista Previa Firma (Solo Externos) */}
-                {composeForm.modo === 'externo' && (
-                  <div className="space-y-2">
-                    {adjuntos.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {adjuntos.map((f, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 text-[11px] bg-slate-100 border rounded-lg px-2 py-1">
-                            <FileText className="w-3 h-3 text-slate-500" />
-                            <span className="max-w-[130px] truncate">{f.name}</span>
-                            <button 
-                              type="button" 
-                              onClick={() => setAdjuntos((a) => a.filter((_, j) => j !== i))} 
-                              className="text-slate-400 hover:text-red-500 font-bold ml-1"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                {/* Adjuntos y vista previa de la firma */}
+                <div className="space-y-2">
+                  {adjuntos.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {adjuntos.map((f, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 text-[11px] bg-slate-100 border rounded-lg px-2 py-1">
+                          <FileText className="w-3 h-3 text-slate-500" />
+                          <span className="max-w-[130px] truncate">{f.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setAdjuntos((a) => a.filter((_, j) => j !== i))}
+                            className="text-slate-400 hover:text-red-500 font-bold ml-1"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
-                    {perfil && (
-                      <div className="border border-slate-200/80 rounded-lg p-2.5 bg-slate-50/50">
-                        <p className="text-[10px] text-slate-400 mb-1.5 font-semibold uppercase tracking-wider">Tu firma corporativa automática:</p>
-                        <FirmaPreview firma={perfil.firma} />
-                      </div>
-                    )}
-                  </div>
-                )}
+                  {perfil && (
+                    <div className="border border-slate-200/80 rounded-lg p-2.5 bg-slate-50/50">
+                      <p className="text-[10px] text-slate-400 mb-1.5 font-semibold uppercase tracking-wider">Tu firma corporativa automática:</p>
+                      <FirmaPreview firma={perfil.firma} />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Footer con acciones */}
@@ -1003,33 +728,29 @@ export default function CorreoApp() {
                     {sendMutation.isPending ? 'Enviando...' : 'Enviar'}
                   </Button>
                   
-                  {composeForm.modo === 'externo' && (
-                    <>
-                      <label className="cursor-pointer p-2 hover:bg-slate-200 rounded-full transition-colors inline-block" title="Adjuntar archivos">
-                        <Paperclip className="w-4 h-4 text-slate-500" />
-                        <input
-                          type="file" multiple className="hidden"
-                          onChange={(e) => {
-                            const nuevos = Array.from(e.target.files || []);
-                            setAdjuntos((prev) => {
-                              const total = [...prev, ...nuevos];
-                              if (total.reduce((a, f) => a + f.size, 0) > 15 * 1024 * 1024) { toast.error('Los adjuntos superan el límite de 15 MB'); return prev; }
-                              return total;
-                            });
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={abrirVistaPrevia}
-                        className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500 hover:text-[#1e3a5f]"
-                        title="Vista previa del correo completo (logo, firma y footer)"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
+                  <label className="cursor-pointer p-2 hover:bg-slate-200 rounded-full transition-colors inline-block" title="Adjuntar archivos">
+                    <Paperclip className="w-4 h-4 text-slate-500" />
+                    <input
+                      type="file" multiple className="hidden"
+                      onChange={(e) => {
+                        const nuevos = Array.from(e.target.files || []);
+                        setAdjuntos((prev) => {
+                          const total = [...prev, ...nuevos];
+                          if (total.reduce((a, f) => a + f.size, 0) > 15 * 1024 * 1024) { toast.error('Los adjuntos superan el límite de 15 MB'); return prev; }
+                          return total;
+                        });
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={abrirVistaPrevia}
+                    className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500 hover:text-[#1e3a5f]"
+                    title="Vista previa del correo completo (logo, firma y footer)"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
                 </div>
 
                 <button 

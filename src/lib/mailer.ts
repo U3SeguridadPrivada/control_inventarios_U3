@@ -40,14 +40,16 @@ export function firmaDatosDe(usuario: { firma_json: string | null; username: str
 
 export function firmaHtml(f: FirmaDatos): string {
   return `
-  <table cellpadding="0" cellspacing="0" style="margin-top:28px;border-left:3px solid #1e3a5f;">
-    <tr><td style="padding:2px 0 2px 14px;">
-      <p style="margin:0;font-size:14px;font-weight:bold;color:#1e293b;">${f.nombre ?? ''}</p>
-      ${f.puesto ? `<p style="margin:2px 0 0;font-size:11px;color:#64748b;">${f.puesto}</p>` : ''}
-      <p style="margin:4px 0 0;font-size:11px;font-weight:bold;color:#1e3a5f;">U3 SEGURIDAD PRIVADA, S.A. DE C.V.</p>
-      ${f.telefono ? `<p style="margin:3px 0 0;font-size:11px;color:#475569;">Tel: ${f.telefono}</p>` : ''}
-      ${f.correo ? `<p style="margin:1px 0 0;font-size:11px;color:#475569;">${f.correo}</p>` : ''}
-    </td></tr>
+  <table cellpadding="0" cellspacing="0" border="0" style="margin-top:32px;border-collapse:collapse;">
+    <tr>
+      <td style="padding-left:16px;border-left:3px solid #1e3a5f;">
+        <p style="margin:0 0 2px 0;font-size:15px;font-weight:700;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${f.nombre ?? ''}</p>
+        ${f.puesto ? `<p style="margin:0 0 6px 0;font-size:12px;font-weight:500;color:#64748b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${f.puesto}</p>` : ''}
+        <p style="margin:0 0 4px 0;font-size:11px;font-weight:700;color:#1e3a5f;letter-spacing:0.5px;text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">U3 SEGURIDAD PRIVADA, S.A. DE C.V.</p>
+        ${f.telefono ? `<p style="margin:0 0 2px 0;font-size:12px;color:#475569;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"><span style="color:#94a3b8;font-weight:600;margin-right:4px;">T.</span>${f.telefono}</p>` : ''}
+        ${f.correo ? `<p style="margin:0;font-size:12px;color:#475569;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"><span style="color:#94a3b8;font-weight:600;margin-right:4px;">E.</span><a href="mailto:${f.correo}" style="color:#1e3a5f;text-decoration:none;">${f.correo}</a></p>` : ''}
+      </td>
+    </tr>
   </table>`;
 }
 
@@ -55,54 +57,68 @@ export function firmaHtml(f: FirmaDatos): string {
 // `logoSrc` es la URL pública del logo (misma en el envío y en la vista previa).
 export function plantillaCorreo(cuerpoHtml: string, firma?: string, logoSrc: string = logoCorreoUrl()): string {
   return `<!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:24px 12px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-        <!-- Línea superior de acento corporativo (Navy + Oro) -->
-        <tr>
-          <td height="6" style="background: linear-gradient(to right, #1e3a5f 70%, #d97706 30%); font-size: 0; line-height: 0;">&nbsp;</td>
-        </tr>
-        <!-- Encabezado corporativo: logo U3 centrado (el logo ya incluye el nombre) -->
-        <tr>
-          <td align="center" style="background-color:#ffffff;border-bottom:1px solid #f1f5f9;padding:26px 28px 22px;">
-            <img src="${logoSrc}" width="130" alt="U3 Seguridad Privada" style="display:block;width:130px;max-width:55%;height:auto;border:0;margin:0 auto;" />
-            <p style="margin:16px 0 0;font-size:10px;color:#64748b;letter-spacing:1.5px;text-transform:uppercase;">Protección, Confianza y Soluciones Integrales</p>
-          </td>
-        </tr>
-        <!-- Cuerpo del Correo -->
-        <tr>
-          <td style="padding:28px;font-size:14px;line-height:1.6;color:#334155;">
-            <div style="min-height:150px;">
-              ${cuerpoHtml}
-            </div>
-            ${firma ?? ''}
-          </td>
-        </tr>
-        <!-- Pie de página U3 Corporativo -->
-        <tr>
-          <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 28px;">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="font-family:Arial,sans-serif;font-size:11px;color:#475569;line-height:1.5;padding-bottom:12px;">
-                  <strong>U3 SEGURIDAD PRIVADA, S.A. DE C.V.</strong><br>
-                  Av. Paseo de la Reforma #456, Col. Juárez, C.P. 06600, CDMX<br>
-                  Tel: 55-8902-1234 · <a href="mailto:contacto@u3seguridad.com" style="color:#1e3a5f;text-decoration:none;">contacto@u3seguridad.com</a> · <a href="https://www.u3seguridadprivada.com" target="_blank" style="color:#1e3a5f;text-decoration:none;">www.u3seguridadprivada.com</a>
-                </td>
-              </tr>
-              <tr>
-                <td style="font-family:Arial,sans-serif;font-size:9.5px;color:#94a3b8;line-height:1.4;border-top:1px solid #e2e8f0;padding-top:10px;">
-                  <strong>AVISO DE CONFIDENCIALIDAD:</strong> Este correo electrónico y, en su caso, cualquier archivo adjunto, contienen información confidencial y privilegiada de U3 Seguridad Privada y está dirigida exclusivamente al destinatario(s). Si usted ha recibido este mensaje por error, por favor notifíquelo de inmediato al remitente y elimine este mensaje de su sistema sin copiarlo, distribuirlo ni revelarlo.
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <!--[if mso]>
+  <style type="text/css">
+    table, td { font-family: Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f5f9;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <!-- Contenedor Principal (Max 600px) -->
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;border-collapse:separate;">
+          <!-- Barra Superior Corporativa Azul Marino -->
+          <tr>
+            <td height="4" style="background-color:#1e3a5f;font-size:0;line-height:0;">&nbsp;</td>
+          </tr>
+          <!-- Encabezado Corporativo -->
+          <tr>
+            <td align="center" style="background-color:#ffffff;border-bottom:1px solid #f1f5f9;padding:32px 36px 24px;">
+              <img src="${logoSrc}" width="140" alt="U3 Seguridad Privada" style="display:block;width:140px;max-width:60%;height:auto;border:0;margin:0 auto;" />
+              <p style="margin:14px 0 0 0;font-size:10px;font-weight:600;color:#64748b;letter-spacing:1.2px;text-transform:uppercase;">Protección, Confianza y Soluciones Integrales</p>
+            </td>
+          </tr>
+          <!-- Cuerpo del Mensaje -->
+          <tr>
+            <td style="padding:36px;font-size:15px;line-height:1.65;color:#1e293b;background-color:#ffffff;">
+              <div style="min-height:140px;">
+                ${cuerpoHtml}
+              </div>
+              ${firma ?? ''}
+            </td>
+          </tr>
+          <!-- Pie de Página Institucional -->
+          <tr>
+            <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 36px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="font-size:11px;color:#475569;line-height:1.6;padding-bottom:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                    <strong style="color:#0f172a;letter-spacing:0.3px;">U3 SEGURIDAD PRIVADA, S.A. DE C.V.</strong><br>
+                    Av. Paseo de la Reforma #456, Col. Juárez, C.P. 06600, CDMX<br>
+                    Tel: 55-8902-1234 &middot; <a href="mailto:contacto@u3seguridad.com" style="color:#1e3a5f;text-decoration:none;font-weight:500;">contacto@u3seguridad.com</a> &middot; <a href="https://www.u3seguridadprivada.com" target="_blank" style="color:#1e3a5f;text-decoration:none;font-weight:500;">www.u3seguridadprivada.com</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-size:10px;color:#94a3b8;line-height:1.5;border-top:1px solid #e2e8f0;padding-top:12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                    <strong style="color:#64748b;">AVISO DE CONFIDENCIALIDAD:</strong> Este correo electrónico y cualquier archivo adjunto contienen información confidencial y privileged propiedad de U3 Seguridad Privada y está dirigida exclusivamente a su destinatario. Si ha recibido este mensaje por error, notifíquelo de inmediato al remitente y elimínelo sin copiarlo ni distribuirlo.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
   </table>
-</body></html>`;
+</body>
+</html>`;
 }
 
 // ── Transporters ──

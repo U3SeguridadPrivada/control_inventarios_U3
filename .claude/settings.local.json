@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(curl -s http://localhost:3001/api/health)"
+      "Bash(curl -s http://localhost:3001/api/health)",
+      "PowerShell($sp=\"C:\\\\Users\\\\ferro\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Control-de-inventario-CONTROL-DE-INVENTARIOS-U3---copia\\\\a2dd301f-4d01-4555-b094-0ac87c1f2cf3\\\\scratchpad\"; Remove-Item \"$sp\\\\dev-out.log\" -ErrorAction SilentlyContinue; Remove-Item \"$sp\\\\dev-err.log\" -ErrorAction SilentlyContinue; $p = Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c\",\"npm run dev\" -WorkingDirectory \"d:\\\\Control de inventario\\\\CONTROL_DE_INVENTARIOS_U3 - copia\" -RedirectStandardOutput \"$sp\\\\dev-out.log\" -RedirectStandardError \"$sp\\\\dev-err.log\" -PassThru -WindowStyle Hidden; Write-Output \"dev relanzado PID $\\($p.Id\\)\")"
     ]
   }
 }

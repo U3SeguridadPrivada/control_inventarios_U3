@@ -12,7 +12,6 @@ import {
   salidas,
   uniformes_campo,
   bajas,
-  mensajes,
   eventos_calendario,
   servicios,
   servicio_guardias,
@@ -94,7 +93,6 @@ export async function DELETE(req: NextRequest) {
     db.delete(salidas).run();
     db.delete(uniformes_campo).run();
     db.delete(bajas).run();
-    db.delete(mensajes).run();
     db.delete(eventos_calendario).run();
     db.delete(servicios).run();
     db.delete(servicio_guardias).run();

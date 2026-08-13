@@ -27,10 +27,15 @@ export default function Header() {
   const { user, logout } = useAuth();
   const now = useClock();
 
+  // Sin leer del buzón IMAP personal. Abrir una conexión al servidor cuesta más
+  // que una consulta local, así que se consulta con menos frecuencia y sin
+  // reintentos: si el usuario no tiene buzón configurado, simplemente no hay globo.
   const { data: mailUnread } = useQuery({
-    queryKey: ['mensajesNoLeidos'],
-    queryFn: () => apiFetch<{ count: number }>('/api/mensajes/no-leidos'),
-    refetchInterval: 45_000,
+    queryKey: ['correoNoLeidos'],
+    queryFn: () => apiFetch<{ count: number }>('/api/correo/externo?action=unread'),
+    refetchInterval: 180_000,
+    retry: false,
+    staleTime: 120_000,
   });
 
   const initials = user?.username?.slice(0, 2).toUpperCase() ?? 'U';

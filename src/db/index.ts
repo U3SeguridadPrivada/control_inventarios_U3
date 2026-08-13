@@ -81,19 +81,6 @@ CREATE TABLE IF NOT EXISTS bajas (
   estado_general TEXT DEFAULT 'Pendiente',
   checklist TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS mensajes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  remitente_id INTEGER NOT NULL REFERENCES users(id),
-  destinatario_id INTEGER NOT NULL REFERENCES users(id),
-  asunto TEXT NOT NULL,
-  cuerpo TEXT NOT NULL,
-  leido INTEGER NOT NULL DEFAULT 0,
-  destacado INTEGER NOT NULL DEFAULT 0,
-  eliminado_remitente INTEGER NOT NULL DEFAULT 0,
-  eliminado_destinatario INTEGER NOT NULL DEFAULT 0,
-  responde_a_id INTEGER,
-  fecha_envio TEXT DEFAULT (datetime('now'))
-);
 CREATE TABLE IF NOT EXISTS eventos_calendario (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   titulo TEXT NOT NULL,
@@ -372,11 +359,6 @@ function initDb(): DrizzleDB {
   }
   try {
     sqlite.exec(`ALTER TABLE users ADD COLUMN role_personalizado_id INTEGER REFERENCES roles_personalizados(id);`);
-  } catch (e) {
-    // Column might already exist
-  }
-  try {
-    sqlite.exec(`ALTER TABLE mensajes ADD COLUMN es_html INTEGER NOT NULL DEFAULT 0;`);
   } catch (e) {
     // Column might already exist
   }

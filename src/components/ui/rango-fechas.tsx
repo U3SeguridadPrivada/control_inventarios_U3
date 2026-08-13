@@ -41,20 +41,27 @@ export function RangoFechas({
   className?: string;
 }) {
   const [abierto, setAbierto] = useState(false);
-  const [inicioSel, setInicioSel] = useState<string | null>(null);
+  // Selección en curso. Vive aparte del rango ya aplicado (`desde`/`hasta`) para
+  // que al empezar a elegir desaparezca el resaltado del rango anterior y no se
+  // confunda lo que había con lo que estás marcando.
+  const [selA, setSelA] = useState<string | null>(null);
+  const [selB, setSelB] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const contenedor = useRef<HTMLDivElement>(null);
 
   const [anio, setAnio] = useState(() => partes(desde || max || iso(new Date().getFullYear(), new Date().getMonth(), 1))[0]);
   const [mes, setMes] = useState(() => partes(desde || max || iso(new Date().getFullYear(), new Date().getMonth(), 1))[1] - 1);
 
-  // Cerrar al hacer clic fuera o con Escape
+  const limpiarSeleccion = () => { setSelA(null); setSelB(null); setHover(null); };
+  const cerrar = () => { setAbierto(false); limpiarSeleccion(); };
+
+  // Cerrar al hacer clic fuera o con Escape; la selección a medias se descarta
   useEffect(() => {
     if (!abierto) return;
     const fuera = (e: MouseEvent) => {
-      if (contenedor.current && !contenedor.current.contains(e.target as Node)) { setAbierto(false); setInicioSel(null); }
+      if (contenedor.current && !contenedor.current.contains(e.target as Node)) cerrar();
     };
-    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape') { setAbierto(false); setInicioSel(null); } };
+    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape') cerrar(); };
     document.addEventListener('mousedown', fuera);
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('mousedown', fuera); document.removeEventListener('keydown', escape); };
@@ -63,21 +70,32 @@ export function RangoFechas({
   const celdas = useMemo(() => celdasDelMes(anio, mes), [anio, mes]);
   const presetActivo = presets.find((p) => p.desde === desde && p.hasta === hasta);
 
-  // Extremos provisionales mientras se elige el segundo día del rango
-  const provisionalA = inicioSel && hover ? (inicioSel <= hover ? inicioSel : hover) : null;
-  const provisionalB = inicioSel && hover ? (inicioSel <= hover ? hover : inicioSel) : null;
+  const eligiendo = selA !== null;
+  const completo = selA !== null && selB !== null;
+
+  // Extremos a resaltar: la selección en curso manda sobre el rango aplicado
+  const [previewA, previewB] = (() => {
+    if (completo) return selA! <= selB! ? [selA!, selB!] : [selB!, selA!];
+    if (selA && hover) return selA <= hover ? [selA, hover] : [hover, selA];
+    if (selA) return [selA, selA];
+    return [null, null];
+  })();
 
   const deshabilitado = (f: string) => (!!min && f < min) || (!!max && f > max);
 
   const clicDia = (f: string) => {
     if (deshabilitado(f)) return;
-    if (!inicioSel) { setInicioSel(f); setHover(f); return; }
-    const a = inicioSel <= f ? inicioSel : f;
-    const b = inicioSel <= f ? f : inicioSel;
-    setInicioSel(null);
+    // Sin selección, o con una ya completa, el clic empieza un rango nuevo
+    if (!selA || completo) { setSelA(f); setSelB(null); setHover(f); return; }
+    setSelB(f);
     setHover(null);
-    onChange(a, b);
-    setAbierto(false);
+  };
+
+  // El rango no se aplica hasta confirmarlo: así se puede revisar o rehacer
+  const aplicar = () => {
+    if (!previewA || !previewB) return;
+    onChange(previewA, previewB);
+    cerrar();
   };
 
   const moverMes = (delta: number) => {
@@ -110,7 +128,7 @@ export function RangoFechas({
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => { onChange(p.desde, p.hasta); setAbierto(false); const [a, m] = partes(p.desde); setAnio(a); setMes(m - 1); }}
+                    onClick={() => { onChange(p.desde, p.hasta); cerrar(); const [a, m] = partes(p.desde); setAnio(a); setMes(m - 1); }}
                     className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-muted transition-colors text-left"
                   >
                     <span className={activo ? 'font-semibold text-foreground' : 'text-muted-foreground'}>{p.etiqueta}</span>
@@ -138,20 +156,25 @@ export function RangoFechas({
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-0.5" onMouseLeave={() => inicioSel && setHover(inicioSel)}>
+            <div className="grid grid-cols-7 gap-0.5" onMouseLeave={() => selA && !completo && setHover(selA)}>
               {celdas.map((dia, i) => {
                 if (dia === null) return <span key={`h${i}`} />;
                 const f = iso(anio, mes, dia);
                 const fuera = deshabilitado(f);
-                const enRango = (f >= desde && f <= hasta) || (!!provisionalA && f >= provisionalA && f <= provisionalB!);
-                const extremo = f === desde || f === hasta || f === inicioSel;
+                // Mientras eliges manda la selección en curso; si no, el rango aplicado
+                const enRango = eligiendo
+                  ? (!!previewA && f >= previewA && f <= previewB!)
+                  : (f >= desde && f <= hasta);
+                const extremo = eligiendo
+                  ? (f === previewA || f === previewB)
+                  : (f === desde || f === hasta);
                 return (
                   <button
                     key={f}
                     type="button"
                     disabled={fuera}
                     onClick={() => clicDia(f)}
-                    onMouseEnter={() => inicioSel && setHover(f)}
+                    onMouseEnter={() => selA && !completo && setHover(f)}
                     title={fmtLargo(f)}
                     className={[
                       'h-8 text-[11px] rounded-lg transition-colors tabular-nums',
@@ -168,20 +191,38 @@ export function RangoFechas({
             </div>
 
             <p className="text-[10px] text-muted-foreground mt-2 text-center">
-              {inicioSel
-                ? `Inicio ${fmtCorto(inicioSel)} · elige el día final`
-                : min && max ? `Hay datos del ${fmtCorto(min)} al ${fmtCorto(max)}` : 'Elige el día inicial'}
+              {completo ? 'Vuelve a hacer clic en un día para empezar de nuevo'
+                : eligiendo ? `Inicio ${fmtCorto(selA!)} · elige el día final`
+                : min && max ? `Hay datos del ${fmtCorto(min)} al ${fmtCorto(max)}`
+                : 'Elige el día inicial'}
             </p>
           </div>
 
-          {inicioSel && (
-            <button
-              type="button"
-              onClick={() => { setInicioSel(null); setHover(null); }}
-              className="w-full flex items-center justify-center gap-1.5 border-t border-border py-2 text-[11px] text-muted-foreground hover:bg-muted transition-colors"
-            >
-              <X className="w-3 h-3" /> Cancelar la selección
-            </button>
+          {/* El rango elegido no se aplica solo: se revisa y se confirma */}
+          {eligiendo && (
+            <div className="border-t border-border p-2 flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-muted-foreground leading-tight">Rango elegido</p>
+                <p className="text-[11px] font-semibold tabular-nums truncate">
+                  {completo ? `${fmtCorto(previewA!)} – ${fmtCorto(previewB!)}` : `${fmtCorto(selA!)} – …`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={limpiarSeleccion}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] text-muted-foreground hover:bg-muted transition-colors"
+              >
+                <X className="w-3 h-3" /> Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={aplicar}
+                disabled={!completo}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Aplicar
+              </button>
+            </div>
           )}
         </div>
       )}

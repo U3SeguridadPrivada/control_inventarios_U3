@@ -95,20 +95,8 @@ export const bajas = sqliteTable('bajas', {
   checklist: text('checklist', { mode: 'json' }).notNull().$type<any[]>(),
 });
 
-export const mensajes = sqliteTable('mensajes', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  remitente_id: integer('remitente_id').notNull().references(() => users.id),
-  destinatario_id: integer('destinatario_id').notNull().references(() => users.id),
-  asunto: text('asunto').notNull(),
-  cuerpo: text('cuerpo').notNull(),
-  leido: integer('leido').notNull().default(0),
-  destacado: integer('destacado').notNull().default(0),
-  eliminado_remitente: integer('eliminado_remitente').notNull().default(0),
-  eliminado_destinatario: integer('eliminado_destinatario').notNull().default(0),
-  responde_a_id: integer('responde_a_id'),
-  es_html: integer('es_html').notNull().default(0),
-  fecha_envio: text('fecha_envio').default(sql`(datetime('now'))`),
-});
+// La mensajería interna se retiró: el módulo de Correo trabaja solo contra el
+// buzón IMAP/SMTP personal de cada usuario (columnas correo_* de users).
 
 export const eventos_calendario = sqliteTable('eventos_calendario', {
   id: integer('id').primaryKey({ autoIncrement: true }),
