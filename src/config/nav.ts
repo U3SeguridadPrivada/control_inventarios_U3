@@ -3,6 +3,7 @@ import {
   Users, UserMinus, ShieldCheck, UserPlus, Lock, LucideIcon,
   Mail, CalendarDays, MapPin, ShoppingCart, Contact2, FileSpreadsheet,
   Landmark, KeyRound, Settings, UserSearch, MessageCircle, ClipboardList,
+  FileStack,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -83,6 +84,7 @@ export const NAV_BOTTOM: NavItem[] = [
   { id: 'whatsapp', href: '/whatsapp', title: 'WhatsApp en Vivo', shortLabel: 'WhatsApp', icon: MessageCircle },
   { id: 'mapa-operaciones', href: '/mapa-operaciones', title: 'Mapa de Operaciones', shortLabel: 'Mapa', icon: MapPin },
   { id: 'protocolos', href: '/protocolos', title: 'Protocolos Operativos', shortLabel: 'Protocolos', icon: ClipboardList },
+  { id: 'machotes', href: '/machotes', title: 'Machotes y Formatos', shortLabel: 'Machotes', icon: FileStack },
   { id: 'ajustes', href: '/ajustes', title: 'Ajustes del Sitio', shortLabel: 'Ajustes', icon: Settings, isAdminOnly: true },
 ];
 
@@ -102,14 +104,36 @@ export const NAV_MOBILE_PRIMARY: NavItem[] = NAV_MOBILE_PRIMARY_IDS.map(
   (id) => ALL_NAV_ITEMS.find((item) => item.id === id)!
 );
 
+function matchesHref(pathname: string, href: string): boolean {
+  if (href === '/') return pathname === '/';
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * Item de navegacion que corresponde a la ruta actual. Gana la coincidencia mas
+ * larga para que rutas anidadas (por ejemplo /usuarios/nuevo) marquen un solo
+ * item y no tambien a su ruta padre (/usuarios).
+ */
+export function getActiveItem(pathname: string): NavItem | null {
+  let best: NavItem | null = null;
+  for (const item of ALL_NAV_ITEMS) {
+    if (!matchesHref(pathname, item.href)) continue;
+    if (!best || item.href.length > best.href.length) best = item;
+  }
+  return best;
+}
+
+export function getActiveItemId(pathname: string): string | null {
+  return getActiveItem(pathname)?.id ?? null;
+}
+
 export function getPageTitle(pathname: string): string {
-  if (pathname === '/') return 'Panel Principal';
-  const match = ALL_NAV_ITEMS.find((item) => item.href !== '/' && pathname.startsWith(item.href));
-  return match?.title ?? 'Panel';
+  return getActiveItem(pathname)?.title ?? 'Panel';
 }
 
 export function getActiveGroupId(pathname: string): string | null {
-  if (pathname === '/') return null;
-  const group = NAV_GROUPS.find((g) => g.items.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)));
+  const activeId = getActiveItemId(pathname);
+  if (!activeId) return null;
+  const group = NAV_GROUPS.find((g) => g.items.some((item) => item.id === activeId));
   return group?.id ?? null;
 }

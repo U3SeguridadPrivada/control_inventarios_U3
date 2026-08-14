@@ -4,16 +4,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogOut, MoreHorizontal, X, Download, Bell, BellOff } from 'lucide-react';
 import { useAuth } from '@/src/context/AuthContext';
-import { NAV_MOBILE_PRIMARY, NAV_MOBILE_PRIMARY_IDS, NAV_GROUPS, NAV_BOTTOM, NAV_TOP, type NavItem } from '@/src/config/nav';
+import { NAV_MOBILE_PRIMARY, NAV_MOBILE_PRIMARY_IDS, NAV_GROUPS, NAV_BOTTOM, NAV_TOP, getActiveItemId, type NavItem } from '@/src/config/nav';
 import { cn } from '@/src/lib/utils';
 import { usePwaInstall } from '@/src/lib/pwa';
 import { getNotificationPermission, requestNotificationPermission, sendDeviceNotification } from '@/src/lib/deviceNotifications';
 import { toast } from 'sonner';
-
-function isActive(pathname: string, href: string) {
-  if (href === '/') return pathname === '/';
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
 
 function TabButton({
   active, label, children, ...rest
@@ -94,7 +89,8 @@ export default function MobileNav() {
     .filter((group) => group.items.length > 0);
   const restLoose = [...NAV_TOP, ...NAV_BOTTOM].filter(visible).filter((item) => !inPrimary(item));
 
-  const moreActive = !primary.some((item) => isActive(pathname, item.href));
+  const activeId = getActiveItemId(pathname);
+  const moreActive = !primary.some((item) => item.id === activeId);
 
   return (
     <>
@@ -104,7 +100,7 @@ export default function MobileNav() {
         className="md:hidden fixed inset-x-0 bottom-0 z-40 h-[calc(4rem+var(--safe-bottom))] pb-[var(--safe-bottom)] flex items-stretch bg-card/95 backdrop-blur border-t border-border"
       >
         {primary.map((item) => {
-          const active = isActive(pathname, item.href);
+          const active = item.id === activeId;
           const Icon = item.icon;
           return (
             <Link
@@ -157,7 +153,7 @@ export default function MobileNav() {
               {restLoose.length > 0 && (
                 <div className="space-y-1">
                   {restLoose.map((item) => (
-                    <SheetLink key={item.id} item={item} active={isActive(pathname, item.href)} onNavigate={() => setSheetOpen(false)} />
+                    <SheetLink key={item.id} item={item} active={item.id === activeId} onNavigate={() => setSheetOpen(false)} />
                   ))}
                 </div>
               )}
@@ -166,7 +162,7 @@ export default function MobileNav() {
                 <div key={group.id} className="space-y-1">
                   <p className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</p>
                   {group.items.map((item) => (
-                    <SheetLink key={item.id} item={item} active={isActive(pathname, item.href)} onNavigate={() => setSheetOpen(false)} />
+                    <SheetLink key={item.id} item={item} active={item.id === activeId} onNavigate={() => setSheetOpen(false)} />
                   ))}
                 </div>
               ))}
