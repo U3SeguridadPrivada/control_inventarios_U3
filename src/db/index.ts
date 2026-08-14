@@ -451,6 +451,81 @@ function initDb(): DrizzleDB {
     console.error('[auto-seed] Error sembrando datos iniciales de Cuenta B:', err);
   }
 
+  /**
+   * Reparación de la Cuenta B para bases que ya traen el histórico.
+   *
+   * La siembra de arriba solo corre con el libro vacío, así que una base que ya
+   * tiene datos —el volumen de producción— nunca se enteraría de los arreglos
+   * posteriores. Este bloque los aplica sobre lo que ya existe.
+   *
+   * Es un parche puntual, no un volcado: en el servidor puede haber movimientos
+   * capturados a mano desde la app y reemplazar el libro entero se los llevaría.
+   *
+   * Es idempotente por construcción — el alta se salta si el movimiento marca ya
+   * está, y las correcciones filtran por el importe viejo — así que puede correr
+   * en cada arranque sin duplicar nada.
+   */
+  try {
+    const rutaReparacion = path.join(process.cwd(), 'src', 'data', 'reparacion-cuenta-b.json');
+    if (existsSync(rutaReparacion)) {
+      const rep = JSON.parse(readFileSync(rutaReparacion, 'utf8'));
+      const libro = rep.libro || 'B';
+
+      const yaAplicada = (rep.marca ?? []).every((m: { fecha: string; descripcion: string }) =>
+        (sqlite.prepare(
+          `SELECT COUNT(*) as count FROM movimientos_financieros WHERE libro = ? AND fecha = ? AND descripcion = ?`
+        ).get(libro, m.fecha, m.descripcion) as { count: number }).count > 0
+      );
+
+      if (!yaAplicada && Array.isArray(rep.movimientos) && rep.movimientos.length > 0) {
+        const insertRep = sqlite.prepare(`
+          INSERT INTO movimientos_financieros
+            (fecha, tipo, categoria, monto, descripcion, libro, medio_pago, nombre, tipo_detalle, turno, alimentos, servicio)
+          VALUES
+            (@fecha, @tipo, @categoria, @monto, @descripcion, @libro, @medio_pago, @nombre, @tipo_detalle, @turno, @alimentos, @servicio)
+        `);
+        const repTx = sqlite.transaction((items: any[]) => {
+          for (const item of items) {
+            insertRep.run({
+              fecha: item.fecha,
+              tipo: item.tipo,
+              categoria: item.categoria,
+              monto: item.monto,
+              descripcion: item.descripcion ?? null,
+              libro: item.libro || libro,
+              medio_pago: item.medio_pago ?? null,
+              nombre: item.nombre ?? null,
+              tipo_detalle: item.tipo_detalle ?? null,
+              turno: item.turno ?? null,
+              alimentos: item.alimentos ?? null,
+              servicio: item.servicio ?? null,
+            });
+          }
+        });
+        repTx(rep.movimientos);
+        console.log(`[reparacion] ${rep.movimientos.length} movimientos de la Cuenta B repuestos (quincena no capturada).`);
+      }
+
+      // Filtran por el importe/nombre viejo, así que la segunda vez no hacen nada.
+      for (const c of rep.correcciones ?? []) {
+        const r = sqlite.prepare(
+          `UPDATE movimientos_financieros SET monto = ?
+             WHERE libro = ? AND fecha = ? AND categoria = ? AND nombre = ? AND monto = ?`
+        ).run(c.monto_correcto, libro, c.fecha, c.categoria, c.nombre, c.monto_excel);
+        if (r.changes) console.log(`[reparacion] ${c.nombre} (${c.fecha}): ${c.monto_excel} → ${c.monto_correcto}.`);
+      }
+
+      for (const n of rep.normalizaciones ?? []) {
+        const r = sqlite.prepare(
+          `UPDATE movimientos_financieros SET nombre = ? WHERE libro = ? AND nombre = ?`
+        ).run(n.a, libro, n.de);
+        if (r.changes) console.log(`[reparacion] "${n.de}" → "${n.a}" en ${r.changes} movimiento(s).`);
+      }
+    }
+  } catch (err) {
+    console.error('[reparacion] Error aplicando la reparación de Cuenta B:', err);
+  }
+
   try {
     const rowPrendas = sqlite.prepare("SELECT COUNT(*) as count FROM catalogo_prendas").get() as { count: number };
     if (rowPrendas && rowPrendas.count === 0) {

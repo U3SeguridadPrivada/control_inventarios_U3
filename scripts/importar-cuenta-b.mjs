@@ -527,6 +527,43 @@ writeFileSync(rutaDescuadres, JSON.stringify({
   nomina: { total: totalFaltante, faltantes, diferencias },
 }, null, 2) + '\n', 'utf8');
 
+/**
+ * Parte de reparación para bases que ya existen (el volumen de Railway).
+ *
+ * La siembra automática de `movimientos-cuenta-b.json` solo corre cuando el
+ * libro está vacío, así que una base que ya tiene datos nunca se enteraría de
+ * estos arreglos. Aquí se dejan resueltos —sin necesidad de los Excel, que no
+ * viajan en el repo— para que la app los aplique al arrancar.
+ *
+ * Es un parche puntual y no un volcado completo a propósito: en el servidor
+ * puede haber movimientos capturados a mano desde la app, y reemplazar el libro
+ * entero se los llevaría.
+ */
+const rutaReparacion = path.join(projectRoot, 'src', 'data', 'reparacion-cuenta-b.json');
+writeFileSync(rutaReparacion, JSON.stringify({
+  libro: LIBRO,
+  generado: new Date().toISOString().slice(0, 10),
+  descripcion: 'Arreglos de la quincena del 12 al 19 de junio de 2026, que ningún Excel llegó a capturar. Se aplican una sola vez sobre bases que ya tienen el histórico cargado.',
+  // Con esto la app sabe si ya se aplicó: si el ingreso existe, no hace nada.
+  marca: recuperados.filter((m) => m.categoria === CAT_INGRESOS).map((m) => ({ fecha: m.fecha, descripcion: m.descripcion })),
+  movimientos: recuperados.map((m) => ({
+    fecha: m.fecha,
+    tipo: m.categoria === CAT_INGRESOS ? 'Ingreso' : 'Gasto',
+    categoria: m.categoria,
+    monto: m.monto,
+    descripcion: m.descripcion ?? null,
+    libro: LIBRO,
+    medio_pago: m.medio_pago ?? null,
+    nombre: m.nombre ?? null,
+    tipo_detalle: null, turno: null, alimentos: null, servicio: null,
+  })),
+  correcciones: correcciones.map((c) => ({
+    fecha: c.fecha, categoria: c.categoria, nombre: c.nombre,
+    monto_excel: c.monto_excel, monto_correcto: c.monto_correcto,
+  })),
+  normalizaciones: normalizados.map((n) => ({ de: n.de, a: n.a })),
+}, null, 2) + '\n', 'utf8');
+
 // ─────────────── Escritura en la base ───────────────
 const dbPath = process.env.SQLITE_DB_PATH || path.join(projectRoot, 'db', 'app.db');
 if (!existsSync(path.dirname(dbPath))) mkdirSync(path.dirname(dbPath), { recursive: true });
