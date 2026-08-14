@@ -1,0 +1,67 @@
+{
+  "libro": "B",
+  "descripcion": "Movimientos reales que ningún Excel del corpus llegó a capturar. Se perdió el reporte semanal del 12 al 19 de junio de 2026 (el archivo que existe es una reconstrucción posterior e incompleta), y con él se fueron tanto el cobro de la quincena como los pagos de nómina de esas fechas. Se cargan aquí para que sobrevivan a una reimportación: el script borra y rehace las categorías de la Cuenta B, así que lo capturado a mano en ellas se perdería.",
+  "confirmado_por_el_usuario": "2026-08-14",
+  "movimientos": [
+    {
+      "fecha": "2026-06-15",
+      "categoria": "INGRESOS",
+      "monto": 18690,
+      "medio_pago": "TARJETA",
+      "descripcion": "PAGO PRIMERA QUINCENA JUNIO DEL CONDOMINIO SABINO",
+      "nota": "SABINO cobra 18,690 cada quincena y aparece en todas menos esta. El usuario confirmó el 14-ago-2026 que el pago entró el 15 de junio exactamente; el importe y el medio de pago son los de siempre."
+    }
+  ],
+  "promover_nomina": [
+    {
+      "fecha": "2026-06-15",
+      "medio_pago": "TARJETA",
+      "motivo": "La quincena completa que documenta Depósitos_15Jun26.pdf y que no está en ningún Excel."
+    },
+    {
+      "fecha": "2026-07-31",
+      "medio_pago": "TARJETA",
+      "motivo": "Un solo renglón (JUAN JESÚS SANCHEZ MARTÍNEZ) que está en Depósitos_31Jul26.xlsx pero no en el semanal de corrección."
+    }
+  ],
+  "nota_medio_pago": "El usuario confirmó el 14-ago-2026 que estas nóminas se pagaron por transferencia, o sea desde TARJETA. Lo respalda el reparto: con TARJETA el efectivo cierra en $8.00, exactamente lo que declara el último reporte semanal, y la tarjeta queda a $70.98 del suyo (el neto de esta quincena recuperada). Dejarlos sin medio de pago inflaba la tarjeta en $18,690.",
+
+  "nota_nombres": "Las listas de depósitos traen el nombre legal completo y el Excel usa una forma corta. Si se cargan tal cual, la misma persona queda partida en dos ('ISIDRO ROSAS ROSAS' aparte de 'ISIDRO ROSAS') y los reportes por persona se fragmentan. Este mapa traduce cada nombre del depósito al que ya usa el libro. El importador avisa si un renglón promovido trae un nombre que no está aquí ni existe en el libro.",
+  "nombres_canonicos": {
+    "JOSÉ AUGUSTO PRIETO GUEVARA": "JOSÉ AUGUSTO PRIETO",
+    "JOSÉ LUIS ROJAS GALINDO": "JOSE LUIS ROJAS G",
+    "ENRIQUE MARTÍNEZ MARTÍNEZ": "ENRIQUE MARTÍNEZ",
+    "MARIO PÉREZ LÓPEZ": "MARIO PÉREZ",
+    "JUAN JAIME VÁZQUEZ CHÁVEZ": "JUAN JAIME VAZQUEZ C.",
+    "JOSÉ LUIS RODRÍGUEZ CARMONA": "JOSE LUIS RODÍGUEZ C.",
+    "VALENTÍN GUTIÉRREZ MACÍAS": "VALENTIN GUTIERREZ MACIAS",
+    "JÓNATHAN JESÚS SORIA MORALES": "JONATHAN J. SORIA MORALES",
+    "JÓNATHAN MENDOZA PRIMERO": "JONATHAN MENDOZA PRIMERO",
+    "JOSÉ LUIS ESCALANTE GONZÁLEZ": "JOSE LUIS ESCALANTE",
+    "DIEGO BÁEZ BRAVO": "DIEGO BAEZ",
+    "EDGAR HERNÁNDEZ RAMÍREZ": "EDGAR HERNANDEZ RAMIREZ",
+    "ISIDRO ROSAS ROSAS": "ISIDRO ROSAS",
+    "JOSÉ JAIME SALAZAR RANGEL": "JOSÉ JAIME SALAZAR",
+    "RAFAEL GARCÍA MAGAÑA": "RAFAEL GARCIA MAGAÑA",
+    "FERNANDO ELISEO ORTÍZ LÓPEZ": "FERNANDO ELISEO ORTIZ L.",
+    "JUAN JESÚS SANCHEZ MARTÍNEZ": "JUAN JESUS SANCHEZ M.",
+    "YENI LAURA FLORES GARIBAY": "YENI LAURA FLORES GARIBAY"
+  },
+
+  "nota_normalizacion": "Erratas de captura del propio Excel: la misma persona escrita de dos formas, lo que la parte en dos en los reportes por persona. Solo se unifican casos verificados (mismo concepto y mismo importe recurrente), nunca por parecido de nombre.",
+  "normalizar_nombres": {
+    "JUANITA MARTINEZ": "JUANITA MARTÍNEZ"
+  },
+
+  "nota_correcciones": "Importes que el Excel capturó distinto de lo que dice el comprobante del depósito. Manda el depósito: es el registro de lo que el banco movió de verdad.",
+  "correcciones": [
+    {
+      "fecha": "2026-05-31",
+      "categoria": "GASTOS DIVERSOS",
+      "nombre": "MARIO DAVID ELIZALDE MANUEL",
+      "monto_excel": 156,
+      "monto_correcto": 155.64,
+      "motivo": "Depósitos_31May26.pdf registra $155.64; el Excel lo redondeó a $156.00."
+    }
+  ]
+}

@@ -179,6 +179,26 @@ function destinoDe(m: Movimiento): string {
   return [m.nombre, m.descripcion].filter(Boolean).join(' , ');
 }
 
+type MigracionCuentaB = {
+  libro: string;
+  diagnostico: { constante: boolean; diferencia: number; desde: string; puntos: number } | null;
+  descuadres: { fecha: string; declarado: number; calculado: number; diferencia: number; fuente: string }[];
+  nomina: {
+    total: number;
+    faltantes: {
+      fecha: string;
+      fuente: string;
+      total: number;
+      completa: boolean;
+      renglones: { nombre: string; concepto: string; monto: number }[];
+    }[];
+    diferencias: {
+      fecha: string; fuente: string; nombre: string; concepto: string;
+      monto_lista: number; monto_registrado: number; diferencia: number;
+    }[];
+  };
+};
+
 /**
  * Aviso de descuadre detectado al migrar el histórico desde los Excel: en varios
  * cortes el saldo que declara el reporte semanal no coincide con lo que suman
@@ -186,11 +206,7 @@ function destinoDe(m: Movimiento): string {
  * que el responsable del libro localice el error en su papeleo.
  */
 function AvisoDescuadres({ libroId }: { libroId: string }) {
-  const { libro, diagnostico, descuadres } = descuadresCuentaB as {
-    libro: string;
-    diagnostico: { constante: boolean; diferencia: number; desde: string; puntos: number } | null;
-    descuadres: { fecha: string; declarado: number; calculado: number; diferencia: number; fuente: string }[];
-  };
+  const { libro, diagnostico, descuadres } = descuadresCuentaB as MigracionCuentaB;
   if (libroId !== libro || !descuadres.length) return null;
 
   return (
@@ -206,9 +222,9 @@ function AvisoDescuadres({ libroId }: { libroId: string }) {
               <>
                 Los reportes semanales declaran {fmtMoney(Math.abs(diagnostico.diferencia))} {diagnostico.diferencia > 0 ? 'más' : 'menos'} de
                 lo que suman los movimientos capturados. La diferencia es <strong>idéntica en los {diagnostico.puntos} cortes
-                revisados</strong>, desde el primero ({fmtDate(diagnostico.desde)}), así que es un solo error al inicio del
-                periodo que se arrastra — no uno por semana. Conviene cuadrar el cierre del reporte anterior contra el saldo
-                inicial con el que abre el consolidado de mayo.
+                revisados</strong>, desde el del {fmtDate(diagnostico.desde)}, así que es un solo error en esa fecha que se
+                arrastra hasta el final — no uno por semana. Conviene revisar qué pasó ese día: a partir de ahí todos los
+                saldos del reporte vienen corridos por esa misma cantidad.
               </>
             ) : (
               <>El saldo declarado en el reporte no coincide con la suma de los movimientos en {descuadres.length} corte(s).</>
@@ -225,6 +241,89 @@ function AvisoDescuadres({ libroId }: { libroId: string }) {
               ))}
             </ul>
           </details>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Aviso de nómina pagada que ningún Excel registró.
+ *
+ * Junto al histórico llegaron las listas "DEPÓSITOS NÓMINA" de cada quincena.
+ * No se importan como movimientos —son el desglose de pagos que ya están en
+ * GASTOS DIVERSOS y duplicarían el egreso—, pero al cruzarlas contra lo
+ * capturado aparecieron pagos que no tienen movimiento que los respalde.
+ *
+ * Tampoco se cargan por cuenta propia. El hueco no son solo estos pagos: en el
+ * mismo periodo falta también el cobro quincenal de los clientes, señal de que
+ * lo que se perdió es la captura completa de esa quincena. Cargar únicamente los
+ * egresos dejaría el saldo tan irreal como está ahora, pero al revés. El aviso
+ * existe para que el responsable recupere ese reporte y entre todo junto.
+ */
+function AvisoNominaFaltante({ libroId, existencia }: { libroId: string; existencia: number }) {
+  const { libro, nomina } = descuadresCuentaB as MigracionCuentaB;
+  if (libroId !== libro || !nomina) return null;
+  const { total, faltantes, diferencias } = nomina;
+  if (!faltantes.length && !diferencias.length) return null;
+
+  return (
+    <div className="rounded-xl border border-red-300 bg-red-50 p-4">
+      <div className="flex gap-3">
+        <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div className="min-w-0 space-y-2">
+          {faltantes.length > 0 && (
+            <>
+              <p className="text-sm font-semibold text-red-900">
+                Nómina pagada sin registrar: {fmtMoney(total)}
+              </p>
+              <p className="text-sm text-red-800">
+                Las listas de <strong>depósitos de nómina</strong> documentan pagos que no aparecen en ningún reporte
+                semanal ni en el consolidado del mes, así que no están capturados como movimientos. En ese mismo
+                periodo tampoco aparece el cobro quincenal de los clientes, así que lo que falta no son solo estos
+                pagos: es <strong>la captura completa de esa quincena</strong>. Conviene recuperar el reporte de esas
+                fechas antes de capturar nada, para que entren juntos el ingreso y el egreso; si solo se cargaran
+                estos pagos, el saldo bajaría a {fmtMoney(existencia - total)} y quedaría igual de irreal.
+              </p>
+              <details className="text-xs text-red-800">
+                <summary className="cursor-pointer font-medium hover:text-red-900">Ver los pagos sin registrar</summary>
+                <div className="mt-2 space-y-3">
+                  {faltantes.map((f) => (
+                    <div key={f.fecha}>
+                      <p className="font-medium">
+                        {fmtDate(f.fecha)} — {f.completa ? 'la quincena completa' : `${f.renglones.length} pago(s)`}: {fmtMoney(f.total)}
+                        <span className="font-normal text-red-700"> (según {f.fuente})</span>
+                      </p>
+                      <ul className="mt-1 space-y-0.5">
+                        {f.renglones.map((r, i) => (
+                          <li key={`${r.nombre}-${r.concepto}-${i}`} className="flex justify-between gap-3">
+                            <span className="truncate">{r.nombre} — {r.concepto}</span>
+                            <span className="font-medium tabular-nums flex-shrink-0">{fmtMoney(r.monto)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </>
+          )}
+          {diferencias.length > 0 && (
+            <details className="text-xs text-red-800">
+              <summary className="cursor-pointer font-medium hover:text-red-900">
+                {diferencias.length} pago(s) capturado(s) por un importe distinto al del depósito
+              </summary>
+              <ul className="mt-2 space-y-1">
+                {diferencias.map((d, i) => (
+                  <li key={`${d.fecha}-${d.nombre}-${i}`}>
+                    <span className="font-medium">{fmtDate(d.fecha)}</span>: {d.nombre} está capturado
+                    con {fmtMoney(d.monto_registrado)} y el depósito dice {fmtMoney(d.monto_lista)}
+                    {' '}({fmtMoney(d.diferencia)} de diferencia)
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       </div>
     </div>
@@ -900,6 +999,7 @@ export default function FinanzasApp() {
       </div>
 
       {libroActivo && <AvisoDescuadres libroId={libroActivo.id} />}
+      {libroActivo && <AvisoNominaFaltante libroId={libroActivo.id} existencia={calc.existencia} />}
 
       <div className="flex border-b border-border overflow-x-auto scroll-touch no-scrollbar [&>button]:flex-shrink-0 [&>button]:whitespace-nowrap">
         {TABS.map((t) => (

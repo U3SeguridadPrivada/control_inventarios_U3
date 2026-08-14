@@ -1,6 +1,167 @@
 {
   "libro": "B",
-  "generado": "2026-08-12",
+  "generado": "2026-08-14",
   "diagnostico": null,
-  "descuadres": []
+  "descuadres": [],
+  "explicados": [
+    {
+      "fecha": "2026-06-05",
+      "declarado": 6096.41,
+      "calculado": 6096.77,
+      "diferencia": -0.36,
+      "detalle_declarado": [
+        {
+          "medio_pago": "TARJETA",
+          "monto": 5536.41
+        },
+        {
+          "medio_pago": "EFECTIVO",
+          "monto": 560
+        }
+      ],
+      "fuente": "CONTROL_SEMANAL_CUENTA_B_05_AL_12_JUNIO_2026.xlsx",
+      "neto_ajustes": 0.36
+    },
+    {
+      "fecha": "2026-06-12",
+      "declarado": 10610.85,
+      "calculado": 10611.21,
+      "diferencia": -0.36,
+      "detalle_declarado": [
+        {
+          "medio_pago": "TARJETA",
+          "monto": 10473.35
+        },
+        {
+          "medio_pago": "EFECTIVO",
+          "monto": 137.5
+        }
+      ],
+      "fuente": "CONTROL_SEMANAL_CUENTA_B_12_AL_19_JUNIO_2026.xlsx",
+      "neto_ajustes": 0.36
+    },
+    {
+      "fecha": "2026-06-19",
+      "declarado": 12167.82,
+      "calculado": 12607.16,
+      "diferencia": -439.34,
+      "detalle_declarado": [
+        {
+          "medio_pago": "TARJETA",
+          "monto": 10000.32
+        },
+        {
+          "medio_pago": "EFECTIVO",
+          "monto": 2167.5
+        }
+      ],
+      "fuente": "CONTROL_SEMANAL_CUENTA_B_19_AL_26_JUNIO_2026.xlsx",
+      "neto_ajustes": 439.34
+    },
+    {
+      "fecha": "2026-06-26",
+      "declarado": 9956.46,
+      "calculado": 10395.8,
+      "diferencia": -439.34,
+      "detalle_declarado": [
+        {
+          "medio_pago": "TARJETA",
+          "monto": 9900.46
+        },
+        {
+          "medio_pago": "EFECTIVO",
+          "monto": 56
+        }
+      ],
+      "fuente": "CONTROL_SEMANAL_CUENTA_B_26_JUNIO_AL_03_JULIO_2026.xlsx",
+      "neto_ajustes": 439.34
+    },
+    {
+      "fecha": "2026-07-03",
+      "declarado": 19479.79,
+      "calculado": 19919.13,
+      "diferencia": -439.34,
+      "detalle_declarado": [
+        {
+          "medio_pago": "TARJETA",
+          "monto": 19000.79
+        },
+        {
+          "medio_pago": "EFECTIVO",
+          "monto": 479
+        }
+      ],
+      "fuente": "CONTROL_SEMANAL_CUENTA_B_03_AL_10_JULIO_2026.xlsx",
+      "neto_ajustes": 439.34
+    },
+    {
+      "fecha": "2026-07-10",
+      "declarado": 3780.79,
+      "calculado": 4220.13,
+      "diferencia": -439.34,
+      "detalle_declarado": [
+        {
+          "medio_pago": "TARJETA",
+          "monto": 3000.79
+        },
+        {
+          "medio_pago": "EFECTIVO",
+          "monto": 780
+        }
+      ],
+      "fuente": "CONTROL_SEMANAL_CUENTA_B_10_AL_17_JULIO_2026.xlsx",
+      "neto_ajustes": 439.34
+    },
+    {
+      "fecha": "2026-07-17",
+      "declarado": 13624.01,
+      "calculado": 14063.35,
+      "diferencia": -439.34,
+      "detalle_declarado": [
+        {
+          "medio_pago": "TARJETA",
+          "monto": 13000.01
+        },
+        {
+          "medio_pago": "EFECTIVO",
+          "monto": 624
+        }
+      ],
+      "fuente": "CONTROL_SEMANAL_CUENTA_B_17_AL_24_JULIO_2026.xlsx",
+      "neto_ajustes": 439.34
+    },
+    {
+      "fecha": "2026-07-24",
+      "declarado": 7908.5,
+      "calculado": 8347.84,
+      "diferencia": -439.34,
+      "detalle_declarado": [
+        {
+          "medio_pago": "TARJETA",
+          "monto": 7000.5
+        },
+        {
+          "medio_pago": "EFECTIVO",
+          "monto": 908
+        }
+      ],
+      "fuente": "CONTROL_SEMANAL_CUENTA_B_CORRECIÓN_24_AL_31_JULIO_2026.xlsx",
+      "neto_ajustes": 439.34
+    }
+  ],
+  "correcciones": [
+    {
+      "fecha": "2026-05-31",
+      "categoria": "GASTOS DIVERSOS",
+      "nombre": "MARIO DAVID ELIZALDE MANUEL",
+      "monto_excel": 156,
+      "monto_correcto": 155.64,
+      "motivo": "Depósitos_31May26.pdf registra $155.64; el Excel lo redondeó a $156.00."
+    }
+  ],
+  "nomina": {
+    "total": 0,
+    "faltantes": [],
+    "diferencias": []
+  }
 }
