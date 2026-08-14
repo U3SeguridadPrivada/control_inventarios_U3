@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '@/src/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -9,7 +9,7 @@ import { Input } from '@/src/components/ui/input';
 import { Select } from '@/src/components/ui/select';
 import { Badge } from '@/src/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
-import { Plus, Landmark, TrendingDown, TrendingUp, Wallet, CreditCard, Banknote, ChevronLeft, ChevronRight, Paperclip, Pencil, Trash2, Loader2, FileText, ExternalLink, ImageIcon, Lock, AlertTriangle, Check, Clock, Receipt, HandCoins, UploadCloud, X, Mail, Sheet } from 'lucide-react';
+import { Plus, Landmark, TrendingDown, TrendingUp, Wallet, CreditCard, Banknote, ChevronLeft, ChevronRight, ChevronDown, Paperclip, Pencil, Trash2, Loader2, FileText, ExternalLink, ImageIcon, Lock, AlertTriangle, Check, Clock, Receipt, HandCoins, UploadCloud, X, Mail, Sheet } from 'lucide-react';
 import { fmtDate } from '@/src/lib/utils';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
@@ -196,6 +196,95 @@ function Opcion({ activo, onClick, children, tonoActivo = 'border-primary bg-pri
         activo ? tonoActivo : 'border-border text-muted-foreground hover:bg-muted'}`}>
       {children}
     </button>
+  );
+}
+
+/**
+ * Campo escribible con lista desplegable de verdad.
+ *
+ * El <datalist> nativo no servía: el navegador solo enseña las opciones que
+ * contienen lo ya escrito, y como el turno arranca en "12 HORAS" al abrir el
+ * formulario, el desplegable salía vacío — parecía que la lista no existía.
+ * Aquí la lista completa se abre al enfocar o con la flecha, y solo se filtra
+ * cuando escribes. El texto libre se sigue permitiendo: la lista sugiere, no
+ * obliga, porque el histórico tiene valores sueltos como "3HRS".
+ */
+function ListaSugerida({ value, onChange, opciones, placeholder, required }: {
+  value: string;
+  onChange: (valor: string) => void;
+  opciones: string[];
+  placeholder?: string;
+  required?: boolean;
+}) {
+  const [abierta, setAbierta] = useState(false);
+  const [filtrando, setFiltrando] = useState(false);
+  const [resaltada, setResaltada] = useState(-1);
+  const caja = useRef<HTMLDivElement>(null);
+
+  const visibles = useMemo(() => {
+    const q = value.trim().toUpperCase();
+    if (!filtrando || !q) return opciones;
+    return opciones.filter((o) => o.toUpperCase().includes(q));
+  }, [opciones, value, filtrando]);
+
+  useEffect(() => {
+    if (!abierta) return;
+    const fuera = (e: MouseEvent) => { if (!caja.current?.contains(e.target as Node)) setAbierta(false); };
+    document.addEventListener('mousedown', fuera);
+    return () => document.removeEventListener('mousedown', fuera);
+  }, [abierta]);
+
+  const abrirCompleta = () => { setFiltrando(false); setResaltada(-1); setAbierta(true); };
+  const elegir = (o: string) => { onChange(o); setAbierta(false); setFiltrando(false); };
+
+  const teclas = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') { setAbierta(false); return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!abierta) { abrirCompleta(); return; }
+      setResaltada((r) => {
+        if (!visibles.length) return -1;
+        return e.key === 'ArrowDown' ? (r + 1) % visibles.length : (r <= 0 ? visibles.length - 1 : r - 1);
+      });
+      return;
+    }
+    if (e.key === 'Enter' && abierta && visibles[resaltada]) { e.preventDefault(); elegir(visibles[resaltada]); }
+  };
+
+  return (
+    <div ref={caja} className="relative">
+      <Input
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setFiltrando(true); setResaltada(-1); setAbierta(true); }}
+        onFocus={abrirCompleta}
+        onKeyDown={teclas}
+        placeholder={placeholder}
+        required={required}
+        autoComplete="off"
+        className="pr-9"
+      />
+      {opciones.length > 0 && (
+        <button type="button" tabIndex={-1} aria-label="Ver la lista completa"
+          onClick={() => (abierta ? setAbierta(false) : abrirCompleta())}
+          className="absolute right-0 top-0 h-10 w-9 flex items-center justify-center text-muted-foreground hover:text-foreground">
+          <ChevronDown className={`w-4 h-4 transition-transform ${abierta ? 'rotate-180' : ''}`} />
+        </button>
+      )}
+      {abierta && visibles.length > 0 && (
+        <ul className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-border bg-card shadow-lg py-1">
+          {visibles.map((o, i) => (
+            <li key={o}>
+              {/* onMouseDown preventDefault: sin esto el blur del input cierra la lista antes del clic. */}
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => elegir(o)}
+                onMouseEnter={() => setResaltada(i)}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${i === resaltada ? 'bg-muted' : ''} ${o === value ? 'font-semibold text-primary' : 'text-foreground'}`}>
+                {o}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -1365,11 +1454,6 @@ export default function FinanzasApp() {
         </div>
       )}
 
-      <datalist id="dl-nombres">{nombresSugeridos.map((n) => <option key={n} value={n} />)}</datalist>
-      <datalist id="dl-servicios">{serviciosSugeridos.map((s) => <option key={s} value={s} />)}</datalist>
-      <datalist id="dl-turnos">{turnosSugeridos.map((t) => <option key={t} value={t} />)}</datalist>
-      <datalist id="dl-motivos">{(motivosSugeridos[movForm.categoria] ?? []).map((m) => <option key={m} value={m} />)}</datalist>
-
       {/* ── Modal movimiento ── */}
       <Dialog open={movModalOpen} onOpenChange={(open) => { if (!open) cerrarMovModal(); }} className="sm:max-w-2xl">
         <DialogContent className="gap-0">
@@ -1440,7 +1524,7 @@ export default function FinanzasApp() {
                     </div>
                   </Campo>
                   <Campo label="Turno / Horas">
-                    <Input list="dl-turnos" value={movForm.turno} onChange={(e) => cambiarTurno(e.target.value)} placeholder="12 HORAS, 1:30 HR..." />
+                    <ListaSugerida value={movForm.turno} onChange={cambiarTurno} opciones={turnosSugeridos} placeholder="12 HORAS, 1:30 HR..." />
                   </Campo>
                   <Campo label="Alimentos" ayuda="se deduce del tipo">
                     <div className="grid grid-cols-2 gap-2">
@@ -1450,7 +1534,7 @@ export default function FinanzasApp() {
                     </div>
                   </Campo>
                   <Campo label="Servicio">
-                    <Input list="dl-servicios" value={movForm.servicio} onChange={(e) => setMovForm((f) => ({ ...f, servicio: e.target.value }))} placeholder="TRES LAGOS, TORRE OLIMPO..." />
+                    <ListaSugerida value={movForm.servicio} onChange={(v) => setMovForm((f) => ({ ...f, servicio: v }))} opciones={serviciosSugeridos} placeholder="TRES LAGOS, TORRE OLIMPO..." />
                   </Campo>
                 </div>
               </Banda>
@@ -1460,8 +1544,8 @@ export default function FinanzasApp() {
             <Banda titulo={esIngreso ? 'Concepto del ingreso' : 'A quién y por qué'}>
               <div className="space-y-4">
                 {!esIngreso && (
-                  <Campo label="Nombre">
-                    <Input list="dl-nombres" value={movForm.nombre} onChange={(e) => setMovForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Guardia, proveedor, CFE..." required />
+                  <Campo label="Nombre" ayuda={nombresSugeridos.length ? `${nombresSugeridos.length} en el libro` : undefined}>
+                    <ListaSugerida value={movForm.nombre} onChange={(v) => setMovForm((f) => ({ ...f, nombre: v }))} opciones={nombresSugeridos} placeholder="Guardia, proveedor, CFE..." required />
                   </Campo>
                 )}
                 <Campo
@@ -1470,8 +1554,13 @@ export default function FinanzasApp() {
                 >
                   {/* La lista trae todos los motivos del libro; el nombre del
                       guardia se recorta porque va en su propio campo. */}
-                  <Input list="dl-motivos" value={movForm.descripcion} onChange={(e) => setMovForm((f) => ({ ...f, descripcion: e.target.value }))}
-                    placeholder={movForm.categoria === CAT_ANTICIPOS ? 'ANTICIPO DE NOMINA' : movForm.categoria === CAT_INGRESOS ? 'FONDOS PROVENIENTES DE U3...' : 'CUBRE VACANTE, REEMBOLSO...'} required={!esHE} />
+                  <ListaSugerida
+                    value={movForm.descripcion}
+                    onChange={(v) => setMovForm((f) => ({ ...f, descripcion: v }))}
+                    opciones={motivosDeCategoria}
+                    placeholder={movForm.categoria === CAT_ANTICIPOS ? 'ANTICIPO DE NOMINA' : movForm.categoria === CAT_INGRESOS ? 'FONDOS PROVENIENTES DE U3...' : 'CUBRE VACANTE, REEMBOLSO...'}
+                    required={!esHE}
+                  />
                   {/* Lo que más se repite, a un clic */}
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {motivosDeCategoria.slice(0, 8).map((s) => (
