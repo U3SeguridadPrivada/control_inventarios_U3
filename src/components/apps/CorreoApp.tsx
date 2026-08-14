@@ -10,8 +10,10 @@ import RichTextEditor from '@/src/components/RichTextEditor';
 import {
   Pencil, Inbox, Send, Trash2, Reply, Globe, Settings, RefreshCw, Paperclip, X, FileText,
   Search, Maximize2, Minimize2, ChevronDown, Menu, ArrowLeft, MailOpen, Mail,
-  FolderClosed, AlertOctagon, Eye, EyeOff, CheckCircle2, Download, Bell, BellOff
+  FolderClosed, AlertOctagon, Eye, EyeOff, CheckCircle2, Download, Bell, BellOff,
+  File, FileSpreadsheet, FileImage, FileArchive, FileAudio, FileVideo, FileCode
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import DOMPurify from 'isomorphic-dompurify';
 import { usePwaInstall } from '@/src/lib/pwa';
@@ -21,9 +23,36 @@ const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&nbsp
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmtBytes = (n: number) => n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(n / 1024)} KB`;
 
+// Qué archivo llegó: se reconoce por el MIME y, como respaldo, por la extensión
+// (hay remitentes que mandan todo como application/octet-stream).
+interface ClaseArchivo { icono: LucideIcon; etiqueta: string; color: string }
+const CLASES_ARCHIVO: { prueba: RegExp; clase: ClaseArchivo }[] = [
+  { prueba: /pdf/, clase: { icono: FileText, etiqueta: 'PDF', color: 'text-red-600 bg-red-50 border-red-200' } },
+  { prueba: /wordprocessingml|msword|\.docx?$|\.rtf$|\.odt$/, clase: { icono: FileText, etiqueta: 'Word', color: 'text-blue-700 bg-blue-50 border-blue-200' } },
+  { prueba: /spreadsheetml|ms-excel|\.xlsx?$|\.xlsm$|\.csv$|\.ods$/, clase: { icono: FileSpreadsheet, etiqueta: 'Excel', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' } },
+  { prueba: /presentationml|ms-powerpoint|\.pptx?$|\.odp$/, clase: { icono: FileImage, etiqueta: 'PowerPoint', color: 'text-orange-600 bg-orange-50 border-orange-200' } },
+  { prueba: /^image\/|\.(png|jpe?g|gif|webp|bmp|heic|svg)$/, clase: { icono: FileImage, etiqueta: 'Imagen', color: 'text-violet-600 bg-violet-50 border-violet-200' } },
+  { prueba: /zip|rar|7z|x-tar|gzip|compressed/, clase: { icono: FileArchive, etiqueta: 'Comprimido', color: 'text-amber-700 bg-amber-50 border-amber-200' } },
+  { prueba: /^audio\//, clase: { icono: FileAudio, etiqueta: 'Audio', color: 'text-pink-600 bg-pink-50 border-pink-200' } },
+  { prueba: /^video\//, clase: { icono: FileVideo, etiqueta: 'Video', color: 'text-indigo-600 bg-indigo-50 border-indigo-200' } },
+  { prueba: /xml|json|javascript|\.(html?|css|ts|js)$/, clase: { icono: FileCode, etiqueta: 'Código', color: 'text-slate-700 bg-slate-100 border-slate-200' } },
+  { prueba: /^text\//, clase: { icono: FileText, etiqueta: 'Texto', color: 'text-slate-700 bg-slate-100 border-slate-200' } },
+];
+const CLASE_GENERICA: ClaseArchivo = { icono: File, etiqueta: 'Archivo', color: 'text-slate-600 bg-slate-100 border-slate-200' };
+
+function claseArchivo(a: { tipo: string; nombre: string }): ClaseArchivo {
+  const pista = `${(a.tipo || '').toLowerCase()} ${(a.nombre || '').toLowerCase()}`;
+  return CLASES_ARCHIVO.find((c) => c.prueba.test(pista))?.clase ?? CLASE_GENERICA;
+}
+
+// Lo que el navegador puede mostrar sin descargar; el resto se guarda al disco.
+const seVisualiza = (a: { tipo: string; nombre: string }) =>
+  /pdf$/.test(a.tipo) || /\.pdf$/i.test(a.nombre) || a.tipo.startsWith('image/') || a.tipo.startsWith('text/');
+
 interface CorreoExterno { uid: number; asunto: string; de: string; deCorreo: string; fecha: string | null; leido: boolean }
 interface PaginaCorreos { mensajes: CorreoExterno[]; total: number; offset: number; nextOffset: number; hasMore: boolean }
-interface CorreoExternoDetalle { uid: number; asunto: string; de: string; fecha: string | null; html: string | null; texto: string; adjuntos: { nombre: string; tipo: string }[] }
+interface AdjuntoCorreo { parte: string; nombre: string; tipo: string; tamano: number }
+interface CorreoExternoDetalle { uid: number; asunto: string; de: string; fecha: string | null; html: string | null; texto: string; adjuntos: AdjuntoCorreo[] }
 interface PerfilCorreo {
   firma: { nombre: string; puesto: string; telefono: string; correo: string };
   correo_imap_host: string; correo_imap_puerto: number;
@@ -187,6 +216,47 @@ export default function CorreoApp() {
     enabled: !!selectedExterno,
     staleTime: Infinity,
   });
+
+  // ── Adjuntos del mensaje abierto ──
+  // La API va con token en la cabecera, así que un <a href> directo no sirve:
+  // se baja el archivo con fetch y se trabaja sobre un blob local.
+  const [adjuntoCargando, setAdjuntoCargando] = useState<string | null>(null);
+  const [adjuntoVisor, setAdjuntoVisor] = useState<{ url: string; nombre: string; tipo: string } | null>(null);
+
+  // Al cerrar el visor (o cambiar de archivo) se suelta el blob en memoria.
+  useEffect(() => () => { if (adjuntoVisor) URL.revokeObjectURL(adjuntoVisor.url); }, [adjuntoVisor]);
+
+  const abrirAdjunto = async (a: AdjuntoCorreo, forzarDescarga = false) => {
+    if (!selectedExterno || adjuntoCargando) return;
+    const verEnApp = !forzarDescarga && seVisualiza(a);
+    setAdjuntoCargando(a.parte);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : null;
+      const url = `/api/correo/externo?uid=${selectedExterno}&folder=${encodeURIComponent(imapFolder)}&parte=${encodeURIComponent(a.parte)}${verEnApp ? '&ver=1' : ''}`;
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'No se pudo descargar el archivo');
+      }
+      const blobUrl = URL.createObjectURL(await res.blob());
+      if (verEnApp) {
+        setAdjuntoVisor({ url: blobUrl, nombre: a.nombre, tipo: a.tipo });
+      } else {
+        const enlace = document.createElement('a');
+        enlace.href = blobUrl;
+        enlace.download = a.nombre;
+        document.body.appendChild(enlace);
+        enlace.click();
+        enlace.remove();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        toast.success(`Descargando ${a.nombre}`);
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setAdjuntoCargando(null);
+    }
+  };
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['correo-externo'] });
@@ -503,14 +573,51 @@ export default function CorreoApp() {
                     </div>
 
                     {externoDetalle.adjuntos.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {externoDetalle.adjuntos.map((a, i) => (
-                          <div key={i} className="inline-flex items-center gap-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 max-w-full">
-                            <Paperclip className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                            <span className="font-medium text-slate-700 truncate max-w-[180px]">{a.nombre}</span>
-                            <span className="text-slate-400 text-[10px] flex-shrink-0">({a.tipo || 'archivo'})</span>
-                          </div>
-                        ))}
+                      <div className="mt-4">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                          <Paperclip className="w-3.5 h-3.5" />
+                          <span>{externoDetalle.adjuntos.length} {externoDetalle.adjuntos.length === 1 ? 'archivo adjunto' : 'archivos adjuntos'}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {externoDetalle.adjuntos.map((a) => {
+                            const clase = claseArchivo(a);
+                            const Icono = clase.icono;
+                            const cargando = adjuntoCargando === a.parte;
+                            return (
+                              <div
+                                key={a.parte}
+                                className="group inline-flex items-center gap-2.5 bg-white border border-slate-200 rounded-xl pl-2 pr-1 py-1.5 max-w-full shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => abrirAdjunto(a)}
+                                  disabled={cargando}
+                                  className="flex items-center gap-2.5 min-w-0 text-left disabled:opacity-60"
+                                  title={seVisualiza(a) ? `Abrir ${a.nombre}` : `Descargar ${a.nombre}`}
+                                >
+                                  <span className={`w-9 h-9 rounded-lg border flex items-center justify-center flex-shrink-0 ${clase.color}`}>
+                                    {cargando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Icono className="w-4.5 h-4.5" />}
+                                  </span>
+                                  <span className="min-w-0">
+                                    <span className="block text-xs font-semibold text-slate-700 truncate max-w-[190px] group-hover:text-[#1e3a5f]">{a.nombre}</span>
+                                    <span className="block text-[10px] text-slate-400">
+                                      {clase.etiqueta}{a.tamano ? ` · ${fmtBytes(a.tamano)}` : ''}
+                                    </span>
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => abrirAdjunto(a, true)}
+                                  disabled={cargando}
+                                  className="p-2 rounded-lg text-slate-400 hover:text-[#1e3a5f] hover:bg-slate-100 transition-colors flex-shrink-0 disabled:opacity-60"
+                                  title={`Descargar ${a.nombre}`}
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -774,9 +881,11 @@ export default function CorreoApp() {
                 <div className="space-y-2">
                   {adjuntos.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {adjuntos.map((f, i) => (
+                      {adjuntos.map((f, i) => {
+                        const Icono = claseArchivo({ tipo: f.type, nombre: f.name }).icono;
+                        return (
                         <span key={i} className="inline-flex items-center gap-1 text-[11px] bg-slate-100 border rounded-lg px-2 py-1">
-                          <FileText className="w-3 h-3 text-slate-500" />
+                          <Icono className="w-3 h-3 text-slate-500" />
                           <span className="max-w-[130px] truncate">{f.name}</span>
                           <button
                             type="button"
@@ -786,7 +895,8 @@ export default function CorreoApp() {
                             ×
                           </button>
                         </span>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
@@ -869,6 +979,45 @@ export default function CorreoApp() {
               <iframe title="Vista previa del correo" srcDoc={previewHtml} className="w-full h-full border-0 bg-white" />
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── VISOR DE ADJUNTOS (PDF, imágenes y texto) ── */}
+      <Dialog open={!!adjuntoVisor} onOpenChange={(o) => { if (!o) setAdjuntoVisor(null); }}>
+        <DialogContent className="max-w-4xl max-h-[92vh] p-0 overflow-hidden gap-0">
+          <DialogHeader className="px-5 py-3 border-b">
+            <DialogTitle className="flex items-center gap-2 text-base pr-8">
+              {adjuntoVisor && (() => { const I = claseArchivo(adjuntoVisor).icono; return <I className="w-4 h-4 text-[#1e3a5f] flex-shrink-0" />; })()}
+              <span className="truncate">{adjuntoVisor?.nombre}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {adjuntoVisor ? claseArchivo(adjuntoVisor).etiqueta : ''} · archivo recibido en este correo
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-slate-100 h-[72vh] overflow-auto flex items-center justify-center">
+            {adjuntoVisor?.tipo.startsWith('image/') ? (
+              <img src={adjuntoVisor.url} alt={adjuntoVisor.nombre} className="max-w-full max-h-full object-contain" />
+            ) : adjuntoVisor ? (
+              <iframe title={adjuntoVisor.nombre} src={adjuntoVisor.url} className="w-full h-full border-0 bg-white" />
+            ) : null}
+          </div>
+          <DialogFooter className="px-5 py-3 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!adjuntoVisor) return;
+                const enlace = document.createElement('a');
+                enlace.href = adjuntoVisor.url;
+                enlace.download = adjuntoVisor.nombre;
+                document.body.appendChild(enlace);
+                enlace.click();
+                enlace.remove();
+              }}
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5" /> Guardar archivo
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
