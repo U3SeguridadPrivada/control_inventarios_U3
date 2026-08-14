@@ -87,6 +87,63 @@ const SUGERENCIAS: Record<string, string[]> = {
   [CAT_INGRESOS]: ['FONDOS PARA CUENTA "B" PROVENIENTES DE "U3"', 'REEMBOLSO EQUIPO DE TRABAJO', 'REEMBOLSO ANTICIPOS DE NOMINA'],
 };
 
+/**
+ * El motivo se escribe libre, y en el histórico arrastra pegado el nombre de
+ * quien cobró: "CUBRE FALTA DEL ELEMENTO JUAN JESUS SANCHEZ". Eso convertía
+ * un mismo motivo en decenas de textos distintos y hacía inservible cualquier
+ * lista. Aquí se recorta el nombre —que ya tiene su propio campo— junto con
+ * las fechas sueltas, y los 73 textos de H.E. se vuelven 36 motivos reales.
+ */
+const NOMBRE_MARCA = /^(?:DEL|AL|DE|A)$/;
+const NOMBRE_SUSTANTIVO = /^(?:ELEMENTO|ELEMENTOS|COMPA(?:Ñ|N)ERO|COMPA(?:Ñ|N)ERA|GUARDIA|SR|SRA|SRTA|LIC|ING|C)\.?$/;
+const NOMBRE_TITULO = /^(?:LIC|ING|SR|SRA|SRTA|MTRO|MTRA|DR|DRA|C)\.$/;
+/** Palabras que nunca son parte de un nombre: cortan el recorte. */
+const NOMBRE_CORTE = new Set(['POR', 'PARA', 'EN', 'DE', 'DEL', 'A', 'AL', 'Y', 'CON', 'SIN', 'QUE', 'SOBRE', 'HASTA', 'DESDE', 'DURANTE', 'MAS', 'O', 'U', 'LA', 'EL', 'LOS', 'LAS', 'SU']);
+const PALABRA_NOMBRE = /^[A-ZÁÉÍÓÚÜÑ]{2,}$/;
+const FECHA_SUELTA = /^[("']*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}[)"']*$/;
+
+/** Descompone un nombre en las palabras que sirven para reconocerlo en un motivo. */
+function palabrasDeNombre(nombre: string, destino: Set<string>) {
+  for (const p of nombre.toUpperCase().split(/\s+/)) if (PALABRA_NOMBRE.test(p)) destino.add(p);
+}
+
+function limpiarMotivo(descripcion: string, conocidas: Set<string>): string {
+  const palabras = descripcion.toUpperCase().replace(/\s+/g, ' ').trim().split(' ');
+  const salida: string[] = [];
+  let i = 0;
+  while (i < palabras.length) {
+    const p = palabras[i].replace(/[.,;:]+$/, '');
+
+    if (FECHA_SUELTA.test(p)) { i++; continue; }
+
+    // "DEL ELEMENTO JUAN JESUS SANCHEZ", "AL COMPAÑERO ..."
+    if (NOMBRE_MARCA.test(p) && NOMBRE_SUSTANTIVO.test((palabras[i + 1] || '').replace(/[.,;:]+$/, ''))) {
+      i += 2;
+      while (i < palabras.length && PALABRA_NOMBRE.test(palabras[i]) && !NOMBRE_CORTE.has(palabras[i])) i++;
+      continue;
+    }
+
+    // "LIC. JUAN CARLOS", sin conector delante
+    if (NOMBRE_TITULO.test(palabras[i])) {
+      let j = i + 1;
+      while (j < palabras.length && PALABRA_NOMBRE.test(palabras[j]) && !NOMBRE_CORTE.has(palabras[j])) j++;
+      if (j > i + 1) { i = j; continue; }
+    }
+
+    // "DE JANETH MUÑOZ": solo se recorta si son nombres vistos en el histórico,
+    // para no comerse "DE TRES LAGOS" ni "DE ESTACIONAMIENTO".
+    if ((p === 'DE' || p === 'PARA' || p === 'A' || p === 'AL') && i + 1 < palabras.length) {
+      let j = i + 1;
+      while (j < palabras.length && PALABRA_NOMBRE.test(palabras[j]) && !NOMBRE_CORTE.has(palabras[j]) && conocidas.has(palabras[j])) j++;
+      if (j - (i + 1) >= 2) { i = j; continue; }
+    }
+
+    salida.push(palabras[i]);
+    i++;
+  }
+  return salida.join(' ').replace(/\s+/g, ' ').replace(/[\s,;:.\-/]+$/, '').trim();
+}
+
 /** Casi todos los anticipos son de nómina: se propone escrito. */
 const CONCEPTO_POR_DEFECTO: Record<string, string> = { [CAT_ANTICIPOS]: 'ANTICIPO DE NOMINA' };
 
@@ -638,6 +695,46 @@ export default function FinanzasApp() {
     return [...set].sort();
   }, [servicios, movimientos]);
 
+  // Los turnos fijos más los que aparezcan en el libro: si alguien capturó
+  // "3HRS" en su día, la lista lo sigue ofreciendo en vez de esconderlo.
+  const turnosSugeridos = useMemo(() => {
+    const set = new Set<string>(TURNOS);
+    for (const m of movimientos) if (m.turno) set.add(m.turno.trim().toUpperCase());
+    return [...set];
+  }, [movimientos]);
+
+  /**
+   * Todos los motivos que se han usado en el libro, por categoría, con el
+   * nombre del guardia recortado y ordenados por lo que más se repite. Antes
+   * el formulario solo ofrecía los siete conceptos escritos a mano en
+   * SUGERENCIAS; el resto había que recordarlo y escribirlo de nuevo.
+   */
+  const motivosSugeridos = useMemo(() => {
+    const conocidas = new Set<string>();
+    for (const g of guardias) palabrasDeNombre(g.nombre, conocidas);
+    for (const m of movimientos) if (m.nombre) palabrasDeNombre(m.nombre, conocidas);
+
+    const conteo: Record<string, Map<string, number>> = {};
+    for (const m of movimientos) {
+      if (!m.descripcion) continue;
+      const motivo = limpiarMotivo(m.descripcion, conocidas);
+      if (!motivo) continue;
+      const mapa = (conteo[m.categoria] ??= new Map<string, number>());
+      mapa.set(motivo, (mapa.get(motivo) ?? 0) + 1);
+    }
+
+    const salida: Record<string, string[]> = {};
+    for (const cat of CATEGORIAS_B) {
+      const mapa = conteo[cat] ?? new Map<string, number>();
+      // Los conceptos de siempre entran aunque el libro esté vacío.
+      for (const s of SUGERENCIAS[cat] ?? []) if (!mapa.has(s)) mapa.set(s, 0);
+      salida[cat] = [...mapa.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([motivo]) => motivo);
+    }
+    return salida;
+  }, [movimientos, guardias]);
+
   // Atajos relativos a hoy para las pestañas de captura, donde lo habitual es
   // consultar la semana o el mes en curso.
   const presetsSemana = useMemo<Preset[]>(() => {
@@ -838,6 +935,7 @@ export default function FinanzasApp() {
 
   const esHE = movForm.categoria === CAT_HE;
   const esIngreso = movForm.categoria === CAT_INGRESOS;
+  const motivosDeCategoria = motivosSugeridos[movForm.categoria] ?? [];
 
   // Misma composición que destinoDe(), pero sobre el formulario en curso.
   const vistaPreviaMov = (esHE
@@ -1269,7 +1367,8 @@ export default function FinanzasApp() {
 
       <datalist id="dl-nombres">{nombresSugeridos.map((n) => <option key={n} value={n} />)}</datalist>
       <datalist id="dl-servicios">{serviciosSugeridos.map((s) => <option key={s} value={s} />)}</datalist>
-      <datalist id="dl-turnos">{TURNOS.map((t) => <option key={t} value={t} />)}</datalist>
+      <datalist id="dl-turnos">{turnosSugeridos.map((t) => <option key={t} value={t} />)}</datalist>
+      <datalist id="dl-motivos">{(motivosSugeridos[movForm.categoria] ?? []).map((m) => <option key={m} value={m} />)}</datalist>
 
       {/* ── Modal movimiento ── */}
       <Dialog open={movModalOpen} onOpenChange={(open) => { if (!open) cerrarMovModal(); }} className="sm:max-w-2xl">
@@ -1365,12 +1464,17 @@ export default function FinanzasApp() {
                     <Input list="dl-nombres" value={movForm.nombre} onChange={(e) => setMovForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Guardia, proveedor, CFE..." required />
                   </Campo>
                 )}
-                <Campo label={movForm.categoria === CAT_HE || movForm.categoria === CAT_GASTOS ? 'Motivo' : 'Concepto'}>
-                  <Input value={movForm.descripcion} onChange={(e) => setMovForm((f) => ({ ...f, descripcion: e.target.value }))}
+                <Campo
+                  label={movForm.categoria === CAT_HE || movForm.categoria === CAT_GASTOS ? 'Motivo' : 'Concepto'}
+                  ayuda={motivosDeCategoria.length ? `${motivosDeCategoria.length} usados en este libro` : undefined}
+                >
+                  {/* La lista trae todos los motivos del libro; el nombre del
+                      guardia se recorta porque va en su propio campo. */}
+                  <Input list="dl-motivos" value={movForm.descripcion} onChange={(e) => setMovForm((f) => ({ ...f, descripcion: e.target.value }))}
                     placeholder={movForm.categoria === CAT_ANTICIPOS ? 'ANTICIPO DE NOMINA' : movForm.categoria === CAT_INGRESOS ? 'FONDOS PROVENIENTES DE U3...' : 'CUBRE VACANTE, REEMBOLSO...'} required={!esHE} />
-                  {/* Lo que más se repite en el histórico, a un clic */}
+                  {/* Lo que más se repite, a un clic */}
                   <div className="flex flex-wrap gap-1.5 pt-1">
-                    {(SUGERENCIAS[movForm.categoria] ?? []).map((s) => (
+                    {motivosDeCategoria.slice(0, 8).map((s) => (
                       <Chip key={s} activo={movForm.descripcion === s} onClick={() => setMovForm((f) => ({ ...f, descripcion: s }))}>{s}</Chip>
                     ))}
                   </div>
