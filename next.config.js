@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["better-sqlite3"],
+  // exceljs se queda fuera del bundle igual que better-sqlite3: trae binarios y
+  // carga dinámica que el empaquetado rompe, y solo se usa en el servidor.
+  serverExternalPackages: ["better-sqlite3", "exceljs"],
   webpack: (config, { dev }) => {
     config.resolve.symlinks = false;
     // Disable filesystem cache — readlink fails on exFAT volumes

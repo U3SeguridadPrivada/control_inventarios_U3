@@ -9,7 +9,7 @@ import { Input } from '@/src/components/ui/input';
 import { Select } from '@/src/components/ui/select';
 import { Badge } from '@/src/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
-import { Plus, Landmark, TrendingDown, TrendingUp, Wallet, CreditCard, Banknote, ChevronLeft, ChevronRight, Paperclip, Pencil, Trash2, Loader2, FileText, ExternalLink, ImageIcon, Lock, AlertTriangle, Check, Clock, Receipt, HandCoins, UploadCloud, X, Mail } from 'lucide-react';
+import { Plus, Landmark, TrendingDown, TrendingUp, Wallet, CreditCard, Banknote, ChevronLeft, ChevronRight, Paperclip, Pencil, Trash2, Loader2, FileText, ExternalLink, ImageIcon, Lock, AlertTriangle, Check, Clock, Receipt, HandCoins, UploadCloud, X, Mail, Sheet } from 'lucide-react';
 import { fmtDate } from '@/src/lib/utils';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
@@ -667,6 +667,7 @@ export default function FinanzasApp() {
   // ── Reporte en PDF ──
   const [pdfMenuAbierto, setPdfMenuAbierto] = useState(false);
   const [generandoPdf, setGenerandoPdf] = useState(false);
+  const [generandoExcel, setGenerandoExcel] = useState(false);
   const [seccionesSel, setSeccionesSel] = useState<SeccionId[]>(SECCIONES.map((s) => s.id));
 
   /**
@@ -760,6 +761,46 @@ export default function FinanzasApp() {
   const cerrarVisor = () => {
     if (visor) URL.revokeObjectURL(visor.url);
     setVisor(null);
+  };
+
+  /**
+   * Descarga el mismo reporte en Excel. Va contra las secciones ya elegidas, así
+   * que sale una hoja por sección: con todas marcadas es el libro completo
+   * —igual que la plantilla semanal de la que vino el módulo— y con una sola es
+   * la hoja de la ventana en la que estás.
+   *
+   * No tiene respaldo en el navegador como el PDF: el Excel se arma en el
+   * servidor con los saldos de apertura, que el cliente no conoce.
+   */
+  const descargarExcel = async () => {
+    if (!libroActivo || !seccionesSel.length) return;
+    setPdfMenuAbierto(false);
+    setGenerandoExcel(true);
+    try {
+      const token = localStorage.getItem('inv_token');
+      const params = new URLSearchParams({ libro: libroActivo.id, secciones: seccionesSel.join(',') });
+      if (rangoReporte) { params.set('desde', rangoReporte.desde); params.set('hasta', rangoReporte.hasta); }
+
+      const res = await fetch(`/api/finanzas/reporte-excel?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('respuesta no ok');
+
+      // El nombre lo decide el servidor; si no llega, uno razonable de respaldo.
+      const cabecera = res.headers.get('Content-Disposition') || '';
+      const nombre = /filename=([^;]+)/i.exec(cabecera)?.[1]?.trim()
+        || `${libroActivo.nombre}_${rangoReporte?.desde ?? desde}_a_${rangoReporte?.hasta ?? hasta}.xlsx`;
+
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombre;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${nombre} descargado`);
+    } catch {
+      toast.error('No se pudo generar el Excel');
+    } finally {
+      setGenerandoExcel(false);
+    }
   };
 
   // ── Envío del reporte por correo ──
@@ -889,11 +930,11 @@ export default function FinanzasApp() {
             />
             <button onClick={() => { setDesde(shiftISO(desde, 7)); setHasta(shiftISO(hasta, 7)); }} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-card hover:bg-muted transition-colors" title="Semana siguiente"><ChevronRight className="w-4 h-4" /></button>
           </div>
-          {/* Reporte en PDF de la cuenta activa */}
+          {/* Reporte de la cuenta activa: PDF, Excel o correo, mismas secciones */}
           <div className="relative">
-            <Button variant="outline" size="sm" disabled={generandoPdf || !libroActivo} onClick={togglePdfMenu}>
-              {generandoPdf ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileText className="w-4 h-4 mr-1.5" />}
-              {generandoPdf ? 'Generando...' : 'Reporte PDF'}
+            <Button variant="outline" size="sm" disabled={generandoPdf || generandoExcel || !libroActivo} onClick={togglePdfMenu}>
+              {generandoPdf || generandoExcel ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileText className="w-4 h-4 mr-1.5" />}
+              {generandoPdf ? 'Generando PDF...' : generandoExcel ? 'Generando Excel...' : 'Reporte'}
             </Button>
             {pdfMenuAbierto && (
               <>
@@ -964,11 +1005,19 @@ export default function FinanzasApp() {
                     <button type="button" onClick={() => setSeccionesSel(seccionesDeTab(tab))} className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Esta ventana</button>
                     <button type="button" onClick={() => setSeccionesSel([])} className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Ninguna</button>
                   </div>
+                  {/* Las tres salidas comparten secciones y periodo: lo que elijas
+                      arriba sale igual en PDF, en Excel o por correo. */}
                   <div className="flex items-center gap-2 border-t border-border p-2">
-                    <Button size="sm" variant="outline" className="h-8 text-xs flex-1" disabled={!seccionesSel.length} onClick={abrirCorreo}>
+                    <Button size="sm" variant="outline" className="h-8 text-xs flex-1" disabled={!seccionesSel.length} onClick={abrirCorreo} title="Enviar el reporte por correo">
                       <Mail className="w-3.5 h-3.5 mr-1.5" /> Enviar
                     </Button>
-                    <Button size="sm" className="h-8 text-xs flex-1" disabled={!seccionesSel.length} onClick={generarReporte}>Generar</Button>
+                    <Button size="sm" variant="outline" className="h-8 text-xs flex-1" disabled={!seccionesSel.length || generandoExcel} onClick={descargarExcel} title="Descargar en Excel: una hoja por sección">
+                      {generandoExcel
+                        ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        : <Sheet className="w-3.5 h-3.5 mr-1.5" />}
+                      Excel
+                    </Button>
+                    <Button size="sm" className="h-8 text-xs flex-1" disabled={!seccionesSel.length} onClick={generarReporte} title="Ver el reporte en PDF">PDF</Button>
                   </div>
                 </div>
               </>
