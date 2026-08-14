@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { mkdirSync, existsSync, readFileSync } from 'fs';
 import path from 'path';
 import * as schema from './schema';
+import { programarRespaldos } from '@/src/lib/respaldos';
 
 type DrizzleDB = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -556,6 +557,14 @@ function initDb(): DrizzleDB {
     }
   } catch (err) {
     console.error('[auto-seed] Error sembrando catálogo de prendas:', err);
+  }
+
+  // Con la base ya lista y verificada como persistente, queda encender los
+  // respaldos: el volumen sobrevive a los redeploys, pero no a un borrado.
+  try {
+    programarRespaldos();
+  } catch (err) {
+    console.error('[respaldos] No se pudo programar el respaldo automático:', err);
   }
 
   _db = drizzle(sqlite, { schema });
