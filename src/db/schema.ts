@@ -1,6 +1,18 @@
 import { sqliteTable, integer, text, real } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
+export const catalogo_prendas = sqliteTable('catalogo_prendas', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  nombre: text('nombre').notNull().unique(),
+  categoria: text('categoria').notNull().default('Uniformes'),
+  requiere_talla: integer('requiere_talla').notNull().default(0),
+  tallas: text('tallas', { mode: 'json' }).$type<string[]>(),
+  stock_minimo: integer('stock_minimo').default(5),
+  costo_estimado: real('costo_estimado'),
+  activo: integer('activo').notNull().default(1),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+});
+
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   username: text('username').notNull().unique(),

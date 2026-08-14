@@ -1,11 +1,17 @@
 import { db } from '@/src/db';
-import { entradas, salidas } from '@/src/db/schema';
-import { sql } from 'drizzle-orm';
+import { entradas, salidas, catalogo_prendas } from '@/src/db/schema';
+import { sql, eq } from 'drizzle-orm';
 import { ARTICULOS_CATALOGO } from '@/src/lib/constants';
 import { SALIDA_STOCK_COLUMNS, sumarSalidasQueRestan } from '@/src/lib/stock';
 
 export interface InventarioResumenRow {
+  id?: number;
   articulo: string;
+  categoria?: string;
+  requiereTalla?: boolean;
+  tallas?: string[];
+  stockMinimo?: number;
+  costoEstimado?: number | null;
   totalEntradas: number;
   almacen: number;
   almacenNuevo: number;
@@ -33,6 +39,12 @@ export interface InventarioDetalleRow {
  * (reporte descargable), para que ambos siempre muestren exactamente los mismos números.
  */
 export function calcularInventarioResumen(): InventarioResumenRow[] {
+  const prendasDb = db.select().from(catalogo_prendas).where(eq(catalogo_prendas.activo, 1)).all();
+  const prendaMap = new Map<string, typeof prendasDb[0]>();
+  for (const p of prendasDb) {
+    prendaMap.set(p.nombre, p);
+  }
+
   const entradasPorArticulo = db.select({
     articulo: entradas.articulo, estado: entradas.estado,
     total: sql<number>`SUM(${entradas.cantidad})`,
@@ -64,14 +76,46 @@ export function calcularInventarioResumen(): InventarioResumenRow[] {
     salMap[s.articulo].base.perdidas += Number(s.perdidas) + Number(s.extraviados);
   }
 
-  return ARTICULOS_CATALOGO.map(articulo => {
+  // Combinar prendas del catálogo en BD con cualquier artículo que tenga movimientos registrados
+  const todosArticulos = Array.from(
+    new Set([
+      ...prendasDb.map(p => p.nombre),
+      ...Object.keys(entMap),
+      ...Object.keys(salMap),
+      ...ARTICULOS_CATALOGO,
+    ])
+  );
+
+  return todosArticulos.map(articulo => {
+    const prendaInfo = prendaMap.get(articulo);
     const e = entMap[articulo] ?? { nuevo: 0, usado: 0, inutilizable: 0, total: 0 };
     const s = salMap[articulo] ?? { nuevo: 0, usado: 0, base: { enCampo: 0, enBajas: 0, definitivos: 0, perdidas: 0 } };
     const almacenNuevo = e.nuevo - s.nuevo;
     const almacenUsado = e.usado - s.usado;
     const almacenInutilizable = e.inutilizable;
     const almacen = almacenNuevo + almacenUsado + almacenInutilizable;
-    return { articulo, totalEntradas: e.total, almacen, almacenNuevo, almacenUsado, almacenInutilizable, enCampo: s.base.enCampo, enBajas: s.base.enBajas, perdidas: s.base.perdidas, definitivos: s.base.definitivos, totalExistente: almacen + s.base.enCampo + s.base.enBajas, stockBajo: (almacenNuevo + almacenUsado) <= 5 };
+    const stockMinimo = prendaInfo?.stock_minimo ?? 5;
+
+    return {
+      id: prendaInfo?.id,
+      articulo,
+      categoria: prendaInfo?.categoria ?? 'Uniformes',
+      requiereTalla: prendaInfo ? Boolean(prendaInfo.requiere_talla) : undefined,
+      tallas: prendaInfo?.tallas ?? [],
+      stockMinimo,
+      costoEstimado: prendaInfo?.costo_estimado ?? null,
+      totalEntradas: e.total,
+      almacen,
+      almacenNuevo,
+      almacenUsado,
+      almacenInutilizable,
+      enCampo: s.base.enCampo,
+      enBajas: s.base.enBajas,
+      perdidas: s.base.perdidas,
+      definitivos: s.base.definitivos,
+      totalExistente: almacen + s.base.enCampo + s.base.enBajas,
+      stockBajo: (almacenNuevo + almacenUsado) <= stockMinimo,
+    };
   });
 }
 

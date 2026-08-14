@@ -41,3 +41,38 @@ fs.promises.readlink = async (path, options) => {
     throw e;
   }
 };
+
+// Safeguard for Next.js file watcher on Windows/exFAT when encountering deleted or locked paths
+const _rd = fs.readdir.bind(fs);
+fs.readdir = (path, options, cb) => {
+  if (typeof options === 'function') { cb = options; options = {}; }
+  _rd(path, options, (err, files) => {
+    if (err && (err.code === 'EPERM' || err.code === 'ENOENT')) {
+      if (!fs.existsSync(path)) return cb(null, []);
+    }
+    cb(err, files);
+  });
+};
+
+const _rds = fs.readdirSync.bind(fs);
+fs.readdirSync = (path, options) => {
+  try { return _rds(path, options); }
+  catch (e) {
+    if (e && (e.code === 'EPERM' || e.code === 'ENOENT')) {
+      if (!fs.existsSync(path)) return [];
+    }
+    throw e;
+  }
+};
+
+const _rdp = fs.promises.readdir.bind(fs.promises);
+fs.promises.readdir = async (path, options) => {
+  try { return await _rdp(path, options); }
+  catch (e) {
+    if (e && (e.code === 'EPERM' || e.code === 'ENOENT')) {
+      if (!fs.existsSync(path)) return [];
+    }
+    throw e;
+  }
+};
+

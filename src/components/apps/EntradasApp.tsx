@@ -20,7 +20,7 @@ export default function EntradasApp() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
-  const [articulo, setArticulo] = useState<string>(ARTICULOS[0]);
+  const [articulo, setArticulo] = useState<string>('');
   const [talla, setTalla] = useState('');
   const [cantidad, setCantidad] = useState(1);
   const [estado, setEstado] = useState('Nuevo');
@@ -29,18 +29,46 @@ export default function EntradasApp() {
   const [guardiaId, setGuardiaId] = useState('');
   const [registradoPor, setRegistradoPor] = useState('');
 
-  const requiereTalla = articuloRequiereTalla(articulo);
-  const tallasDisponibles = getTallas(articulo);
+  const { data: catalogoPrendas = [] } = useQuery({
+    queryKey: ['prendas'],
+    queryFn: () => apiFetch<any[]>('/api/prendas?solo_activas=1'),
+  });
+
+  const listaArticulos = useMemo(() => {
+    if (catalogoPrendas.length > 0) {
+      return catalogoPrendas.map(p => p.nombre);
+    }
+    return [...ARTICULOS];
+  }, [catalogoPrendas]);
+
+  const prendaActual = useMemo(() => {
+    return catalogoPrendas.find(p => p.nombre === articulo);
+  }, [catalogoPrendas, articulo]);
+
+  const requiereTalla = useMemo(() => {
+    if (prendaActual) {
+      return Boolean(prendaActual.requiere_talla);
+    }
+    return articuloRequiereTalla(articulo);
+  }, [prendaActual, articulo]);
+
+  const tallasDisponibles = useMemo(() => {
+    if (prendaActual && Array.isArray(prendaActual.tallas)) {
+      return prendaActual.tallas;
+    }
+    return getTallas(articulo);
+  }, [prendaActual, articulo]);
 
   const { data: guardias = [] } = useQuery({ queryKey: ['guardias'], queryFn: () => apiFetch<any[]>('/api/guardias') });
   const guardiasActivos = useMemo(() => (guardias as any[]).filter((g: any) => ['Activo', 'En Baja', 'Baja Pendiente'].includes(g.estado)), [guardias]);
 
   useEffect(() => {
     if (isModalOpen) {
-      setFecha(new Date().toISOString().split('T')[0]); setArticulo(ARTICULOS[0]); setTalla(''); setCantidad(1);
+      const defaultArticulo = listaArticulos[0] || 'Camisolas';
+      setFecha(new Date().toISOString().split('T')[0]); setArticulo(defaultArticulo); setTalla(''); setCantidad(1);
       setEstado('Nuevo'); setMotivo('Compra'); setOrigenDevolucion(''); setGuardiaId(''); setRegistradoPor('');
     }
-  }, [isModalOpen]);
+  }, [isModalOpen, listaArticulos]);
 
   const { data: entradas = [], isLoading } = useQuery({ queryKey: ['entradas'], queryFn: () => apiFetch<any[]>('/api/entradas') });
 
@@ -112,10 +140,10 @@ export default function EntradasApp() {
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><label className="text-sm font-medium">Fecha</label><Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required /></div>
-                <div className="space-y-2"><label className="text-sm font-medium">Artículo</label><Select value={articulo} onChange={e => { setArticulo(e.target.value); if (!articuloRequiereTalla(e.target.value)) setTalla(''); }} required>{ARTICULOS.map(a => <option key={a} value={a}>{a}</option>)}</Select></div>
+                <div className="space-y-2"><label className="text-sm font-medium">Artículo</label><Select value={articulo} onChange={e => { setArticulo(e.target.value); setTalla(''); }} required>{listaArticulos.map(a => <option key={a} value={a}>{a}</option>)}</Select></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                {requiereTalla && <div className="space-y-2"><label className="text-sm font-medium">Talla</label><Select value={talla} onChange={e => setTalla(e.target.value)} required><option value="" disabled>Seleccionar...</option>{tallasDisponibles.map(t => <option key={t} value={t}>{t}</option>)}</Select></div>}
+                {requiereTalla && <div className="space-y-2"><label className="text-sm font-medium">Talla</label><Select value={talla} onChange={e => setTalla(e.target.value)} required><option value="" disabled>Seleccionar...</option>{tallasDisponibles.map((t: string) => <option key={t} value={t}>{t}</option>)}</Select></div>}
                 <div className="space-y-2"><label className="text-sm font-medium">Cantidad</label><Input type="number" min="1" value={cantidad} onChange={e => setCantidad(Number(e.target.value))} required /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">

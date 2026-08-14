@@ -25,6 +25,7 @@ export default function SalidasApp() {
   const { data: salidas = [], isLoading } = useQuery({ queryKey: ['salidas'], queryFn: () => apiFetch<any[]>('/api/salidas') });
   const { data: inventarioDetalle = [], refetch: refetchDetalle } = useQuery({ queryKey: ['inventarioDetalle'], queryFn: () => apiFetch<any[]>('/api/inventario/detalle'), staleTime: 0 });
   const { data: guardias = [] } = useQuery({ queryKey: ['guardias'], queryFn: () => apiFetch<any[]>('/api/guardias') });
+  const { data: catalogoPrendas = [] } = useQuery({ queryKey: ['prendas'], queryFn: () => apiFetch<any[]>('/api/prendas?solo_activas=1') });
 
   const [estadoFisico, setEstadoFisico] = useState<'Nuevo' | 'Usado'>('Nuevo');
   const [concepto, setConcepto] = useState('Uniforme en Campo');
@@ -48,6 +49,21 @@ export default function SalidasApp() {
     return { Nuevo: mapN, Usado: mapU };
   }, [inventarioDetalle]);
 
+  const listaArticulosTotal = useMemo(() => {
+    return Array.from(new Set([
+      ...catalogoPrendas.map(p => p.nombre),
+      ...Object.keys(stockPorArticulo.Nuevo),
+      ...Object.keys(stockPorArticulo.Usado),
+      ...ARTICULOS,
+    ]));
+  }, [catalogoPrendas, stockPorArticulo]);
+
+  const itemRequiereTalla = (art: string) => {
+    const prenda = catalogoPrendas.find(p => p.nombre === art);
+    if (prenda) return Boolean(prenda.requiere_talla);
+    return articuloRequiereTalla(art);
+  };
+
   const guardiasActivos = useMemo(() => (guardias as any[]).filter((g: any) => g.estado === 'Activo'), [guardias]);
 
   useEffect(() => {
@@ -69,12 +85,12 @@ export default function SalidasApp() {
   const guardia = (guardias as any[]).find((g: any) => g.id.toString() === guardiaId);
   const totalPiezas = Object.values(seleccion).reduce((s, v) => s + v.cantidad, 0);
 
-  const articlesSimple = useMemo(() => ARTICULOS.filter(art => (stockPorArticulo[estadoFisico][art] ?? 0) > 0), [stockPorArticulo, estadoFisico]);
+  const articlesSimple = useMemo(() => listaArticulosTotal.filter(art => (stockPorArticulo[estadoFisico][art] ?? 0) > 0), [listaArticulosTotal, stockPorArticulo, estadoFisico]);
   const tallasConStock = useMemo(() => {
-    if (!articulo || !articuloRequiereTalla(articulo)) return [];
+    if (!articulo || !itemRequiereTalla(articulo)) return [];
     return Object.entries(stockPorTalla[estadoFisico][articulo] ?? {}).filter(([, qty]) => qty > 0).map(([t]) => t);
-  }, [articulo, stockPorTalla, estadoFisico]);
-  const maxCantidadSimple = useMemo(() => { if (!articulo) return 0; if (articuloRequiereTalla(articulo)) { if (!talla) return 0; return stockPorTalla[estadoFisico]?.[articulo]?.[talla] ?? 0; } return stockPorArticulo[estadoFisico]?.[articulo] ?? 0; }, [articulo, talla, stockPorArticulo, stockPorTalla, estadoFisico]);
+  }, [articulo, stockPorTalla, estadoFisico, catalogoPrendas]);
+  const maxCantidadSimple = useMemo(() => { if (!articulo) return 0; if (itemRequiereTalla(articulo)) { if (!talla) return 0; return stockPorTalla[estadoFisico]?.[articulo]?.[talla] ?? 0; } return stockPorArticulo[estadoFisico]?.[articulo] ?? 0; }, [articulo, talla, stockPorArticulo, stockPorTalla, estadoFisico, catalogoPrendas]);
 
   const articulosEnCampoDelGuardia = useMemo(() => {
     if (!guardiaId || isCampo) return [];
@@ -92,10 +108,10 @@ export default function SalidasApp() {
     if (artSeleccionados.length === 0) { toast.error('Selecciona al menos un artículo'); return; }
     if (isCampo) {
       for (const [art, vals] of artSeleccionados) {
-        const errorTalla = validarTalla(art, vals.talla, art);
+        const errorTalla = validarTalla(art, vals.talla, art, itemRequiereTalla(art));
         if (errorTalla) { toast.error(errorTalla); return; }
         const estadoSelect = vals.estadoFisico || 'Nuevo';
-        const disponible = articuloRequiereTalla(art) ? (stockPorTalla[estadoSelect][art]?.[vals.talla] ?? 0) : (stockPorArticulo[estadoSelect][art] ?? 0);
+        const disponible = itemRequiereTalla(art) ? (stockPorTalla[estadoSelect][art]?.[vals.talla] ?? 0) : (stockPorArticulo[estadoSelect][art] ?? 0);
         if (vals.cantidad > disponible) { toast.error(`Stock insuficiente para "${art}". Disponible: ${disponible}`); return; }
       }
       const expanded: any[] = [];
@@ -111,7 +127,7 @@ export default function SalidasApp() {
   const handleSubmitSimple = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!articulo) { toast.error('Selecciona un artículo'); return; }
-    const errorTalla = validarTalla(articulo, talla);
+    const errorTalla = validarTalla(articulo, talla, articulo, itemRequiereTalla(articulo));
     if (errorTalla) { toast.error(errorTalla); return; }
     if (cantidad > maxCantidadSimple) { toast.error(`Stock insuficiente. Disponible: ${maxCantidadSimple}`); return; }
     simpleMutation.mutate({ fecha, concepto, articulo, talla: talla || null, cantidad: Number(cantidad), nombre_guardia: guardia?.nombre ?? null, guardia_id: guardia?.id ?? null, estado_asignacion: getEstadoAsignacion(concepto), estado_fisico: estadoFisico });
@@ -188,8 +204,8 @@ export default function SalidasApp() {
                 <div className="flex items-center justify-between"><label className="text-sm font-medium">{isCampo ? 'Artículos a Asignar' : 'Artículos Extraviados'}</label>{totalPiezas > 0 && <span className="text-xs text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">{Object.keys(seleccion).length} artículo(s) · {totalPiezas} pieza(s)</span>}</div>
                 {isCampo ? (
                   <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
-                    {ARTICULOS.map(art => {
-                      const tieneTalla = articuloRequiereTalla(art);
+                    {listaArticulosTotal.map(art => {
+                      const tieneTalla = itemRequiereTalla(art);
                       const seleccionado = !!seleccion[art];
                       const estadoItem = (seleccion[art]?.estadoFisico || 'Nuevo') as 'Nuevo' | 'Usado';
                       const disponibleTotal = stockPorArticulo[estadoItem][art] ?? 0;

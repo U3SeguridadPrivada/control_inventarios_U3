@@ -9,6 +9,17 @@ type DrizzleDB = ReturnType<typeof drizzle<typeof schema>>;
 let _db: DrizzleDB | null = null;
 
 const INIT_SQL = `
+CREATE TABLE IF NOT EXISTS catalogo_prendas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre TEXT NOT NULL UNIQUE,
+  categoria TEXT NOT NULL DEFAULT 'Uniformes',
+  requiere_talla INTEGER NOT NULL DEFAULT 0,
+  tallas TEXT,
+  stock_minimo INTEGER DEFAULT 5,
+  costo_estimado REAL,
+  activo INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL UNIQUE,
@@ -437,7 +448,39 @@ function initDb(): DrizzleDB {
       }
     }
   } catch (err) {
-    console.error('[auto-seed] Error sembrando datos iniciales:', err);
+    console.error('[auto-seed] Error sembrando datos iniciales de Cuenta B:', err);
+  }
+
+  try {
+    const rowPrendas = sqlite.prepare("SELECT COUNT(*) as count FROM catalogo_prendas").get() as { count: number };
+    if (rowPrendas && rowPrendas.count === 0) {
+      const prendasIniciales = [
+        { nombre: 'Camisolas', categoria: 'Uniformes', requiere_talla: 1, tallas: JSON.stringify(["28", "29", "30", "31", "32", "33", "34", "36", "38", "40", "42", "44"]), stock_minimo: 5 },
+        { nombre: 'Pantalones', categoria: 'Uniformes', requiere_talla: 1, tallas: JSON.stringify(["XS", "S", "M", "G", "XG", "XXG"]), stock_minimo: 5 },
+        { nombre: 'Chamarras', categoria: 'Abrigo', requiere_talla: 1, tallas: JSON.stringify(["XCH", "CH", "M", "G", "XG", "XXG"]), stock_minimo: 5 },
+        { nombre: 'Chamarras Color Café', categoria: 'Abrigo', requiere_talla: 1, tallas: JSON.stringify(["XCH", "CH", "M", "G", "XG", "XXG"]), stock_minimo: 5 },
+        { nombre: 'Botas', categoria: 'Calzado', requiere_talla: 1, tallas: JSON.stringify(["24", "25", "26", "27", "28", "29", "30", "31"]), stock_minimo: 5 },
+        { nombre: 'Fornituras', categoria: 'Equipo Táctico', requiere_talla: 0, tallas: JSON.stringify([]), stock_minimo: 5 },
+        { nombre: 'Silbatos', categoria: 'Accesorios', requiere_talla: 0, tallas: JSON.stringify([]), stock_minimo: 5 },
+        { nombre: 'Gorras', categoria: 'Accesorios', requiere_talla: 0, tallas: JSON.stringify([]), stock_minimo: 5 },
+        { nombre: 'Porta Gas', categoria: 'Equipo Táctico', requiere_talla: 0, tallas: JSON.stringify([]), stock_minimo: 5 },
+        { nombre: 'Gas Pimienta', categoria: 'Equipo Táctico', requiere_talla: 0, tallas: JSON.stringify([]), stock_minimo: 5 },
+        { nombre: 'Broches', categoria: 'Accesorios', requiere_talla: 0, tallas: JSON.stringify([]), stock_minimo: 5 },
+      ];
+      const insertPrenda = sqlite.prepare(`
+        INSERT INTO catalogo_prendas (nombre, categoria, requiere_talla, tallas, stock_minimo, activo)
+        VALUES (@nombre, @categoria, @requiere_talla, @tallas, @stock_minimo, 1)
+      `);
+      const seedPrendasTx = sqlite.transaction((items: any[]) => {
+        for (const item of items) {
+          insertPrenda.run(item);
+        }
+      });
+      seedPrendasTx(prendasIniciales);
+      console.log(`[auto-seed] ${prendasIniciales.length} prendas base inicializadas en el catálogo.`);
+    }
+  } catch (err) {
+    console.error('[auto-seed] Error sembrando catálogo de prendas:', err);
   }
 
   _db = drizzle(sqlite, { schema });

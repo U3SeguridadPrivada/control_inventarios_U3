@@ -2,12 +2,14 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '@/src/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -48,13 +50,32 @@ export default function LoginPage() {
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="password">Contraseña</label>
-            <input
-              id="password" type="password" autoComplete="current-password" required
-              enterKeyHint="go"
-              value={password} onChange={e => setPassword(e.target.value)}
-              className="w-full h-11 px-3 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition"
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                required
+                enterKeyHint="go"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="w-full h-11 pl-3 pr-10 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-0 top-0 h-11 w-10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
           {error && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>}
           <button type="submit" disabled={loading}

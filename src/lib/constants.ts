@@ -34,8 +34,14 @@ export function requiereTalla(articulo: string): boolean {
 }
 
 /** Mensaje de error si falta una talla requerida, o `null` si el artículo/talla es válido. */
-export function validarTalla(articulo: string, talla: string | null | undefined, articuloLabel?: string): string | null {
-  if (requiereTalla(articulo) && !talla) return `Selecciona la talla${articuloLabel ? ` para: ${articuloLabel}` : ''}`;
+export function validarTalla(
+  articulo: string,
+  talla: string | null | undefined,
+  articuloLabel?: string,
+  requiereTallaCustom?: boolean
+): string | null {
+  const req = requiereTallaCustom !== undefined ? requiereTallaCustom : requiereTalla(articulo);
+  if (req && !talla) return `Selecciona la talla${articuloLabel ? ` para: ${articuloLabel}` : ''}`;
   return null;
 }
 
