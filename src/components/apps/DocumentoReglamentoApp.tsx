@@ -13,8 +13,8 @@ import {
 import { toast } from 'sonner';
 import { COMPANY } from '@/src/lib/company';
 import {
-  bloqueVacio, ETIQUETA_BLOQUE, limpiarContenido, mover, seccionVacia,
-  type Bloque, type ContenidoDoc, type ProtocoloRegistro, type SeccionDoc, type TipoBloque,
+  bloqueVacio, ETIQUETA_BLOQUE, limpiarContenido, mover, paginarFragmentos, seccionVacia,
+  type Bloque, type ContenidoDoc, type FragmentoSeccion, type ProtocoloRegistro, type SeccionDoc, type TipoBloque,
 } from '@/src/lib/documentoProtocolo';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
@@ -91,46 +91,6 @@ function EditableText({
       style={style}
     />
   );
-}
-
-function chunkSeccionesEnHojas(secciones: SeccionDoc[]): SeccionDoc[][] {
-  const hojas: SeccionDoc[][] = [];
-  let hojaActual: SeccionDoc[] = [];
-  let pesoActual = 0;
-  
-  const PESO_MAX_HOJA = 850;
-
-  for (const sec of secciones) {
-    let pesoSec = 160;
-    for (const b of sec.bloques) {
-      if ('texto' in b && typeof b.texto === 'string') {
-        pesoSec += b.texto.length;
-      } else if ('items' in b && Array.isArray(b.items)) {
-        pesoSec += b.items.join(' ').length;
-      } else if ('encabezados' in b && Array.isArray(b.encabezados)) {
-        pesoSec += (b.encabezados.join(' ') + (b.filas || []).flat().join(' ')).length;
-      }
-    }
-
-    if (sec.tipo === 'capitulo' && hojaActual.length > 0 && pesoActual > 300) {
-      hojas.push(hojaActual);
-      hojaActual = [sec];
-      pesoActual = pesoSec;
-    } else if (hojaActual.length > 0 && (pesoActual + pesoSec > PESO_MAX_HOJA)) {
-      hojas.push(hojaActual);
-      hojaActual = [sec];
-      pesoActual = pesoSec;
-    } else {
-      hojaActual.push(sec);
-      pesoActual += pesoSec;
-    }
-  }
-
-  if (hojaActual.length > 0) {
-    hojas.push(hojaActual);
-  }
-
-  return hojas;
 }
 
 function BloqueVistaEditable({
@@ -426,11 +386,20 @@ function SeccionVistaEditable({
   onChange,
   onEliminar,
   readOnly,
+  desde = 0,
+  hasta = seccion.bloques.length,
+  continuacion = false,
+  ultimo = true,
 }: {
   seccion: SeccionDoc;
   onChange: (s: SeccionDoc) => void;
   onEliminar: () => void;
   readOnly?: boolean;
+  /** Rango de bloques que se pinta en esta hoja; el resto sigue en la siguiente. */
+  desde?: number;
+  hasta?: number;
+  continuacion?: boolean;
+  ultimo?: boolean;
 }) {
   const [tipoNuevoBloque, setTipoNuevoBloque] = useState<TipoBloque>('parrafo');
 
@@ -447,56 +416,69 @@ function SeccionVistaEditable({
     onChange({ ...seccion, bloques: mover(seccion.bloques, idx, delta) });
 
   return (
-    <div id={seccion.id} className="mb-6 last:mb-0 font-sans">
-      {/* Encabezado de la sección */}
-      <div className="border-b-2 border-slate-900 pb-1 mb-3 flex items-end justify-between gap-2">
-        <div className="flex-1">
+    <div id={continuacion ? undefined : seccion.id} className="mb-6 last:mb-0 font-sans">
+      {/* Encabezado de la sección; en la continuación va en versión compacta. */}
+      {continuacion ? (
+        <div className="border-b border-slate-300 pb-1 mb-3 flex items-baseline gap-2 text-slate-500">
           {seccion.numero && (
+            <span className="text-[10px] font-bold tracking-widest text-blue-800 uppercase">{seccion.numero}</span>
+          )}
+          <span className="text-[11px] font-semibold uppercase tracking-tight truncate">{seccion.titulo}</span>
+          <span className="text-[10px] italic shrink-0 ml-auto">continúa</span>
+        </div>
+      ) : (
+        <div className="border-b-2 border-slate-900 pb-1 mb-3 flex items-end justify-between gap-2">
+          <div className="flex-1">
+            {seccion.numero && (
+              <EditableText
+                value={seccion.numero}
+                onChange={(numero) => onChange({ ...seccion, numero })}
+                readOnly={readOnly}
+                className="text-[11px] font-bold tracking-widest text-blue-800 uppercase"
+                isTitle
+              />
+            )}
             <EditableText
-              value={seccion.numero}
-              onChange={(numero) => onChange({ ...seccion, numero })}
+              value={seccion.titulo}
+              onChange={(titulo) => onChange({ ...seccion, titulo })}
               readOnly={readOnly}
-              className="text-[11px] font-bold tracking-widest text-blue-800 uppercase"
+              className="text-[15px] font-extrabold text-[#0f172a] uppercase tracking-tight"
               isTitle
             />
+          </div>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={onEliminar}
+              title="Eliminar capítulo"
+              className="text-red-400 hover:text-red-600 p-1 print:hidden"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           )}
-          <EditableText
-            value={seccion.titulo}
-            onChange={(titulo) => onChange({ ...seccion, titulo })}
-            readOnly={readOnly}
-            className="text-[15px] font-extrabold text-[#0f172a] uppercase tracking-tight"
-            isTitle
-          />
         </div>
-        {!readOnly && (
-          <button
-            type="button"
-            onClick={onEliminar}
-            title="Eliminar capítulo"
-            className="text-red-400 hover:text-red-600 p-1 print:hidden"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
+      )}
 
-      {/* Lista de bloques de contenido */}
+      {/* Lista de bloques de contenido de este fragmento */}
       <div className="space-y-1">
-        {seccion.bloques.map((b, idx) => (
-          <BloqueVistaEditable
-            key={idx}
-            bloque={b}
-            onChange={(nb) => setBloque(idx, nb)}
-            onMover={(delta) => moverBloque(idx, delta)}
-            onEliminar={() => eliminarBloque(idx)}
-            primero={idx === 0}
-            ultimo={idx === seccion.bloques.length - 1}
-            readOnly={readOnly}
-          />
-        ))}
+        {seccion.bloques.slice(desde, hasta).map((b, i) => {
+          const idx = desde + i;
+          return (
+            <BloqueVistaEditable
+              key={idx}
+              bloque={b}
+              onChange={(nb) => setBloque(idx, nb)}
+              onMover={(delta) => moverBloque(idx, delta)}
+              onEliminar={() => eliminarBloque(idx)}
+              primero={idx === 0}
+              ultimo={idx === seccion.bloques.length - 1}
+              readOnly={readOnly}
+            />
+          );
+        })}
       </div>
 
-      {!readOnly && (
+      {!readOnly && ultimo && (
         <div className="mt-3 pt-2 border-t border-dashed border-slate-200 flex items-center gap-2 print:hidden">
           <Select
             value={tipoNuevoBloque}
@@ -591,7 +573,7 @@ export default function DocumentoReglamentoApp({
     });
   }, [secciones, searchTerm]);
 
-  const hojas = useMemo(() => chunkSeccionesEnHojas(seccionesFiltradas), [seccionesFiltradas]);
+  const hojas = useMemo(() => paginarFragmentos(seccionesFiltradas), [seccionesFiltradas]);
 
   const handleUpdateSeccion = (idx: number, sec: SeccionDoc) => {
     if (!contenidoLocal) return;
@@ -818,15 +800,15 @@ export default function DocumentoReglamentoApp({
         {/* Visor de Páginas Tamaño Carta */}
         <main className="flex-1 w-full flex flex-col items-center overflow-x-auto pb-12">
           <div
-            className="transition-transform duration-150 origin-top flex flex-col items-center space-y-8 print:space-y-0 print:transform-none"
+            id="documento-print"
+            className="hoja-carta-canvas hoja-zoom transition-transform duration-150 origin-top flex flex-col items-center space-y-8 print:space-y-0"
             style={{ transform: `scale(${zoom})` }}
           >
             {hojas.map((hojaSecciones, hojaIdx) => (
               <div
                 key={hojaIdx}
                 className={cn(
-                  'w-[816px] min-h-[1056px] bg-white text-slate-900 shadow-xl rounded-sm p-12 sm:p-14 relative flex flex-col justify-between border border-slate-200',
-                  'print:shadow-none print:border-none print:m-0 print:p-10 print:w-full print:min-h-screen print:page-break-after-always'
+                  'hoja-carta w-[816px] min-h-[1056px] bg-white text-slate-900 shadow-xl rounded-sm p-12 sm:p-14 relative flex flex-col justify-between border border-slate-200'
                 )}
                 style={{
                   fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
@@ -872,12 +854,16 @@ export default function DocumentoReglamentoApp({
                     </div>
                   )}
 
-                  {hojaSecciones.map((sec) => {
-                    const secOriginalIdx = secciones.findIndex((s) => s.id === sec.id);
+                  {hojaSecciones.map((frag) => {
+                    const secOriginalIdx = secciones.findIndex((s) => s.id === frag.seccion.id);
                     return (
                       <SeccionVistaEditable
-                        key={sec.id}
-                        seccion={sec}
+                        key={`${frag.seccion.id}-${frag.desde}`}
+                        seccion={frag.seccion}
+                        desde={frag.desde}
+                        hasta={frag.hasta}
+                        continuacion={frag.continuacion}
+                        ultimo={frag.ultimo}
                         onChange={(ns) => handleUpdateSeccion(secOriginalIdx, ns)}
                         onEliminar={() => handleEliminarSeccion(secOriginalIdx)}
                         readOnly={!canEdit}

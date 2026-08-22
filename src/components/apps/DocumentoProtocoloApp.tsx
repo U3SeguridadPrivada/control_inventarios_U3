@@ -12,7 +12,7 @@ import {
 import { toast } from 'sonner';
 import { COMPANY } from '@/src/lib/company';
 import {
-  bloqueVacio, ETIQUETA_BLOQUE, limpiarContenido, mover, seccionVacia,
+  bloqueVacio, ETIQUETA_BLOQUE, limpiarContenido, mover, paginarFragmentos, seccionVacia,
   type Bloque, type ContenidoDoc, type ProtocoloRegistro, type SeccionDoc, type TipoBloque,
 } from '@/src/lib/documentoProtocolo';
 import { cn } from '@/src/lib/utils';
@@ -74,49 +74,6 @@ function EditableText({
       style={style}
     />
   );
-}
-
-/**
- * Divide dinámicamente las secciones en hojas tamaño Carta (8.5" x 11").
- */
-function chunkSeccionesEnHojas(secciones: SeccionDoc[]): SeccionDoc[][] {
-  const hojas: SeccionDoc[][] = [];
-  let hojaActual: SeccionDoc[] = [];
-  let pesoActual = 0;
-  
-  const PESO_MAX_HOJA = 800;
-
-  for (const sec of secciones) {
-    let pesoSec = 160;
-    for (const b of sec.bloques) {
-      if ('texto' in b && typeof b.texto === 'string') {
-        pesoSec += b.texto.length;
-      } else if ('items' in b && Array.isArray(b.items)) {
-        pesoSec += b.items.join(' ').length;
-      } else if ('encabezados' in b && Array.isArray(b.encabezados)) {
-        pesoSec += (b.encabezados.join(' ') + (b.filas || []).flat().join(' ')).length;
-      }
-    }
-
-    if (sec.tipo === 'capitulo' && hojaActual.length > 0 && pesoActual > 250) {
-      hojas.push(hojaActual);
-      hojaActual = [sec];
-      pesoActual = pesoSec;
-    } else if (hojaActual.length > 0 && (pesoActual + pesoSec > PESO_MAX_HOJA)) {
-      hojas.push(hojaActual);
-      hojaActual = [sec];
-      pesoActual = pesoSec;
-    } else {
-      hojaActual.push(sec);
-      pesoActual += pesoSec;
-    }
-  }
-
-  if (hojaActual.length > 0) {
-    hojas.push(hojaActual);
-  }
-
-  return hojas;
 }
 
 /* ------------------------------------------------------------------ vista editable de bloques */
@@ -310,6 +267,10 @@ function SeccionVistaEditable({
   onEliminar,
   primera,
   ultima,
+  desde = 0,
+  hasta = seccion.bloques.length,
+  continuacion = false,
+  ultimoFragmento = true,
 }: {
   seccion: SeccionDoc;
   onChange: (s: SeccionDoc) => void;
@@ -317,6 +278,11 @@ function SeccionVistaEditable({
   onEliminar: () => void;
   primera: boolean;
   ultima: boolean;
+  /** Rango de bloques que se pinta en esta hoja; el resto sigue en la siguiente. */
+  desde?: number;
+  hasta?: number;
+  continuacion?: boolean;
+  ultimoFragmento?: boolean;
 }) {
   const [nuevoTipo, setNuevoTipo] = useState<TipoBloque>('parrafo');
 
@@ -371,23 +337,27 @@ function SeccionVistaEditable({
               className="text-[13px] font-bold text-white truncate uppercase tracking-tight font-sans"
               isTitle
             />
+            {continuacion && <span className="text-[10px] italic text-slate-300 shrink-0">continúa</span>}
           </div>
         </header>
 
         <div className="p-4 space-y-2">
-          {seccion.bloques.map((bloque, i) => (
-            <BloqueVistaEditable
-              key={i}
-              bloque={bloque}
-              primero={i === 0}
-              ultimo={i === seccion.bloques.length - 1}
-              onChange={(b) => updateBloque(i, b)}
-              onMover={(d) => moverBloque(i, d)}
-              onEliminar={() => eliminarBloque(i)}
-            />
-          ))}
+          {seccion.bloques.slice(desde, hasta).map((bloque, n) => {
+            const i = desde + n;
+            return (
+              <BloqueVistaEditable
+                key={i}
+                bloque={bloque}
+                primero={i === 0}
+                ultimo={i === seccion.bloques.length - 1}
+                onChange={(b) => updateBloque(i, b)}
+                onMover={(d) => moverBloque(i, d)}
+                onEliminar={() => eliminarBloque(i)}
+              />
+            );
+          })}
 
-          <div className="pt-2 border-t border-slate-200 flex items-center gap-2 print:hidden">
+          <div className={cn('pt-2 border-t border-slate-200 items-center gap-2 print:hidden', ultimoFragmento ? 'flex' : 'hidden')}>
             <Select value={nuevoTipo} onChange={(e) => setNuevoTipo(e.target.value as TipoBloque)} className="h-7 w-auto text-xs py-0">
               {TIPOS_BLOQUE.map((t) => <option key={t} value={t}>{ETIQUETA_BLOQUE[t]}</option>)}
             </Select>
@@ -432,22 +402,26 @@ function SeccionVistaEditable({
           className="text-base font-extrabold uppercase tracking-tight text-[#0f172a]"
           isTitle
         />
+        {continuacion && <span className="text-[10px] italic text-slate-500">continúa</span>}
       </div>
 
       <div className="space-y-2">
-        {seccion.bloques.map((bloque, i) => (
-          <BloqueVistaEditable
-            key={i}
-            bloque={bloque}
-            primero={i === 0}
-            ultimo={i === seccion.bloques.length - 1}
-            onChange={(b) => updateBloque(i, b)}
-            onMover={(d) => moverBloque(i, d)}
-            onEliminar={() => eliminarBloque(i)}
-          />
-        ))}
+        {seccion.bloques.slice(desde, hasta).map((bloque, n) => {
+          const i = desde + n;
+          return (
+            <BloqueVistaEditable
+              key={i}
+              bloque={bloque}
+              primero={i === 0}
+              ultimo={i === seccion.bloques.length - 1}
+              onChange={(b) => updateBloque(i, b)}
+              onMover={(d) => moverBloque(i, d)}
+              onEliminar={() => eliminarBloque(i)}
+            />
+          );
+        })}
 
-        <div className="pt-2 border-t border-slate-200 flex items-center gap-2 print:hidden">
+        <div className={cn('pt-2 border-t border-slate-200 items-center gap-2 print:hidden', ultimoFragmento ? 'flex' : 'hidden')}>
           <Select value={nuevoTipo} onChange={(e) => setNuevoTipo(e.target.value as TipoBloque)} className="h-7 w-auto text-xs py-0">
             {TIPOS_BLOQUE.map((t) => <option key={t} value={t}>{ETIQUETA_BLOQUE[t]}</option>)}
           </Select>
@@ -540,8 +514,12 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
   const secciones = contenido.secciones;
   const fecha = new Date(protocolo?.actualizado_en ?? Date.now()).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
 
-  const hojasSecciones = useMemo(() => chunkSeccionesEnHojas(secciones), [secciones]);
-  const totalHojas = 2 + hojasSecciones.length;
+  const hojasSecciones = useMemo(() => paginarFragmentos(secciones), [secciones]);
+  // El indice ocupa una hoja; solo se parte en dos cuando el documento es largo.
+  const SECCIONES_POR_INDICE = 16;
+  const indicePartido = secciones.length > SECCIONES_POR_INDICE;
+  const hojasPreliminares = indicePartido ? 3 : 2; // portada + hoja(s) de indice
+  const totalHojas = hojasPreliminares + hojasSecciones.length;
 
   const updateSeccion = (idx: number, newSec: SeccionDoc) => {
     const nuevas = [...secciones];
@@ -595,8 +573,8 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
           }
           .hoja-carta {
             width: 100% !important;
-            height: auto !important;
-            min-height: 0 !important;
+            height: 278mm !important;
+            min-height: 278mm !important;
             max-width: none !important;
             box-shadow: none !important;
             border: none !important;
@@ -612,6 +590,10 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
           .hoja-carta:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
+          }
+          .hoja-zoom {
+            transform: none !important;
+            transform-origin: top left !important;
           }
         }
       `}</style>
@@ -683,7 +665,7 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
 
         <div
           style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
-          className="space-y-8 transition-transform duration-150"
+          className="hoja-zoom space-y-8 transition-transform duration-150"
         >
           {/* HOJA 1: PORTADA EJECUTIVA MODERNA FORMAL */}
           <div
@@ -781,18 +763,18 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
           >
             <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase">
               <span className="font-extrabold text-[#0f172a]">{COMPANY.razonSocial}</span>
-              <span className="font-semibold">Índice General · Parte I</span>
+              <span className="font-semibold">Índice General{indicePartido ? ' · Parte I' : ''}</span>
             </div>
 
             <div className="my-auto py-2 space-y-3 font-sans">
               <div className="border-b border-slate-200 pb-2">
-                <h2 className="text-lg font-extrabold uppercase tracking-tight text-[#0f172a]">Índice de Contenido (1 / 2)</h2>
-                <p className="text-[11px] text-slate-500">Capítulos Marco y Protocolos de Contingencia V.1 a V.10</p>
+                <h2 className="text-lg font-extrabold uppercase tracking-tight text-[#0f172a]">Índice de Contenido{indicePartido ? ' (1 / 2)' : ''}</h2>
+                <p className="text-[11px] text-slate-500">{indicePartido ? 'Capítulos Marco y Protocolos de Contingencia V.1 a V.10' : 'Capítulos y anexos del documento'}</p>
               </div>
 
               <div className="space-y-1 text-[11.5px] leading-relaxed">
-                {secciones.slice(0, 16).map((seccion) => {
-                  const pageNum = 4 + hojasSecciones.findIndex((h) => h.some((x) => x.id === seccion.id));
+                {secciones.slice(0, SECCIONES_POR_INDICE).map((seccion) => {
+                  const pageNum = hojasPreliminares + 1 + hojasSecciones.findIndex((h) => h.some((x) => x.seccion.id === seccion.id));
                   const isCapitulo = seccion.tipo === 'capitulo';
                   return (
                     <div
@@ -809,7 +791,7 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
                         <span className="break-words">{seccion.titulo}</span>
                       </div>
                       <span className="font-mono text-[10.5px] font-bold text-slate-500 shrink-0 whitespace-nowrap">
-                        Pág. {pageNum > 3 ? pageNum : 4}
+                        Pág. {pageNum > hojasPreliminares ? pageNum : hojasPreliminares + 1}
                       </span>
                     </div>
                   );
@@ -823,58 +805,60 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
             </div>
           </div>
 
-          {/* HOJA 3: ÍNDICE GENERAL (PARTE II) */}
-          <div
-            className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-10 sm:p-14 flex flex-col justify-between shadow-xl"
-            style={{ width: '816px', minHeight: '1056px', maxWidth: '100%' }}
-          >
-            <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase">
-              <span className="font-extrabold text-[#0f172a]">{COMPANY.razonSocial}</span>
-              <span className="font-semibold">Índice General · Parte II</span>
-            </div>
-
-            <div className="my-auto py-2 space-y-3 font-sans">
-              <div className="border-b border-slate-200 pb-2">
-                <h2 className="text-lg font-extrabold uppercase tracking-tight text-[#0f172a]">Índice de Contenido (2 / 2)</h2>
-                <p className="text-[11px] text-slate-500">Protocolos V.11 a V.21, Directorio, Señalización y Anexos</p>
+          {/* HOJA 3: ÍNDICE GENERAL (PARTE II), solo en documentos largos */}
+          {indicePartido && (
+            <div
+              className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-10 sm:p-14 flex flex-col justify-between shadow-xl"
+              style={{ width: '816px', minHeight: '1056px', maxWidth: '100%' }}
+            >
+              <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase">
+                <span className="font-extrabold text-[#0f172a]">{COMPANY.razonSocial}</span>
+                <span className="font-semibold">Índice General · Parte II</span>
               </div>
-
-              <div className="space-y-1 text-[11.5px] leading-relaxed">
-                {secciones.slice(16).map((seccion) => {
-                  const pageNum = 4 + hojasSecciones.findIndex((h) => h.some((x) => x.id === seccion.id));
-                  const isCapitulo = seccion.tipo === 'capitulo';
-                  return (
-                    <div
-                      key={seccion.id}
-                      className={cn(
-                        'py-1.5 border-b border-slate-100 flex items-baseline justify-between',
-                        isCapitulo ? 'font-extrabold text-[#0f172a] pt-3.5 text-[12px] uppercase' : 'text-slate-700 pl-4 font-medium'
-                      )}
-                    >
-                      <div className="flex items-baseline gap-2 min-w-0 pr-4">
-                        {seccion.numero && (
-                          <span className="font-mono text-blue-800 font-bold shrink-0 text-[11px]">{seccion.numero}</span>
+  
+              <div className="my-auto py-2 space-y-3 font-sans">
+                <div className="border-b border-slate-200 pb-2">
+                  <h2 className="text-lg font-extrabold uppercase tracking-tight text-[#0f172a]">Índice de Contenido (2 / 2)</h2>
+                  <p className="text-[11px] text-slate-500">Protocolos V.11 a V.21, Directorio, Señalización y Anexos</p>
+                </div>
+  
+                <div className="space-y-1 text-[11.5px] leading-relaxed">
+                  {secciones.slice(SECCIONES_POR_INDICE).map((seccion) => {
+                    const pageNum = hojasPreliminares + 1 + hojasSecciones.findIndex((h) => h.some((x) => x.seccion.id === seccion.id));
+                    const isCapitulo = seccion.tipo === 'capitulo';
+                    return (
+                      <div
+                        key={seccion.id}
+                        className={cn(
+                          'py-1.5 border-b border-slate-100 flex items-baseline justify-between',
+                          isCapitulo ? 'font-extrabold text-[#0f172a] pt-3.5 text-[12px] uppercase' : 'text-slate-700 pl-4 font-medium'
                         )}
-                        <span className="break-words">{seccion.titulo}</span>
+                      >
+                        <div className="flex items-baseline gap-2 min-w-0 pr-4">
+                          {seccion.numero && (
+                            <span className="font-mono text-blue-800 font-bold shrink-0 text-[11px]">{seccion.numero}</span>
+                          )}
+                          <span className="break-words">{seccion.titulo}</span>
+                        </div>
+                        <span className="font-mono text-[10.5px] font-bold text-slate-500 shrink-0 whitespace-nowrap">
+                          Pág. {pageNum > hojasPreliminares ? pageNum : hojasPreliminares + 1}
+                        </span>
                       </div>
-                      <span className="font-mono text-[10.5px] font-bold text-slate-500 shrink-0 whitespace-nowrap">
-                        Pág. {pageNum > 3 ? pageNum : 4}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+              </div>
+  
+              <div className="border-t border-slate-300 pt-2.5 flex items-center justify-between text-[9.5px] text-slate-600 font-sans">
+                <span className="font-bold">{COMPANY.razonSocial}</span>
+                <span className="font-mono font-bold">Hoja 3 de {totalHojas}</span>
               </div>
             </div>
-
-            <div className="border-t border-slate-300 pt-2.5 flex items-center justify-between text-[9.5px] text-slate-600 font-sans">
-              <span className="font-bold">{COMPANY.razonSocial}</span>
-              <span className="font-mono font-bold">Hoja 3 de {totalHojas}</span>
-            </div>
-          </div>
+          )}
 
           {/* HOJAS 4 EN ADELANTE: SECCIONES DEL MANUAL */}
           {hojasSecciones.map((hojaSecs, idx) => {
-            const numHoja = 4 + idx;
+            const numHoja = hojasPreliminares + 1 + idx;
             return (
               <div
                 key={idx}
@@ -889,12 +873,16 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
 
                 {/* Contenido de las secciones asignadas a esta hoja */}
                 <div className="flex-1 space-y-4">
-                  {hojaSecs.map((sec) => {
-                    const secIdx = secciones.findIndex((s) => s.id === sec.id);
+                  {hojaSecs.map((frag) => {
+                    const secIdx = secciones.findIndex((s) => s.id === frag.seccion.id);
                     return (
                       <SeccionVistaEditable
-                        key={sec.id}
-                        seccion={sec}
+                        key={`${frag.seccion.id}-${frag.desde}`}
+                        seccion={frag.seccion}
+                        desde={frag.desde}
+                        hasta={frag.hasta}
+                        continuacion={frag.continuacion}
+                        ultimoFragmento={frag.ultimo}
                         primera={secIdx === 0}
                         ultima={secIdx === secciones.length - 1}
                         onChange={(s) => updateSeccion(secIdx, s)}

@@ -227,8 +227,8 @@
   .hoja-carta {
     position: relative !important;
     width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
+    height: 278mm !important;
+    min-height: 278mm !important;
     margin: 0 !important;
     padding: 12mm 15mm !important;
     background: white !important;
@@ -244,6 +244,11 @@
   .hoja-carta:last-child {
     page-break-after: auto !important;
     break-after: auto !important;
+  }
+  /* El zoom del visor es solo de pantalla: en papel siempre escala 1. */
+  .hoja-zoom {
+    transform: none !important;
+    transform-origin: top left !important;
   }
   .doc-protocolo, .doc-capitulo, table, ul, ol, blockquote {
     page-break-inside: avoid !important;
