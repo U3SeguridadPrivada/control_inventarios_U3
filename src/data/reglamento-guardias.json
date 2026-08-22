@@ -1,0 +1,425 @@
+{
+  "ambito": "guardias",
+  "titulo": "Reglamento Interior de Trabajo - Personal Operativo de Seguridad (Guardias)",
+  "categoria": "Reglamento",
+  "prioridad": "Alta",
+  "resumen": "Reglamento normativo de observancia obligatoria para el personal operativo de U3 Seguridad Privada: guardias intramuros, vigilantes, porteros, monitoristas, choferes y supervisores de campo asignados a instalaciones de clientes. Regula turnos y relevos, presentación y uniforme, consignas del servicio, bitácora y reporte de novedades, prohibiciones en el puesto y régimen disciplinario. No aplica al personal de oficina.",
+  "contenido": {
+    "ambito": "guardias",
+    "version": "1.0",
+    "subtitulo": "Aplicable únicamente al personal operativo de seguridad en servicio · Turnos, relevos, consignas, uniforme, novedades y disciplina",
+    "secciones": [
+      {
+        "id": "presentacion",
+        "tipo": "capitulo",
+        "numero": "Documento Rector",
+        "titulo": "Presentación y Fundamentos",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "El presente Reglamento Interior de Trabajo tiene por objeto regular las condiciones laborales, operativas, éticas y disciplinarias bajo las cuales el PERSONAL OPERATIVO DE SEGURIDAD de U3 Seguridad Privada presta sus servicios en las instalaciones de los clientes. Su observancia es de carácter general, permanente y de estricto cumplimiento en todos los servicios contratados por la empresa."
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El guardia de seguridad es la imagen directa de U3 Seguridad Privada ante el cliente y ante el público. De su puntualidad, presentación, disciplina y criterio depende la protección de las personas, los bienes y la información que se le confían, así como la permanencia del contrato de servicio."
+          },
+          {
+            "tipo": "lista",
+            "estilo": "upper-roman",
+            "items": [
+              "Puntualidad y permanencia en el puesto durante la totalidad del turno asignado.",
+              "Cumplimiento estricto de las consignas generales y particulares de cada servicio.",
+              "Honradez absoluta respecto de los bienes del cliente, del personal y de la empresa.",
+              "Respeto y trato cortés hacia el personal del cliente, visitantes, proveedores y compañeros.",
+              "Discreción y confidencialidad sobre todo lo que observe dentro de la instalación."
+            ]
+          },
+          {
+            "tipo": "nota",
+            "texto": "Todo elemento operativo que ingrese a laborar en U3 Seguridad Privada recibirá un ejemplar de este reglamento, firmando la Cédula de Notificación y Aceptación, obligándose a conocerlo, respetarlo y cumplirlo cabalmente durante toda su relación laboral."
+          }
+        ]
+      },
+      {
+        "id": "cap-1",
+        "tipo": "capitulo",
+        "numero": "Capítulo I",
+        "titulo": "Ámbito de Aplicación: Personal Operativo en Servicio",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Alcance"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Las disposiciones del presente reglamento aplican en TODOS los servicios y puntos de vigilancia donde U3 Seguridad Privada tenga elementos asignados: instalaciones industriales, corporativas, comerciales, habitacionales, obras, custodias y cualquier otro servicio contratado, sin importar su ubicación o el cliente de que se trate."
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "2. Sujetos Obligados: Únicamente Personal Operativo"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Este reglamento es EXCLUSIVO PARA EL PERSONAL OPERATIVO DE SEGURIDAD. Quedan sujetos al mismo los guardias intramuros, vigilantes, porteros, controladores de acceso, monitoristas de CCTV, operadores de central de radio, choferes, custodios y supervisores de campo en servicio."
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "3. Personal No Comprendido"
+          },
+          {
+            "tipo": "nota",
+            "texto": "Este reglamento NO aplica al personal de oficina de U3 (directivos, administrativos, recursos humanos, reclutamiento, contabilidad, sistemas y demás áreas de escritorio), quienes se rigen por el Reglamento Interior de Trabajo del Personal de Oficina, con sus propios horarios de entrada, alimentos y salidas."
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "4. Prelación de las Consignas del Servicio"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Además de este reglamento, cada servicio cuenta con consignas particulares autorizadas por la Dirección de Operaciones y acordadas con el cliente. Dichas consignas complementan al presente documento y son igualmente obligatorias; en ningún caso podrán contravenir lo aquí dispuesto ni la Ley Federal del Trabajo."
+          }
+        ]
+      },
+      {
+        "id": "cap-2",
+        "tipo": "capitulo",
+        "numero": "Capítulo II",
+        "titulo": "Turnos, Relevos y Puntualidad en el Servicio",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Turnos de Servicio"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El rol de turnos de cada elemento es fijado por la Dirección de Operaciones conforme al contrato del cliente y le será notificado por su supervisor. Los esquemas habituales de U3 Seguridad Privada son los siguientes:"
+          },
+          {
+            "tipo": "tabla",
+            "encabezados": [
+              "Esquema de Turno",
+              "Descripción",
+              "Consideración"
+            ],
+            "filas": [
+              [
+                "12 x 12",
+                "12 horas de servicio por 12 de descanso (diurno o nocturno)",
+                "El horario exacto lo define la consigna del servicio"
+              ],
+              [
+                "24 x 24",
+                "24 horas de servicio por 24 de descanso",
+                "Requiere relevo puntual y bitácora completa del periodo"
+              ],
+              [
+                "24 x 48",
+                "24 horas de servicio por 48 de descanso",
+                "Aplicable en servicios de 3 elementos por punto"
+              ],
+              [
+                "Rol especial o evento",
+                "Cobertura temporal, evento o custodia programada",
+                "Se notifica por escrito o por el supervisor con anticipación"
+              ]
+            ]
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "2. Presentación Anticipada y Tolerancia"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El elemento deberá presentarse en su punto de servicio cuando menos 15 minutos antes de la hora de inicio de su turno, debidamente uniformado y listo para recibir el puesto. La tolerancia máxima es de 10 minutos posteriores a la hora de entrada; pasado ese tiempo se computará RETARDO."
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "3. Relevo de Puesto"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Queda estrictamente prohibido abandonar el puesto antes de que se presente físicamente el elemento de relevo.",
+              "El relevo se realiza entregando de manera formal: consignas, bitácora, llaves, radio, lámpara, equipo asignado y novedades del turno.",
+              "Si el relevo no se presenta a la hora indicada, el elemento en turno deberá reportarlo de inmediato a su supervisor o a la central y permanecer en el puesto hasta recibir instrucciones.",
+              "El tiempo excedente que se labore por falta de relevo será reportado y cubierto conforme a las políticas de la empresa."
+            ]
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "4. Faltas, Avisos e Inasistencias"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Cualquier imposibilidad para cubrir el turno deberá avisarse al supervisor con un mínimo de 24 horas de anticipación, salvo caso fortuito o urgencia médica comprobable. El abandono de servicio sin aviso deja desprotegida la instalación del cliente y se considera FALTA GRAVE."
+          },
+          {
+            "tipo": "nota",
+            "texto": "La acumulación de 3 retardos en un mismo periodo de nómina dará lugar a un día de suspensión sin goce de sueldo, en la fecha que determine la Dirección de Operaciones sin afectar la cobertura del servicio."
+          }
+        ]
+      },
+      {
+        "id": "cap-3",
+        "tipo": "capitulo",
+        "numero": "Capítulo III",
+        "titulo": "Presentación Personal, Uniforme y Equipo",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Uniforme Reglamentario"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Portar el uniforme completo asignado por U3 Seguridad Privada, limpio, planchado y en buen estado durante todo el turno.",
+              "Portar el gafete de identificación y la credencial vigente en lugar visible.",
+              "Calzado tipo bota o zapato negro boleado; fornitura, cinturón y accesorios únicamente los autorizados por la empresa.",
+              "Queda prohibido combinar el uniforme con prendas particulares, gorras ajenas al uniforme, joyería llamativa o accesorios no autorizados.",
+              "Está prohibido portar el uniforme fuera del servicio para asuntos personales, así como consumir bebidas alcohólicas o presentarse en lugares públicos uniformado."
+            ]
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "2. Higiene y Presentación"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Aseo personal diario, cabello corto y bien peinado, barba rasurada o recortada conforme a la política de la empresa.",
+              "Uñas cortas y limpias; en el caso del personal femenino, cabello recogido y maquillaje discreto.",
+              "Presentarse descansado y en pleno uso de sus facultades físicas y mentales para cubrir el turno."
+            ]
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "3. Equipo Asignado"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El equipo entregado al elemento (radio, lámpara, bitácora, detector, chaleco, impermeable, llaves y demás herramientas) es propiedad de U3 Seguridad Privada o del cliente. Deberá conservarse en buen estado, entregarse en cada relevo y devolverse íntegramente al término de la relación laboral o al cambio de servicio. Su pérdida o daño por negligencia será responsabilidad del elemento."
+          }
+        ]
+      },
+      {
+        "id": "cap-4",
+        "tipo": "capitulo",
+        "numero": "Capítulo IV",
+        "titulo": "Obligaciones en el Puesto de Servicio",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Consignas, Rondines y Control de Accesos"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Conocer y aplicar las consignas generales y particulares del servicio asignado.",
+              "Permanecer en el puesto durante todo el turno, en actitud de alerta, de pie o en posición de vigilancia según la consigna.",
+              "Realizar los rondines en los horarios y rutas establecidas, registrando cada recorrido y sus novedades.",
+              "Controlar el acceso de personal, visitantes, proveedores y vehículos conforme al procedimiento autorizado, registrando entradas y salidas.",
+              "Revisar paquetes, herramientas y vehículos únicamente en los términos autorizados por el cliente y con el debido respeto a las personas.",
+              "Verificar el correcto cierre de puertas, ventanas, chapas, luminarias y equipos al inicio y cierre de operaciones."
+            ]
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "2. Bitácora y Reporte de Novedades"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Registrar en la bitácora del servicio, con letra legible y sin tachaduras, la hora de entrada, rondines, incidencias, visitas y hora de salida.",
+              "Reportar de inmediato a la central de monitoreo o al supervisor cualquier novedad relevante: intento de robo, riña, incendio, fuga, accidente, persona sospechosa o falla de equipo.",
+              "Reportarse en los horarios de enlace por radio o teléfono que establezca la consigna del servicio.",
+              "No alterar, arrancar ni destruir hojas de la bitácora; es documento oficial del servicio."
+            ]
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "3. Actuación ante Emergencias"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Ante cualquier emergencia el elemento actuará conforme a los protocolos operativos de U3 Seguridad Privada, dando prioridad absoluta a la protección de la vida, después a la información y finalmente a los bienes materiales, notificando siempre a su supervisor y a la central de radio."
+          }
+        ]
+      },
+      {
+        "id": "cap-5",
+        "tipo": "capitulo",
+        "numero": "Capítulo V",
+        "titulo": "Alimentos, Descansos y Permanencia en Turno",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "El tiempo de alimentos del personal operativo se toma DENTRO de la instalación del cliente y conforme a lo que establezca la consigna del servicio, procurando siempre que el punto de vigilancia no quede desatendido."
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "El tiempo de alimentos deberá coordinarse previamente con el supervisor o con el compañero de turno para escalonar la cobertura.",
+              "Los alimentos se consumirán en el área designada por el cliente, nunca en la caseta de acceso frente a visitantes ni durante el control de accesos.",
+              "En puestos de un solo elemento, el guardia no abandonará el puesto: consumirá sus alimentos en el punto sin descuidar la vigilancia y reportará el periodo a la central.",
+              "Queda prohibido salir de la instalación por alimentos, encargos personales o compras sin autorización expresa del supervisor y del cliente."
+            ]
+          },
+          {
+            "tipo": "nota",
+            "texto": "En turnos de 24 horas, los periodos de descanso o pernocta autorizados por el cliente deberán constar en la consigna del servicio. Ningún elemento podrá tomar descanso por iniciativa propia."
+          }
+        ]
+      },
+      {
+        "id": "cap-6",
+        "tipo": "capitulo",
+        "numero": "Capítulo VI",
+        "titulo": "Prohibiciones Expresas del Personal Operativo",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "Queda estrictamente prohibido al personal operativo, durante el servicio y dentro de las instalaciones del cliente:"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Dormir, recostarse o distraerse de la función de vigilancia durante el turno.",
+              "Abandonar el puesto sin relevo o sin autorización expresa del supervisor.",
+              "Presentarse o permanecer en el servicio bajo el influjo de bebidas alcohólicas, drogas o enervantes, así como introducirlos a la instalación.",
+              "Usar el teléfono celular personal, audífonos, videojuegos o redes sociales durante el turno, salvo emergencia comprobada.",
+              "Tomar fotografías o video de la instalación, del personal o de la información del cliente, y difundirlas por cualquier medio.",
+              "Sustraer, ocultar o facilitar la salida de bienes, herramientas, material o mercancía del cliente.",
+              "Solicitar o aceptar propinas, dádivas, préstamos o gratificaciones del personal del cliente, proveedores o visitantes.",
+              "Recibir visitas de familiares o amistades en el punto de servicio.",
+              "Ingerir alimentos, jugar, leer o realizar actividades ajenas al servicio en el punto de control de accesos.",
+              "Prestar, cambiar o cubrir turnos entre compañeros sin autorización del supervisor.",
+              "Portar armas, objetos o sustancias no autorizadas por la empresa y por la normatividad aplicable.",
+              "Hacer comentarios, quejas o revelar información del cliente o de la empresa ante terceros o en redes sociales.",
+              "Realizar cobros, cuotas o actividades de comercio dentro de la instalación del cliente."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cap-7",
+        "tipo": "capitulo",
+        "numero": "Capítulo VII",
+        "titulo": "Permisos, Incapacidades y Cambios de Servicio",
+        "bloques": [
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Todo permiso deberá solicitarse por escrito o a través del supervisor con al menos 24 horas de anticipación, y solo será válido cuando se confirme la cobertura del puesto.",
+              "Las incapacidades expedidas por el IMSS deberán entregarse a la empresa dentro de las 24 horas siguientes a su expedición.",
+              "El cambio de servicio, punto o turno es facultad de la Dirección de Operaciones conforme a las necesidades del contrato y será notificado por el supervisor.",
+              "El elemento deberá mantener actualizados en Recursos Humanos su domicilio, teléfono y contacto de emergencia."
+            ]
+          },
+          {
+            "tipo": "nota",
+            "texto": "La documentación personal (identificación, comprobante de domicilio, cartilla, exámenes y constancias) deberá conservarse vigente conforme a la Ley Federal de Seguridad Privada y a los requisitos del cliente."
+          }
+        ]
+      },
+      {
+        "id": "cap-8",
+        "tipo": "capitulo",
+        "numero": "Capítulo VIII",
+        "titulo": "Régimen Disciplinario y Escala de Sanciones",
+        "bloques": [
+          {
+            "tipo": "tabla",
+            "encabezados": [
+              "Concepto / Falta",
+              "Incidencia",
+              "Medida Disciplinaria"
+            ],
+            "filas": [
+              [
+                "Retardo en la entrada al servicio",
+                "1er y 2do retardo",
+                "Registro en bitácora del supervisor y amonestación verbal."
+              ],
+              [
+                "Acumulación de retardos",
+                "3 retardos en el periodo",
+                "1 día de suspensión sin goce de sueldo, en la fecha que designe Operaciones."
+              ],
+              [
+                "Presentación incompleta o uniforme sucio",
+                "Primera vez / reincidencia",
+                "Amonestación y acta administrativa en caso de reincidencia."
+              ],
+              [
+                "Dormir en el turno o descuidar el puesto",
+                "Cualquier incidencia",
+                "Acta administrativa y suspensión; retiro del servicio a solicitud del cliente."
+              ],
+              [
+                "Abandono de servicio sin relevo o sin aviso",
+                "Cualquier incidencia",
+                "Falta grave: acta administrativa y rescisión conforme a la Ley Federal del Trabajo."
+              ],
+              [
+                "Presentarse bajo influjo de alcohol o drogas",
+                "Cualquier incidencia",
+                "Retiro inmediato del servicio y rescisión de contrato."
+              ],
+              [
+                "Robo, complicidad o deshonestidad",
+                "Cualquier incidencia",
+                "Rescisión inmediata y denuncia ante la autoridad competente."
+              ],
+              [
+                "Filtración de información o fotografías del cliente",
+                "Cualquier incidencia",
+                "Falta grave: rescisión de contrato y responsabilidad legal correspondiente."
+              ]
+            ]
+          },
+          {
+            "tipo": "nota",
+            "texto": "Toda medida disciplinaria se documentará mediante acta administrativa firmada por el elemento, el supervisor y un testigo, conforme a la Ley Federal del Trabajo, respetando en todo momento el derecho de audiencia del trabajador."
+          }
+        ]
+      },
+      {
+        "id": "cap-9",
+        "tipo": "capitulo",
+        "numero": "Anexo Oficial",
+        "titulo": "Cédula de Conformidad y Notificación del Elemento",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "Hago constar que he recibido de U3 Seguridad Privada un ejemplar íntegro del presente Reglamento Interior de Trabajo aplicable al Personal Operativo de Seguridad. Declaro conocer y aceptar las disposiciones relativas a: turnos y roles de servicio; presentación 15 minutos antes del inicio del turno con tolerancia máxima de 10 minutos; prohibición de abandonar el puesto sin relevo; uso obligatorio del uniforme y equipo asignado; registro de bitácora y reporte de novedades; prohibiciones expresas durante el servicio; y el régimen disciplinario aplicable. Me comprometo a su cabal y permanente observancia."
+          },
+          {
+            "tipo": "campos",
+            "items": [
+              "Nombre Completo del Elemento: _____________________________________________",
+              "Puesto / Turno: _______________________  Servicio o Cliente: ___________________",
+              "Fecha de Notificación y Aceptación: ____ / ______________ / 202___",
+              "Firma del Elemento: ______________________________________________________"
+            ]
+          },
+          {
+            "tipo": "firma",
+            "texto": "Por U3 Seguridad Privada\nDirección de Operaciones y Recursos Humanos"
+          }
+        ]
+      }
+    ],
+    "area": "Dirección de Operaciones · Recursos Humanos",
+    "codigo": "U3-REG-OPE-2026-V1",
+    "clasificacion": "Documento Normativo",
+    "alcance": "Personal operativo de seguridad"
+  }
+}

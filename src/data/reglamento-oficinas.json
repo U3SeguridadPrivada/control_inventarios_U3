@@ -1,0 +1,352 @@
+{
+  "titulo": "Reglamento Interior de Trabajo - Personal de Oficina · Corporativo Insurgentes",
+  "categoria": "Reglamento",
+  "prioridad": "Alta",
+  "resumen": "Reglamento normativo de observancia obligatoria y exclusiva para el personal de oficina (oficinistas) de U3 Seguridad Privada que labora en el Corporativo de Insurgentes Sur, única sede administrativa de la empresa. Establece horarios de entrada y salida, tolerancia y retardos, tiempos de desayuno y comida, política de salidas intermedias, código de conducta y régimen disciplinario. No aplica al personal operativo de campo.",
+  "contenido": {
+    "ambito": "oficinas",
+    "version": "2.0",
+    "subtitulo": "Aplicable únicamente al personal de oficina del Corporativo Insurgentes · Horarios, alimentos, salidas y disciplina",
+    "secciones": [
+      {
+        "id": "presentacion",
+        "tipo": "capitulo",
+        "numero": "Documento Rector",
+        "titulo": "Presentación y Fundamentos",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "El presente Reglamento Interior de Trabajo tiene por objeto regular las condiciones laborales, operativas, éticas y disciplinarias bajo las cuales el PERSONAL DE OFICINA (oficinistas) de U3 Seguridad Privada desempeña sus funciones dentro del Corporativo de Insurgentes, sede administrativa de la empresa. Su observancia es de carácter general, permanente y de estricto cumplimiento para todos los colaboradores de escritorio: áreas administrativas, directivas, mandos medios de oficina y personal de soporte adscritos al corporativo."
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El Corporativo de U3 Seguridad Privada representa el núcleo de control, dirección, supervisión y atención a clientes, por lo cual se requiere del personal que en él labora el más alto sentido de responsabilidad, puntualidad, orden, discreción y profesionalismo."
+          },
+          {
+            "tipo": "lista",
+            "estilo": "upper-roman",
+            "items": [
+              "Puntualidad y compromiso como bases indispensables para la coordinación operativa de la empresa.",
+              "Uso eficiente y responsable del tiempo de trabajo dentro de las instalaciones corporativas.",
+              "Respeto mutuo, colaboración profesional y trato digno entre todos los integrantes de la organización.",
+              "Confidencialidad absoluta sobre datos estratégicos, clientes, operaciones y directivos."
+            ]
+          },
+          {
+            "tipo": "nota",
+            "texto": "Todo oficinista que ingrese a laborar en el Corporativo de Insurgentes de U3 Seguridad Privada recibirá un ejemplar de este reglamento, firmando la Cédula de Notificación y Aceptación, obligándose a conocerlo, respetarlo y cumplirlo cabalmente."
+          }
+        ]
+      },
+      {
+        "id": "cap-1",
+        "tipo": "capitulo",
+        "numero": "Capítulo I",
+        "titulo": "Ámbito de Aplicación: Personal de Oficina del Corporativo Insurgentes",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Sede de Aplicación"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Las disposiciones del presente reglamento aplican en el Corporativo Insurgentes (Av. Insurgentes Sur 1915, Despacho 401, Col. Guadalupe Inn, Álvaro Obregón, C.P. 01020, Ciudad de México), único corporativo y sede administrativa de U3 Seguridad Privada, así como en cualquier otra oficina administrativa que la empresa llegue a habilitar en el futuro."
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "2. Sujetos Obligados: Únicamente Personal de Oficina"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Este reglamento es EXCLUSIVO PARA LOS OFICINISTAS DE U3. Quedan sujetos al mismo los directivos, gerentes, coordinadores administrativos, jefes de área, ejecutivos de cuenta, personal administrativo y contable, recursos humanos, reclutadores, analistas, recepción, sistemas y todo colaborador cuya jornada se desarrolle en un escritorio dentro del corporativo."
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "3. Personal No Comprendido"
+          },
+          {
+            "tipo": "nota",
+            "texto": "Este reglamento NO aplica al personal operativo de campo: guardias de seguridad, elementos intramuros, supervisores de ronda en servicio, choferes y demás personal asignado a instalaciones de clientes, quienes se rigen por el Reglamento Interior de Trabajo del Personal Operativo de Seguridad y por las consignas propias de cada servicio."
+          }
+        ]
+      },
+      {
+        "id": "cap-2",
+        "tipo": "capitulo",
+        "numero": "Capítulo II",
+        "titulo": "Jornada Laboral del Oficinista: Entrada, Salida y Retardos",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Horario de Entrada y Tolerancia"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El horario oficial de entrada para todo el personal de oficina es puntualmente a las 9:00 horas (09:00 AM). Se otorga un margen de tolerancia de 10 minutos (hasta las 9:10 AM) para el registro de ingreso al corporativo."
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "2. Cómputo de Retardos"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Cualquier registro de entrada realizado a partir de las 9:11 horas será computado y registrado oficialmente como RETARDO en el sistema de control de asistencia."
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "3. Sanción por Acumulación de Retardos"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Al acumular 3 retardos en el periodo de nómina/mes calendario, el trabajador se hará acreedor a 1 día de suspensión sin goce de sueldo. La fecha efectiva de aplicación de dicha suspensión será determinada por el cuerpo directivo y el área de administración según el día que resulte más oportuno y conveniente para no afectar la operatividad de las oficinas."
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "4. Horario de Salida y Tiempo Extraordinario"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El horario oficial de salida del personal es a las 7:00 horas de la tarde (19:00 hrs). Dicho horario se encuentra sujeto a cualquier carga de trabajo extra, entregables urgentes, cierre de procesos o contingencias operativas que demanden tiempo adicional para su conclusión."
+          }
+        ]
+      },
+      {
+        "id": "cap-3",
+        "tipo": "capitulo",
+        "numero": "Capítulo III",
+        "titulo": "Horarios y Políticas de Alimentos (Desayuno y Comida)",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Horario y Tiempo para Desayuno"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El personal contará con un tiempo de 30 minutos para desayunar, el cual podrá ser tomado dentro de la ventana de horario de 9:00 a 11:00 horas, bajo las siguientes condiciones obligatorias:"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Únicamente podrá tomarse cuando el colaborador NO tenga alguna actividad de prioridad en curso.",
+              "No podrá tomarse si se requiere atender a personal operativo, candidatos en reclutamiento, clientes, proveedores o requerimientos de mandos.",
+              "Deberá coordinarse previamente con sus compañeros de área o jefe inmediato para asegurar que el área no quede desatendida.",
+              "Los alimentos deben consumirse en las áreas asignadas (comedor o cocineta) y no en escritorios donde haya expedientes o equipos de cómputo."
+            ]
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "2. Horario y Tiempo para Comida"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El tiempo de comida por la tarde corresponde a 1 hora (60 minutos), la cual podrá ser tomada dentro de la ventana de horario comprendida entre las 2:00 PM y las 6:00 PM (14:00 a 18:00 hrs)."
+          },
+          {
+            "tipo": "nota",
+            "texto": "Las salidas a comer deberán turnarse de forma escalonada entre los miembros de cada departamento para garantizar la cobertura continua de teléfonos, recepciones, sistemas y atención a emergencias."
+          }
+        ]
+      },
+      {
+        "id": "cap-4",
+        "tipo": "capitulo",
+        "numero": "Capítulo IV",
+        "titulo": "Política de Salidas Intermedias (Breaks y Permisos Cortos)",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Salidas Personales Permitidas en la Jornada"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Para mantener un ambiente de trabajo balanceado y facilitar necesidades breves (comprar café, fumar, ir a la tienda de conveniencia, etc.), el personal tendrá la oportunidad de salir del edificio hasta 3 veces en el transcurso del día, distribuidas estrictamente de la siguiente manera:"
+          },
+          {
+            "tipo": "tabla",
+            "encabezados": [
+              "Salida",
+              "Duración Máxima",
+              "Finalidad Permitida",
+              "Condición"
+            ],
+            "filas": [
+              [
+                "Salida Corta 1",
+                "Máximo 5 minutos",
+                "Comprar café, bebidas o paso rápido a la tienda",
+                "Sin descuidar llamadas ni pendientes inmediatos"
+              ],
+              [
+                "Salida Corta 2",
+                "Máximo 5 minutos",
+                "Fumar en zona exterior designada o descanso breve",
+                "Cumplir estrictamente el límite de tiempo"
+              ],
+              [
+                "Salida Extendida",
+                "Máximo 10 minutos",
+                "Trámite personal menor, cajero automático o compra",
+                "Avisar a compañero de área antes de salir"
+              ]
+            ]
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "2. Salidas por Encomiendas y Comisiones de Mandos"
+          },
+          {
+            "tipo": "nota",
+            "texto": "Las 3 salidas intermedias personales descritas son totalmente independientes y NO toman en cuenta aquellas salidas que los directivos o mandos soliciten al personal por alguna razón laboral en particular, encomienda oficial, diligencia bancaria, entrega de documentación o encargo específico de trabajo."
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "El abuso de las salidas intermedias, exceder los tiempos estipulados (5 y 10 minutos) o ausentarse sin notificar se considerará como falta disciplinaria con su debida sanción."
+          }
+        ]
+      },
+      {
+        "id": "cap-5",
+        "tipo": "capitulo",
+        "numero": "Capítulo V",
+        "titulo": "Obligaciones, Código de Vestimenta e Instalaciones",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Imagen Personal y Código de Vestimenta"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Presentarse con vestimenta formal / ejecutiva o uniforme corporativo asignado, debidamente limpio, planchado y en óptimas condiciones.",
+              "Portar gafete de identificación visible en todo momento dentro del edificio y en accesos de seguridad del corporativo.",
+              "Mantener una higiene y presentación personal impecable acorde al nivel de representación corporativa de U3 Seguridad Privada."
+            ]
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "2. Uso y Cuidado de las Instalaciones y Equipamiento"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Mantener limpios y ordenados los escritorios, estaciones de trabajo, salas de juntas y áreas comunes al término del día.",
+              "Hacer uso responsable de las computadoras, impresoras, teléfonos corporativos y redes de datos, utilizándolos exclusivamente para fines laborales.",
+              "Respetar las normas internas del edificio de Insurgentes Sur relativas a áreas libres de humo, estacionamientos, elevadores, recepción y accesos."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cap-6",
+        "tipo": "capitulo",
+        "numero": "Capítulo VI",
+        "titulo": "Confidencialidad, Seguridad de Información y Prohibiciones",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Confidencialidad y Manejo de Información"
+          },
+          {
+            "tipo": "parrafo",
+            "texto": "Toda la información relativa a clientes, cotizaciones, tarifas, nóminas, datos personales de guardias, movimientos financieros y contratos es propiedad confidencial de U3 Seguridad Privada. Queda prohibida su extracción, copia o envío por medios no autorizados."
+          },
+          {
+            "tipo": "subtitulo",
+            "texto": "2. Prohibiciones Expresas en Oficinas"
+          },
+          {
+            "tipo": "lista",
+            "estilo": "decimal",
+            "items": [
+              "Fumar o utilizar vapeadores dentro de las oficinas y áreas cerradas del edificio.",
+              "Introducir o consumir bebidas alcohólicas, drogas o sustancias prohibidas en el inmueble corporativo.",
+              "Hacer uso excesivo del teléfono celular particular para ocio o redes sociales en horas de trabajo.",
+              "Abandonar la oficina sin registrar o notificar la salida al responsable del área.",
+              "Recibir visitas de carácter estrictamente personal no autorizadas en las oficinas de trabajo."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cap-7",
+        "tipo": "capitulo",
+        "numero": "Capítulo VII",
+        "titulo": "Régimen Disciplinario y Escala de Sanciones",
+        "bloques": [
+          {
+            "tipo": "subtitulo",
+            "texto": "1. Escala de Medidas Disciplinarias"
+          },
+          {
+            "tipo": "tabla",
+            "encabezados": [
+              "Concepto / Falta",
+              "Incidencia",
+              "Medida Disciplinaria"
+            ],
+            "filas": [
+              [
+                "Retardo en Entrada (después de 9:10 AM)",
+                "1er y 2do Retardo",
+                "Registro en bitácora de asistencia y amonestación."
+              ],
+              [
+                "Acumulación de Retardos",
+                "3 Retardos en el periodo",
+                "1 día de suspensión sin goce de sueldo (fecha designada por directivos)."
+              ],
+              [
+                "Exceso en Tiempos de Alimento / Salidas",
+                "Superar 30m desayuno, 1h comida o 5/10m salidas",
+                "Llamada de atención y acta administrativa en caso de reincidencia."
+              ],
+              [
+                "Abandono Injustificado de Oficina",
+                "Retirarse antes de las 7:00 PM sin autorización",
+                "Acta administrativa y descuento correspondiente."
+              ],
+              [
+                "Falta Grave o Filtración de Información",
+                "Violación de confidencialidad o desacato directo",
+                "Suspensión mayor o rescisión de contrato conforme a la Ley Federal del Trabajo."
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cap-8",
+        "tipo": "capitulo",
+        "numero": "Anexo Oficial",
+        "titulo": "Cédula de Conformidad y Notificación del Colaborador",
+        "bloques": [
+          {
+            "tipo": "parrafo",
+            "texto": "Hago constar que he recibido de U3 Seguridad Privada un ejemplar íntegro del presente Reglamento Interior de Trabajo aplicable al personal de oficina del Corporativo de Insurgentes. Declaro conocer y aceptar las disposiciones referentes a: entrada a las 9:00 AM con 10 minutos de tolerancia; acumulación de 3 retardos = 1 día de suspensión sin goce de sueldo en la fecha que designen los directivos; salida a las 7:00 PM sujeta a carga de trabajo extra; 30 minutos de desayuno a tomar entre 9:00 y 11:00 AM cuando no exista actividad prioritaria ni personal por atender; 1 hora de comida a tomar entre las 2:00 y las 6:00 PM; y 3 salidas intermedias al día (dos de máximo 5 minutos y una de máximo 10 minutos), independientes de las salidas que ordenen los mandos. Me comprometo a su cabal y permanente observancia."
+          },
+          {
+            "tipo": "campos",
+            "items": [
+              "Nombre Completo del Colaborador: ________________________________________________",
+              "Puesto / Departamento: _______________________  Área: ___________________________",
+              "Fecha de Notificación y Aceptación: ____ / ______________ / 202___",
+              "Firma del Colaborador: __________________________________________________________"
+            ]
+          },
+          {
+            "tipo": "firma",
+            "texto": "Por U3 Seguridad Privada\nDirección General y Administración Corporativa"
+          }
+        ]
+      }
+    ],
+    "area": "Dirección General · Recursos Humanos",
+    "codigo": "U3-REG-OFI-2026-V1",
+    "clasificacion": "Documento Normativo",
+    "alcance": "Personal de oficina · Corporativo Insurgentes"
+  },
+  "ambito": "oficinas"
+}

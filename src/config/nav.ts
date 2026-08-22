@@ -3,7 +3,7 @@ import {
   Users, UserMinus, ShieldCheck, UserPlus, Lock, LucideIcon,
   Mail, CalendarDays, MapPin, ShoppingCart, Contact2, FileSpreadsheet,
   Landmark, KeyRound, Settings, UserSearch, MessageCircle, ClipboardList,
-  FileStack,
+  FileStack, BookOpen,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -84,6 +84,7 @@ export const NAV_BOTTOM: NavItem[] = [
   { id: 'whatsapp', href: '/whatsapp', title: 'WhatsApp en Vivo', shortLabel: 'WhatsApp', icon: MessageCircle },
   { id: 'mapa-operaciones', href: '/mapa-operaciones', title: 'Mapa de Operaciones', shortLabel: 'Mapa', icon: MapPin },
   { id: 'protocolos', href: '/protocolos', title: 'Protocolos Operativos', shortLabel: 'Protocolos', icon: ClipboardList },
+  { id: 'reglamento', href: '/reglamento', title: 'Reglamentos Interiores', shortLabel: 'Reglamentos', icon: BookOpen },
   { id: 'machotes', href: '/machotes', title: 'Machotes y Formatos', shortLabel: 'Machotes', icon: FileStack },
   { id: 'ajustes', href: '/ajustes', title: 'Ajustes del Sitio', shortLabel: 'Ajustes', icon: Settings, isAdminOnly: true },
 ];

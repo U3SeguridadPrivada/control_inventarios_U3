@@ -25,6 +25,13 @@ export interface SeccionDoc {
 export interface ContenidoDoc {
   version: string;
   subtitulo?: string;
+  /** Identidad del membrete. Si el documento no la trae, el visor usa valores genéricos. */
+  area?: string;
+  codigo?: string;
+  clasificacion?: string;
+  /** A quién se dirige el documento; sustituye a `nivelEducativo` fuera del manual escolar. */
+  alcance?: string;
+  /** Solo el manual de planteles escolares usa este campo. */
   nivelEducativo?: string;
   secciones: SeccionDoc[];
 }

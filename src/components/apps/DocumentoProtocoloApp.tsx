@@ -500,6 +500,24 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
     },
   });
 
+  // Este visor sirve tanto el manual de planteles escolares como los reglamentos
+  // internos, asi que el membrete sale del propio documento y solo cae en los
+  // textos escolares cuando el documento realmente lo es.
+  const docMeta = useMemo(() => {
+    const escolar =
+      Boolean(contenido.nivelEducativo) ||
+      /escolar|plantel|primaria|educativ/i.test(`${titulo} ${protocolo?.descripcion ?? ''}`);
+
+    return {
+      escolar,
+      area: contenido.area ?? (escolar ? 'Dirección de Operaciones · Seguridad Escolar' : 'Dirección de Operaciones · Documentación Normativa'),
+      codigo: contenido.codigo ?? (escolar ? 'MAN-U3-ESC-PRIM-2026' : `U3-DOC-${protocoloId}-2026`),
+      clasificacion: contenido.clasificacion ?? (escolar ? 'Documento Operativo' : 'Documento Normativo'),
+      pie: escolar ? 'Documento Operativo de Seguridad Escolar' : 'Documento Normativo Institucional',
+      etiquetaAlcance: escolar ? 'Nivel Educativo' : 'Ámbito de Aplicación',
+    };
+  }, [contenido.nivelEducativo, contenido.area, contenido.codigo, contenido.clasificacion, titulo, protocolo?.descripcion, protocoloId]);
+
   // Auto-guardado en segundo plano
   useEffect(() => {
     if (!protocolo || !dirty) return;
@@ -678,11 +696,11 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
                 <img src={COMPANY.logoPublicPath} alt="U3" className="w-10 h-10 object-contain bg-white p-1 rounded" />
                 <div>
                   <p className="text-[12px] font-extrabold uppercase tracking-widest">{COMPANY.razonSocial}</p>
-                  <p className="text-[9.5px] text-slate-300 uppercase tracking-wider font-semibold">Dirección de Operaciones · Seguridad Escolar</p>
+                  <p className="text-[9.5px] text-slate-300 uppercase tracking-wider font-semibold">{docMeta.area}</p>
                 </div>
               </div>
               <span className="bg-blue-600 text-white font-mono text-[9.5px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-xs">
-                MAN-U3-ESC-PRIM-2026
+                {docMeta.codigo}
               </span>
             </div>
 
@@ -714,10 +732,16 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
                 </p>
                 <div className="grid grid-cols-2 gap-3 text-[11px]">
                   <div>
-                    <span className="text-slate-500 text-[10px] uppercase font-bold block">Nivel Educativo</span>
+                    <span className="text-slate-500 text-[10px] uppercase font-bold block">{docMeta.etiquetaAlcance}</span>
                     <EditableText
-                      value={contenido.nivelEducativo ?? ''}
-                      onChange={(val) => { setContenido({ ...contenido, nivelEducativo: val }); setDirty(true); }}
+                      value={(docMeta.escolar ? contenido.nivelEducativo : contenido.alcance) ?? ''}
+                      onChange={(val) => {
+                        setContenido(docMeta.escolar
+                          ? { ...contenido, nivelEducativo: val }
+                          : { ...contenido, alcance: val });
+                        setDirty(true);
+                      }}
+                      placeholder="Escribe a quién aplica..."
                       className="font-bold text-[#0f172a]"
                       isTitle
                     />
@@ -737,16 +761,16 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
                   </div>
                   <div>
                     <span className="text-slate-500 text-[10px] uppercase font-bold block">Clasificación</span>
-                    <span className="font-bold text-slate-800 text-[10.5px] uppercase">Documento Operativo</span>
+                    <span className="font-bold text-slate-800 text-[10.5px] uppercase">{docMeta.clasificacion}</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Pie de Portada */}
-            <div className="border-t-2 border-[#0f172a] pt-3 flex items-center justify-between text-[10px] text-slate-600 font-sans">
-              <span className="font-bold">{COMPANY.razonSocial} · {COMPANY.domicilio}</span>
-              <span className="font-mono font-bold">Hoja 1 de {totalHojas}</span>
+            <div className="border-t-2 border-[#0f172a] pt-3 flex items-start justify-between gap-6 text-[10px] text-slate-600 font-sans">
+              <span className="font-bold leading-snug min-w-0 flex-1">{COMPANY.razonSocial} · {COMPANY.domicilio}</span>
+              <span className="font-mono font-bold whitespace-nowrap shrink-0">Hoja 1 de {totalHojas}</span>
             </div>
           </div>
 
@@ -882,9 +906,9 @@ export default function DocumentoProtocoloApp({ protocoloId }: { protocoloId: nu
                 </div>
 
                 {/* Pie de página inferior de hoja */}
-                <div className="border-t border-slate-300 pt-2.5 mt-6 flex items-center justify-between text-[9.5px] text-slate-600 font-sans">
-                  <span>Documento Operativo de Seguridad Escolar · {COMPANY.razonSocial}</span>
-                  <span className="font-mono font-bold">Hoja {numHoja} de {totalHojas}</span>
+                <div className="border-t border-slate-300 pt-2.5 mt-6 flex items-start justify-between gap-6 text-[9.5px] text-slate-600 font-sans">
+                  <span className="leading-snug min-w-0 flex-1">{docMeta.pie} · {COMPANY.razonSocial}</span>
+                  <span className="font-mono font-bold whitespace-nowrap shrink-0">Hoja {numHoja} de {totalHojas}</span>
                 </div>
               </div>
             );

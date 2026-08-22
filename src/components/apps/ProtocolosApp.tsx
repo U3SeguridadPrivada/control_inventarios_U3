@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import Link from 'next/link';
 import {
   Search, Plus, Edit, Trash2, ChevronDown, ChevronRight, ClipboardList,
-  GripVertical, X, ArrowUp, ArrowDown, EyeOff, FileText,
+  GripVertical, X, ArrowUp, ArrowDown, EyeOff, FileText, BookOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
@@ -140,7 +140,14 @@ export default function ProtocolosApp() {
           <h1 className="text-2xl font-bold tracking-tight">Protocolos</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Procedimientos oficiales de operación y respuesta</p>
         </div>
-        {isEditor && <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" /> Nuevo protocolo</Button>}
+        <div className="flex items-center gap-2">
+          <Link href="/reglamento">
+            <Button variant="outline">
+              <BookOpen className="w-4 h-4 mr-2" /> Reglamentos
+            </Button>
+          </Link>
+          {isEditor && <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" /> Nuevo protocolo</Button>}
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2">
