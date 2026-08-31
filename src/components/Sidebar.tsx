@@ -88,7 +88,7 @@ export default function Sidebar() {
   const bottomItems = NAV_BOTTOM.filter((item) => (!item.isAdminOnly || isAdmin) && puedeVer(item.id));
 
   return (
-    <aside className="hidden md:flex md:flex-col w-[5.5rem] flex-shrink-0 h-screen sticky top-0 bg-card border-r border-border">
+    <aside className="hidden md:flex md:flex-col w-[5.5rem] flex-shrink-0 h-screen sticky top-0 bg-card border-r border-border print:hidden">
       <div className="flex items-center justify-center h-16 flex-shrink-0">
         <img src="/logo_b.png" alt="U3" className="w-9 h-9 object-contain" />
       </div>

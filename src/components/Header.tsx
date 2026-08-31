@@ -56,7 +56,7 @@ export default function Header() {
   const title = getPageTitle(pathname);
 
   return (
-    <header className="sticky top-0 z-30 pt-[var(--safe-top)] h-[calc(4rem+var(--safe-top))] flex items-center justify-between gap-3 px-4 sm:px-6 bg-card border-b border-border">
+    <header className="sticky top-0 z-30 pt-[var(--safe-top)] h-[calc(4rem+var(--safe-top))] flex items-center justify-between gap-3 px-4 sm:px-6 bg-card border-b border-border print:hidden">
       <div className="flex items-center gap-2.5 min-w-0">
         <img src="/logo_b.png" alt="U3" className="md:hidden w-7 h-7 object-contain flex-shrink-0" />
         <h1 className="text-base sm:text-lg font-semibold tracking-tight truncate">{title}</h1>

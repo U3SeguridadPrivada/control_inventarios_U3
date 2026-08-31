@@ -187,7 +187,34 @@
   }
 }
 
+/* Bloques editables de los documentos (reglamentos y protocolos).
+   Un bloque recién creado está vacío: sin esta regla mide cero píxeles y queda
+   invisible en la hoja, así que parecía que el editor lo borraba solo. */
+[data-placeholder][data-vacio='si']::before {
+  content: attr(data-placeholder);
+  color: rgb(148 163 184);
+  font-style: italic;
+  pointer-events: none;
+}
+[contenteditable][data-placeholder] {
+  min-height: 1.15em;
+}
 @media print {
+  [data-placeholder][data-vacio='si']::before {
+    content: '';
+  }
+}
+
+@media print {
+  /* Todo lo que no sea el documento ni su cadena de contenedores desaparece del
+     papel. Ocultarlo con `visibility` no basta: el elemento sigue ocupando su
+     lugar y se encabalga con las hojas, que van posicionadas en el origen. */
+  body:has(#documento-print) *:not(:has(#documento-print)):not(#documento-print):not(#documento-print *) {
+    display: none !important;
+  }
+  body:has(#dialog-print-wrapper) *:not(:has(#dialog-print-wrapper)):not(#dialog-print-wrapper):not(#dialog-print-wrapper *) {
+    display: none !important;
+  }
   body * { visibility: hidden; }
   #dialog-print-wrapper, #dialog-print-wrapper *,
   #documento-print, #documento-print *,
@@ -207,6 +234,13 @@
   }
   html, body { height: auto !important; overflow: visible !important; background-color: white !important; }
   [data-mobile-nav] { display: none !important; }
+  /* Los contenedores de la app tienen alto fijo y scroll propio: en papel deben
+     fluir, o recortan el documento y encabalgan con la interfaz. */
+  main, .overflow-hidden, .overflow-y-auto, .overflow-x-auto {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
 }
 
 /**

@@ -70,7 +70,9 @@ export function bloqueVacio(tipo: TipoBloque): Bloque {
 
 export function seccionVacia(): SeccionDoc {
   return {
-    id: `seccion-${Date.now()}`,
+    // El sufijo aleatorio evita ids repetidos si se agregan dos capítulos en el
+    // mismo milisegundo: el editor identifica cada sección por su id.
+    id: `seccion-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     tipo: 'capitulo',
     numero: '',
     titulo: 'Nueva sección',
@@ -102,24 +104,24 @@ export function textoABloque(bloque: Bloque, texto: string): Bloque {
   return { ...(bloque as BloqueTexto), texto };
 }
 
-/** Limpia entradas vacías antes de guardar, sin tocar el contenido con texto. */
+/**
+ * Normaliza el contenido antes de guardar. No borra nada: lo que se ve en el
+ * editor es exactamente lo que se guarda. Antes descartaba todo bloque sin
+ * texto, así que un bloque recién agregado desaparecía al guardar —parecía que
+ * se borraba solo— y con él cualquier párrafo que se hubiera quedado vacío por
+ * accidente. Los bloques se eliminan únicamente desde el botón de la papelera.
+ */
 export function limpiarContenido(contenido: ContenidoDoc): ContenidoDoc {
   return {
     ...contenido,
     secciones: contenido.secciones.map((seccion) => ({
       ...seccion,
-      bloques: seccion.bloques
-        .map((bloque) => {
-          if (bloque.tipo === 'lista' || bloque.tipo === 'campos') {
-            return { ...bloque, items: bloque.items.map((i) => i.trim()).filter(Boolean) };
-          }
-          return bloque;
-        })
-        .filter((bloque) => {
-          if (bloque.tipo === 'lista' || bloque.tipo === 'campos') return bloque.items.length > 0;
-          if (bloque.tipo === 'tabla') return bloque.encabezados.length > 0;
-          return bloque.texto.trim().length > 0;
-        }),
+      bloques: seccion.bloques.map((bloque) => {
+        if (bloque.tipo === 'lista' || bloque.tipo === 'campos') {
+          return { ...bloque, items: bloque.items.map((i) => i.trim()) };
+        }
+        return bloque;
+      }),
     })),
   };
 }
