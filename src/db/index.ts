@@ -150,6 +150,31 @@ CREATE TABLE IF NOT EXISTS clientes (
   creado_por INTEGER REFERENCES users(id),
   created_at TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS barridos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  usuario_id INTEGER REFERENCES users(id),
+  canal TEXT NOT NULL,
+  plantilla TEXT NOT NULL,
+  lote TEXT,
+  objetivo INTEGER NOT NULL,
+  enviados INTEGER NOT NULL DEFAULT 0,
+  fallidos INTEGER NOT NULL DEFAULT 0,
+  estado TEXT NOT NULL DEFAULT 'en_proceso',
+  detalle TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  terminado_at TEXT
+);
+CREATE TABLE IF NOT EXISTS prospecto_actividades (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+  usuario_id INTEGER REFERENCES users(id),
+  tipo TEXT NOT NULL,
+  asunto TEXT,
+  mensaje TEXT,
+  estado TEXT NOT NULL DEFAULT 'ok',
+  detalle_error TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS cotizaciones (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   folio TEXT NOT NULL UNIQUE,
@@ -307,6 +332,22 @@ CREATE TABLE IF NOT EXISTS movimiento_evidencias (
   subido_por INTEGER REFERENCES users(id),
   fecha_subida TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS checador_salidas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  usuario_id INTEGER REFERENCES users(id),
+  nombre_empleado TEXT NOT NULL,
+  departamento TEXT DEFAULT 'Oficinas',
+  tipo_salida TEXT NOT NULL DEFAULT '10_min',
+  limite_minutos INTEGER NOT NULL DEFAULT 10,
+  hora_salida TEXT NOT NULL,
+  hora_entrada TEXT,
+  duracion_segundos INTEGER,
+  estado TEXT NOT NULL DEFAULT 'en_curso',
+  motivo TEXT,
+  justificacion TEXT,
+  registrado_por TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
 `;
 
 /**
@@ -408,9 +449,37 @@ function initDb(): DrizzleDB {
     `ALTER TABLE whatsapp_conversaciones ADD COLUMN autor TEXT DEFAULT 'bot';`,
     `ALTER TABLE protocolos ADD COLUMN tipo TEXT NOT NULL DEFAULT 'lista';`,
     `ALTER TABLE protocolos ADD COLUMN contenido TEXT;`,
+    // Embudo de ventas sobre la cartera de clientes y prospectos
+    `ALTER TABLE clientes ADD COLUMN etapa TEXT NOT NULL DEFAULT 'Nuevo';`,
+    `ALTER TABLE clientes ADD COLUMN asignado_a INTEGER REFERENCES users(id);`,
+    `ALTER TABLE clientes ADD COLUMN ultimo_contacto TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN proximo_seguimiento TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN motivo_perdida TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN origen TEXT DEFAULT 'Manual';`,
+    `ALTER TABLE clientes ADD COLUMN id_denue TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN giro TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN codigo_scian TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN tamano TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN prioridad TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN puntaje INTEGER;`,
+    `ALTER TABLE clientes ADD COLUMN sitio_web TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN colonia TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN cp TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN alcaldia TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN latitud TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN longitud TEXT;`,
+    `ALTER TABLE clientes ADD COLUMN lote TEXT;`,
   ]) {
     try { sqlite.exec(stmt); } catch (e) { /* Column might already exist */ }
   }
+
+  // Un establecimiento del DENUE no puede entrar dos veces: es lo que permite
+  // importar lotes nuevos sin duplicar lo que ya trabaja un asesor.
+  try {
+    sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_id_denue ON clientes(id_denue) WHERE id_denue IS NOT NULL;`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_clientes_asignado ON clientes(asignado_a);`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_actividades_cliente ON prospecto_actividades(cliente_id);`);
+  } catch (e) { /* Los índices ya existen */ }
 
   try {
     const rowB = sqlite.prepare("SELECT COUNT(*) as count FROM movimientos_financieros WHERE libro = 'B'").get() as { count: number };

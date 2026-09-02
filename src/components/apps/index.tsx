@@ -12,6 +12,7 @@ import CorreoApp from './CorreoApp';
 import CalendarioApp from './CalendarioApp';
 import MapaOperacionesApp from './MapaOperacionesApp';
 import ProtocolosApp from './ProtocolosApp';
+import ChecadorApp from './ChecadorApp';
 
 export const APP_COMPONENTS: Record<string, ComponentType> = {
   dashboard: DashboardApp,
@@ -27,4 +28,5 @@ export const APP_COMPONENTS: Record<string, ComponentType> = {
   calendario: CalendarioApp,
   'mapa-operaciones': MapaOperacionesApp,
   protocolos: ProtocolosApp,
+  checador: ChecadorApp,
 };

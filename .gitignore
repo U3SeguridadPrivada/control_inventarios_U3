@@ -21,6 +21,11 @@ db/backups/
 # Datos personales — nunca al repositorio.
 db/recuperacion/
 
+# Lotes de prospeccion DENUE: llevan telefonos y correos de establecimientos.
+# El padron de ids (prospeccion/entregados.json) si se versiona: evita repetir lotes.
+prospeccion/*.csv
+prospeccion/*.xlsx
+
 # Environment variables — NEVER commit these
 .env
 .env.local

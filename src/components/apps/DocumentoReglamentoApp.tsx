@@ -9,8 +9,10 @@ import {
   ArrowLeft, Printer, Plus, Trash2, ArrowUp, ArrowDown,
   ZoomIn, ZoomOut, RotateCcw, Loader2, CheckCircle2,
   BookOpen, Search, ShieldCheck, ListOrdered, Building2, Pencil, Eye, X,
+  Timer,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import DOMPurify from 'isomorphic-dompurify';
 import { COMPANY } from '@/src/lib/company';
 import {
   bloqueVacio, ETIQUETA_BLOQUE, limpiarContenido, mover, paginarFragmentos, seccionVacia,
@@ -18,6 +20,7 @@ import {
 } from '@/src/lib/documentoProtocolo';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
+import BarraFormatoFlotante from '@/src/components/reglamento/BarraFormatoFlotante';
 
 const TIPOS_BLOQUE: TipoBloque[] = ['parrafo', 'subtitulo', 'lista', 'nota', 'tabla', 'campos', 'firma'];
 
@@ -39,13 +42,8 @@ const AMBITOS: { id: AmbitoReglamento; etiqueta: string; corta: string; codigo: 
 ];
 
 /**
- * Texto editable en la propia hoja.
- *
- * El cambio se confirma en cada tecla (`onInput`), no solo al salir del campo:
- * antes, si se hacía clic en otro botón del editor, la confirmación del texto y
- * la acción del botón se procesaban juntas y la segunda pisaba a la primera, así
- * que lo escrito se perdía. El nodo nunca se reescribe mientras tiene el foco,
- * que es lo que haría saltar el cursor al inicio.
+ * Texto editable en la propia hoja con soporte de formato enriquecido
+ * (negritas, subrayado, cursivas, tamaño, color y resaltado).
  */
 function EditableText({
   value,
@@ -70,22 +68,29 @@ function EditableText({
     const el = ref.current;
     if (!el) return;
     if (document.activeElement === el) return;
-    if (el.innerText !== value) el.innerText = value;
+    if (el.innerHTML !== value) {
+      el.innerHTML = value || '';
+    }
   }, [value]);
 
   if (readOnly) {
     return (
-      <div className={cn('min-w-[20px] font-sans', className)} style={style}>
-        {value}
-      </div>
+      <div
+        className={cn('min-w-[20px] font-sans', className)}
+        style={style}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(value || '') }}
+      />
     );
   }
 
   const confirmar = () => {
-    // El navegador deja un <br> al vaciar un campo; se normaliza a cadena vacía.
-    const texto = (ref.current?.innerText ?? '').replace(/\n$/, '');
-    if (texto !== value) onChange(texto);
+    // Normalizamos el contenido HTML quitando <br> huérfano al final
+    const rawHtml = ref.current?.innerHTML ?? '';
+    const limpio = rawHtml.replace(/<br\s*\/?>$/i, '').trim();
+    if (limpio !== value) onChange(limpio);
   };
+
+  const estaVacio = (value || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() === '';
 
   return (
     <div
@@ -93,13 +98,17 @@ function EditableText({
       contentEditable
       suppressContentEditableWarning
       data-placeholder={placeholder}
-      data-vacio={value.trim() === '' ? 'si' : 'no'}
+      data-vacio={estaVacio ? 'si' : 'no'}
       onInput={confirmar}
       onBlur={confirmar}
       onKeyDown={(e) => {
         if (isTitle && e.key === 'Enter') {
           e.preventDefault();
           ref.current?.blur();
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u') {
+          e.preventDefault();
+          document.execCommand('underline', false);
+          confirmar();
         }
       }}
       className={cn(
@@ -217,14 +226,35 @@ function BloqueVistaEditable({
       )}
 
       {bloque.tipo === 'firma' && (
-        <div className="mt-8 pt-4 border-t-2 border-slate-300 text-center font-sans">
-          <EditableText
-            value={bloque.texto}
-            onChange={(texto) => onChange({ ...bloque, texto })}
-            readOnly={readOnly}
-            placeholder="Nombre y cargo de quien firma"
-            className="text-[11.5px] font-semibold text-slate-800 whitespace-pre-line text-center uppercase tracking-wider"
-          />
+        <div className="mt-12 pt-6 pb-4 font-sans print:mt-10">
+          <div className="max-w-md mx-auto text-center flex flex-col items-center">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-2">
+              Autorización y Registro Institucional
+            </div>
+
+            {/* Espacio amplio y despejado para plasmar la firma y sello oficial */}
+            <div className="h-24 sm:h-28 w-full flex items-end justify-center pb-2">
+              <span className="text-[9.5px] text-slate-300 uppercase tracking-widest font-mono select-none print:hidden">
+                [ Espacio para firma de la dirección y sello oficial ]
+              </span>
+            </div>
+
+            {/* Línea formal de firma */}
+            <div className="w-72 sm:w-80 border-t-2 border-slate-900 dark:border-slate-200 mx-auto mb-3" />
+
+            {/* Nombre y cargo de quien firma */}
+            <EditableText
+              value={bloque.texto}
+              onChange={(texto) => onChange({ ...bloque, texto })}
+              readOnly={readOnly}
+              placeholder="Nombre y cargo de quien firma"
+              className="text-[12px] font-extrabold text-slate-900 dark:text-slate-100 whitespace-pre-line text-center uppercase tracking-wide leading-relaxed"
+            />
+            <div className="text-[9.5px] text-blue-900 dark:text-blue-400 font-bold uppercase tracking-wider mt-1.5 flex items-center justify-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-800 shrink-0" />
+              <span>U3 Seguridad Privada · Representación y Validación Oficial</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -458,41 +488,108 @@ function BloqueVistaEditable({
       )}
 
       {bloque.tipo === 'campos' && (
-        <div className="my-3 space-y-2 font-sans bg-slate-50/70 p-3 rounded border border-slate-200">
-          {bloque.items.map((item, idx) => (
-            <div key={idx} className="group/item relative text-[11.5px] font-mono text-slate-800">
-              {!readOnly && (
-                <button
-                  type="button"
-                  title="Eliminar este campo"
-                  onClick={() => {
-                    const items = bloque.items.filter((_, i) => i !== idx);
-                    onChange({ ...bloque, items: items.length ? items : [''] });
-                  }}
-                  className="absolute -left-5 top-0 text-red-400 hover:text-red-600 opacity-30 group-hover/item:opacity-100 transition-opacity print:hidden"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-              <EditableText
-                value={item}
-                onChange={(val) => {
-                  const items = [...bloque.items];
-                  items[idx] = val;
-                  onChange({ ...bloque, items });
-                }}
-                readOnly={readOnly}
-                placeholder="Nombre del campo: ___________"
-              />
-            </div>
-          ))}
+        <div className="my-6 p-5 sm:p-6 font-sans bg-slate-50/80 dark:bg-slate-900/40 rounded-xl border border-slate-300 dark:border-slate-700 shadow-xs">
+          <div className="flex items-center justify-between pb-3 mb-5 border-b-2 border-slate-900 dark:border-slate-600">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#0f172a] dark:text-slate-200 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-blue-800 shrink-0" /> Cédula Oficial de Notificación y Aceptación
+            </span>
+            <span className="text-[9.5px] font-mono text-slate-500 font-semibold uppercase">
+              U3 Seguridad Privada
+            </span>
+          </div>
+
+          <div className="space-y-4">
+            {bloque.items.map((item, idx) => {
+              const esFirma = item.toLowerCase().includes('firma');
+
+              if (esFirma) {
+                return (
+                  <div
+                    key={idx}
+                    className="group/item relative mt-8 pt-4 border-t border-dashed border-slate-300 dark:border-slate-700 text-center"
+                  >
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        title="Eliminar este campo"
+                        onClick={() => {
+                          const items = bloque.items.filter((_, i) => i !== idx);
+                          onChange({ ...bloque, items: items.length ? items : [''] });
+                        }}
+                        className="absolute right-0 top-2 text-red-400 hover:text-red-600 opacity-30 group-hover/item:opacity-100 transition-opacity print:hidden"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <div className="text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">
+                      Firma Autógrafa de Conformidad del Trabajador
+                    </div>
+                    {/* Espacio amplio y despejado para plasmar la firma manuscrita */}
+                    <div className="h-24 sm:h-28 flex items-end justify-center pb-2">
+                      <span className="text-[9px] text-slate-300 uppercase tracking-widest font-mono select-none print:hidden">
+                        [ Espacio para firma del colaborador ]
+                      </span>
+                    </div>
+                    {/* Línea de firma centrada */}
+                    <div className="w-72 sm:w-80 border-t-2 border-slate-900 dark:border-slate-300 mx-auto my-2" />
+                    <EditableText
+                      value={item}
+                      onChange={(val) => {
+                        const items = [...bloque.items];
+                        items[idx] = val;
+                        onChange({ ...bloque, items });
+                      }}
+                      readOnly={readOnly}
+                      placeholder="Nombre y Firma del Colaborador"
+                      className="text-center text-[11.5px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide"
+                    />
+                    <div className="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5">
+                      Acepto de conformidad los términos y condiciones del presente reglamento
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={idx} className="group/item relative">
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      title="Eliminar este campo"
+                      onClick={() => {
+                        const items = bloque.items.filter((_, i) => i !== idx);
+                        onChange({ ...bloque, items: items.length ? items : [''] });
+                      }}
+                      className="absolute -left-5 top-2.5 text-red-400 hover:text-red-600 opacity-30 group-hover/item:opacity-100 transition-opacity print:hidden"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                  <div className="p-3 bg-white dark:bg-slate-800/90 rounded-lg border border-slate-300/90 dark:border-slate-700 shadow-xs hover:border-slate-400 transition-colors">
+                    <EditableText
+                      value={item}
+                      onChange={(val) => {
+                        const items = [...bloque.items];
+                        items[idx] = val;
+                        onChange({ ...bloque, items });
+                      }}
+                      readOnly={readOnly}
+                      placeholder="Nombre del campo: ___________"
+                      className="text-[12px] font-medium text-slate-800 dark:text-slate-200 tracking-wide"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           {!readOnly && (
             <button
               type="button"
               onClick={() => onChange({ ...bloque, items: [...bloque.items, 'Campo: ___________________________'] })}
-              className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5 pt-1 print:hidden"
+              className="text-[10.5px] text-blue-600 hover:underline flex items-center gap-0.5 pt-3 print:hidden font-semibold"
             >
-              <Plus className="w-2.5 h-2.5" /> Agregar campo
+              <Plus className="w-3 h-3" /> Agregar campo a la cédula
             </button>
           )}
         </div>
@@ -981,6 +1078,18 @@ export default function DocumentoReglamentoApp({
             <Printer className="w-3.5 h-3.5 mr-1.5" /> Imprimir / PDF
           </Button>
 
+          {/* Acceso directo al Checador de Salidas de 10 min */}
+          <Link href="/checador">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 font-semibold"
+              title="Abrir el Checador de Salidas de 10 min (Reglamento Art. IV)"
+            >
+              <Timer className="w-3.5 h-3.5 mr-1.5 text-amber-600 dark:text-amber-400" /> Checador (10 min)
+            </Button>
+          </Link>
+
           {/* Guardar cambios (si es editor/admin) */}
           {canEdit && (
             <Button
@@ -1003,6 +1112,35 @@ export default function DocumentoReglamentoApp({
             </Button>
           )}
         </div>
+      </div>
+
+      {/* Barra de Formato de Texto Enriquecido (cuando se está editando) */}
+      {editable && (
+        <div className="sticky top-20 z-25 print:hidden animate-in slide-in-from-top-2 duration-200">
+          <BarraFormatoFlotante visible={editable} />
+        </div>
+      )}
+
+      {/* Banner informativo de política de salidas de 10 minutos */}
+      <div className="bg-gradient-to-r from-blue-50 via-slate-50 to-amber-50 dark:from-slate-900 dark:to-slate-800 border border-blue-200/80 dark:border-slate-700 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs print:hidden shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-lg">
+            <Timer className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="font-bold text-slate-900 dark:text-slate-100">
+              Control de Salidas Intermedias (Capítulo IV del Reglamento):
+            </span>{' '}
+            <span className="text-slate-600 dark:text-slate-300">
+              El personal cuenta con 1 salida de hasta 10 min y 2 salidas de 5 min al día.
+            </span>
+          </div>
+        </div>
+        <Link href="/checador">
+          <Button size="sm" variant="outline" className="h-7 text-xs bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 border-blue-300 hover:bg-blue-50 dark:hover:bg-slate-700 shrink-0 font-medium">
+            <Timer className="w-3 h-3 mr-1 text-amber-500" /> Abrir Checador en Vivo
+          </Button>
+        </Link>
       </div>
 
       {editable && searchTerm.trim() && (

@@ -142,7 +142,8 @@ const CHARS_POR_LINEA = Math.round(ANCHO_COLUMNA / 6); // ~6px por carácter a 1
 export const ALTO_UTIL_HOJA = 800;
 
 function lineas(texto: string, charsPorLinea = CHARS_POR_LINEA): number {
-  return Math.max(1, Math.ceil(texto.length / charsPorLinea));
+  const sinHtml = (texto || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+  return Math.max(1, Math.ceil((sinHtml.length || 1) / charsPorLinea));
 }
 
 function altoBloque(bloque: Bloque): number {
@@ -153,11 +154,11 @@ function altoBloque(bloque: Bloque): number {
       // Recuadro con borde y padding propio, sobre una columna más angosta.
       return lineas(bloque.texto, CHARS_POR_LINEA - 12) * ALTO_LINEA + 28;
     case 'firma':
-      return lineas(bloque.texto) * ALTO_LINEA + 60;
+      return lineas(bloque.texto) * ALTO_LINEA + 120;
     case 'lista':
       return bloque.items.reduce((alto, item) => alto + lineas(item, CHARS_POR_LINEA - 10) * ALTO_LINEA + 6, 8);
     case 'campos':
-      return bloque.items.length * 28 + 8;
+      return bloque.items.length * 52 + 50;
     case 'tabla': {
       const columnas = Math.max(1, bloque.encabezados.length);
       const charsCelda = Math.max(10, Math.round(CHARS_POR_LINEA / columnas));

@@ -30,7 +30,7 @@ export default function VentasApp() {
   const [form, setForm] = useState(FORM_INICIAL);
 
   const { data: ventas = [], isLoading } = useQuery({ queryKey: ['ventas'], queryFn: () => apiFetch<Venta[]>('/api/ventas') });
-  const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => apiFetch<Cliente[]>('/api/clientes') });
+  const { data: clientes = [] } = useQuery({ queryKey: ['clientes-lista'], queryFn: () => apiFetch<Cliente[]>('/api/clientes/lista') });
   const clienteById = useMemo(() => Object.fromEntries(clientes.map((c) => [c.id, c])), [clientes]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['ventas'] });

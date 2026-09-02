@@ -169,8 +169,61 @@ export const clientes = sqliteTable('clientes', {
   telefono: text('telefono'),
   direccion: text('direccion'),
   notas: text('notas'),
+  // --- Embudo de ventas: quién lo trabaja y en qué punto va ---
+  etapa: text('etapa').notNull().default('Nuevo'),
+  asignado_a: integer('asignado_a').references(() => users.id),
+  ultimo_contacto: text('ultimo_contacto'),
+  proximo_seguimiento: text('proximo_seguimiento'),
+  motivo_perdida: text('motivo_perdida'),
+  // --- Procedencia del registro; 'DENUE' viene del directorio del INEGI ---
+  origen: text('origen').default('Manual'),
+  id_denue: text('id_denue'),
+  giro: text('giro'),
+  codigo_scian: text('codigo_scian'),
+  tamano: text('tamano'),
+  prioridad: text('prioridad'),
+  puntaje: integer('puntaje'),
+  sitio_web: text('sitio_web'),
+  colonia: text('colonia'),
+  cp: text('cp'),
+  alcaldia: text('alcaldia'),
+  latitud: text('latitud'),
+  longitud: text('longitud'),
+  /** Lote de prospección del que entró, p. ej. 'lote-01'. Mide la cobertura. */
+  lote: text('lote'),
   creado_por: integer('creado_por').references(() => users.id),
   created_at: text('created_at').default(sql`(datetime('now'))`),
+});
+
+// Bitácora del prospecto: cada correo, WhatsApp, llamada, nota y cambio de etapa.
+// Es el historial que el asesor consulta antes de volver a marcar.
+export const prospecto_actividades = sqliteTable('prospecto_actividades', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  cliente_id: integer('cliente_id').notNull().references(() => clientes.id),
+  usuario_id: integer('usuario_id').references(() => users.id),
+  tipo: text('tipo').notNull(), // 'correo' | 'whatsapp' | 'llamada' | 'nota' | 'etapa' | 'asignacion'
+  asunto: text('asunto'),
+  mensaje: text('mensaje'),
+  estado: text('estado').notNull().default('ok'), // 'ok' | 'error'
+  detalle_error: text('detalle_error'),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+});
+
+// Un barrido es un envío masivo de primer contacto (100 negocios de un jalón).
+// Corre en segundo plano y esta fila es lo que alimenta la barra de progreso.
+export const barridos = sqliteTable('barridos', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  usuario_id: integer('usuario_id').references(() => users.id),
+  canal: text('canal').notNull(),                       // 'correo' | 'whatsapp'
+  plantilla: text('plantilla').notNull(),
+  lote: text('lote'),
+  objetivo: integer('objetivo').notNull(),
+  enviados: integer('enviados').notNull().default(0),
+  fallidos: integer('fallidos').notNull().default(0),
+  estado: text('estado').notNull().default('en_proceso'), // 'en_proceso' | 'terminado' | 'error'
+  detalle: text('detalle'),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+  terminado_at: text('terminado_at'),
 });
 
 export const cotizaciones = sqliteTable('cotizaciones', {
@@ -355,3 +408,21 @@ export const movimiento_evidencias = sqliteTable('movimiento_evidencias', {
   subido_por: integer('subido_por').references(() => users.id),
   fecha_subida: text('fecha_subida').default(sql`(datetime('now'))`),
 });
+
+export const checador_salidas = sqliteTable('checador_salidas', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  usuario_id: integer('usuario_id').references(() => users.id),
+  nombre_empleado: text('nombre_empleado').notNull(),
+  departamento: text('departamento').default('Oficinas'),
+  tipo_salida: text('tipo_salida').notNull().default('10_min'), // '10_min' | '5_min' | 'comida' | 'comision' | 'otro'
+  limite_minutos: integer('limite_minutos').notNull().default(10),
+  hora_salida: text('hora_salida').notNull(),
+  hora_entrada: text('hora_entrada'),
+  duracion_segundos: integer('duracion_segundos'),
+  estado: text('estado').notNull().default('en_curso'), // 'en_curso' | 'a_tiempo' | 'excedido'
+  motivo: text('motivo'),
+  justificacion: text('justificacion'),
+  registrado_por: text('registrado_por'),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+});
+

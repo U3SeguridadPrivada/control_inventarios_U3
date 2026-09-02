@@ -63,7 +63,7 @@ export default function CotizacionesApp() {
   };
 
   const { data: cotizaciones = [], isLoading } = useQuery({ queryKey: ['cotizaciones'], queryFn: () => apiFetch<Cotizacion[]>('/api/cotizaciones') });
-  const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => apiFetch<Cliente[]>('/api/clientes') });
+  const { data: clientes = [] } = useQuery({ queryKey: ['clientes-lista'], queryFn: () => apiFetch<Cliente[]>('/api/clientes/lista') });
   const clienteById = useMemo(() => Object.fromEntries(clientes.map((c) => [c.id, c])), [clientes]);
 
   const openCreate = () => {

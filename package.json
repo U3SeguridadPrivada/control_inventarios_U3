@@ -8,7 +8,10 @@
     "build:local": "cross-env NODE_OPTIONS=\"--require ./exfat-patch.cjs\" next build --turbopack",
     "start": "next start",
     "create-admin": "node scripts/create-admin.mjs",
-    "pwa-icons": "node scripts/generate-pwa-icons.mjs"
+    "pwa-icons": "node scripts/generate-pwa-icons.mjs",
+    "prospectar": "node scripts/prospectar-denue.mjs",
+    "importar-prospectos": "node scripts/importar-prospectos.mjs",
+    "exportar-prospectos": "node scripts/exportar-prospectos-excel.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

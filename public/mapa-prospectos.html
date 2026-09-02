@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mapa de Prospectos CDMX — U3 Seguridad Privada</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet & MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <style>
+    :root {
+      --bg: #090d16;
+      --card: rgba(15, 23, 42, 0.88);
+      --border: rgba(255, 255, 255, 0.1);
+      --primary: #38bdf8;
+      --primary-hover: #0ea5e9;
+      --accent-green: #10b981;
+      --accent-purple: #a855f7;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      background: #0f172a;
+    }
+
+    /* Top Overlay Navigation Header */
+    .top-bar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .brand-pill {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      padding: 10px 18px;
+      border-radius: 9999px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+
+    .brand-pill .logo-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 12px #10b981;
+    }
+
+    .brand-pill h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #fff;
+    }
+
+    .brand-pill span {
+      font-size: 12px;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    .btn-regresar {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      color: #e2e8f0;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 18px;
+      border-radius: 9999px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      transition: all 0.2s ease;
+    }
+
+    .btn-regresar:hover {
+      background: rgba(30, 41, 59, 0.95);
+      border-color: rgba(255,255,255,0.25);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    /* Floating Side Panel */
+    .control-panel {
+      position: absolute;
+      top: 80px;
+      left: 16px;
+      width: 360px;
+      max-height: calc(100vh - 100px);
+      z-index: 1000;
+      background: var(--card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.45);
+      overflow-y: auto;
+    }
+
+    .control-panel::-webkit-scrollbar {
+      width: 5px;
+    }
+    .control-panel::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.15);
+      border-radius: 4px;
+    }
+
+    /* Stat Badges Grid */
+    .stats-grid {
+      display: grid;
+      grid-cols: 2;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .stat-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .stat-card .val {
+      font-family: 'Outfit', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .stat-card .lbl {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .stat-card.prio-a .val { color: var(--accent-green); }
+    .stat-card.wa .val { color: #38bdf8; }
+
+    /* Filters section */
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .filter-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 9px 12px;
+      color: #fff;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary);
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    }
+
+    .select-input {
+      width: 100%;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 9px 12px;
+      color: #fff;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .select-input:focus {
+      border-color: var(--primary);
+    }
+
+    /* Quick Filter Chips */
+    .chips-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #cbd5e1;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chip:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+
+    .chip.active {
+      background: var(--primary);
+      color: #0f172a;
+      font-weight: 700;
+      border-color: var(--primary);
+    }
+
+    /* Legend */
+    .legend-box {
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .legend-dot.a { background: #10b981; box-shadow: 0 0 6px #10b981; }
+    .legend-dot.b { background: #38bdf8; box-shadow: 0 0 6px #38bdf8; }
+    .legend-dot.c { background: #94a3b8; }
+
+    /* Popups custom styling */
+    .leaflet-popup-content-wrapper {
+      background: #0f172a !important;
+      color: #f8fafc !important;
+      border: 1px solid rgba(255,255,255,0.15) !important;
+      border-radius: 16px !important;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6) !important;
+      padding: 4px !important;
+    }
+    .leaflet-popup-tip {
+      background: #0f172a !important;
+      border: 1px solid rgba(255,255,255,0.15) !important;
+    }
+
+    .popup-card {
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 260px;
+      max-width: 320px;
+    }
+
+    .popup-badge {
+      align-self: flex-start;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 5px;
+      text-transform: uppercase;
+    }
+    .popup-badge.prio-A { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .popup-badge.prio-B { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+    .popup-badge.prio-C { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+
+    .popup-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.3;
+    }
+
+    .popup-giro {
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.25;
+    }
+
+    .popup-loc {
+      font-size: 11px;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .popup-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .btn-wa {
+      background: #10b981;
+      color: #fff;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      padding: 7px 10px;
+      border-radius: 8px;
+      transition: background 0.15s;
+      display: inline-block;
+    }
+    .btn-wa:hover { background: #059669; }
+
+    .btn-mail {
+      background: #0284c7;
+      color: #fff;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      padding: 7px 10px;
+      border-radius: 8px;
+      transition: background 0.15s;
+      display: inline-block;
+    }
+    .btn-mail:hover { background: #0369a1; }
+
+    /* Custom Leaflet Cluster styling */
+    .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large {
+      background-color: rgba(16, 185, 129, 0.35) !important;
+      border: 2px solid rgba(16, 185, 129, 0.8) !important;
+    }
+    .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
+      background-color: #064e3b !important;
+      color: #34d399 !important;
+      font-family: 'Outfit', sans-serif !important;
+      font-weight: 700 !important;
+    }
+
+    /* Loader */
+    #loader {
+      position: absolute;
+      inset: 0;
+      background: rgba(9, 13, 22, 0.95);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      transition: opacity 0.4s ease;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(56, 189, 248, 0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loader">
+    <div class="spinner"></div>
+    <div style="font-family:'Outfit',sans-serif; font-weight: 700; font-size: 18px; color: #fff;">
+      Cargando Mapa de Prospectos CDMX...
+    </div>
+    <div style="font-size: 12px; color: #94a3b8;">
+      42,435 empresas geolocalizadas con permiso SSC CDMX
+    </div>
+  </div>
+
+  <div class="top-bar">
+    <div class="brand-pill">
+      <div class="logo-dot"></div>
+      <h1>U3 SEGURIDAD PRIVADA</h1>
+      <span>CDMX 100%</span>
+    </div>
+
+    <a href="/clientes" class="btn-regresar">
+      ← Volver al Sistema de Ventas
+    </a>
+  </div>
+
+  <div class="control-panel">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="val" id="stat-total">42,435</div>
+        <div class="lbl">En Mapa (CDMX)</div>
+      </div>
+      <div class="stat-card prio-a">
+        <div class="val" id="stat-a">19,328</div>
+        <div class="lbl">Prioridad A (Top)</div>
+      </div>
+      <div class="stat-card wa">
+        <div class="val" id="stat-wa">24,846</div>
+        <div class="lbl">Con WhatsApp</div>
+      </div>
+      <div class="stat-card">
+        <div class="val" id="stat-mail">26,455</div>
+        <div class="lbl">Con Correo</div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label">Buscar Negocio o Giro</label>
+      <input type="text" id="input-busqueda" class="search-input" placeholder="Ej: Banco, Hospital, Joyería, Polanco..." />
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label">Alcaldía de CDMX</label>
+      <select id="select-alcaldia" class="select-input">
+        <option value="Todas">Todas las 16 Alcaldías</option>
+        <option value="Cuauhtémoc">Cuauhtémoc (Reforma, Roma, Juárez)</option>
+        <option value="Miguel Hidalgo">Miguel Hidalgo (Polanco, Lomas)</option>
+        <option value="Benito Juárez">Benito Juárez (Del Valle, Nápoles)</option>
+        <option value="Álvaro Obregón">Álvaro Obregón (Santa Fe, San Ángel)</option>
+        <option value="Iztapalapa">Iztapalapa (Zonas industriales)</option>
+        <option value="Gustavo A. Madero">Gustavo A. Madero</option>
+        <option value="Coyoacán">Coyoacán</option>
+        <option value="Tlalpan">Tlalpan (Hospitales y colegios)</option>
+        <option value="Azcapotzalco">Azcapotzalco (Vallejo e industrias)</option>
+        <option value="Cuajimalpa de Morelos">Cuajimalpa (Santa Fe / Bosques)</option>
+        <option value="Venustiano Carranza">Venustiano Carranza</option>
+        <option value="Iztacalco">Iztacalco</option>
+        <option value="Xochimilco">Xochimilco</option>
+        <option value="Tláhuac">Tláhuac</option>
+        <option value="La Magdalena Contreras">La Magdalena Contreras</option>
+        <option value="Milpa Alta">Milpa Alta</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label">Filtrar por Prioridad</label>
+      <div class="chips-row">
+        <div class="chip active" data-prio="Todas">Todas</div>
+        <div class="chip" data-prio="A">Solo A (Alta)</div>
+        <div class="chip" data-prio="B">Solo B (Media)</div>
+        <div class="chip" data-prio="C">Solo C</div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label">Filtrar por Contacto</label>
+      <div class="chips-row">
+        <div class="chip active" data-canal="Todos">Todos</div>
+        <div class="chip" data-canal="wa">Con WhatsApp</div>
+        <div class="chip" data-canal="mail">Con Correo</div>
+      </div>
+    </div>
+
+    <div class="legend-box">
+      <div class="legend-item"><div class="legend-dot a"></div> <strong>Prioridad A:</strong> Corporativos, bancos, hospitales, joyerías, colegios</div>
+      <div class="legend-item"><div class="legend-dot b"></div> <strong>Prioridad B:</strong> Restaurantes, despachos, inmobiliarias, comercios</div>
+      <div class="legend-item"><div class="legend-dot c"></div> <strong>Prioridad C:</strong> Otros establecimientos</div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Leaflet & MarkerCluster JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <script>
+    // Centro geográfico de la Ciudad de México
+    const CDMX_COORDS = [19.3898, -99.1415];
+    const ALCALDIAS_CENTROS = {
+      'Cuauhtémoc': [19.4326, -99.1532],
+      'Miguel Hidalgo': [19.4344, -99.2018],
+      'Benito Juárez': [19.3789, -99.1623],
+      'Álvaro Obregón': [19.3592, -99.2144],
+      'Iztapalapa': [19.3553, -99.0917],
+      'Gustavo A. Madero': [19.4822, -99.1121],
+      'Coyoacán': [19.3498, -99.1617],
+      'Tlalpan': [19.2899, -99.1678],
+      'Azcapotzalco': [19.4852, -99.1843],
+      'Cuajimalpa de Morelos': [19.3601, -99.2941],
+      'Venustiano Carranza': [19.4297, -99.1098],
+      'Iztacalco': [19.3953, -99.0975],
+      'Xochimilco': [19.2604, -99.1037],
+      'Tláhuac': [19.2869, -99.0041],
+      'La Magdalena Contreras': [19.3031, -99.2394],
+      'Milpa Alta': [19.1917, -99.0239]
+    };
+
+    // Inicializar mapa
+    const map = L.map('map', {
+      center: CDMX_COORDS,
+      zoom: 11,
+      minZoom: 10,
+      maxZoom: 18,
+      zoomControl: false
+    });
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // Tiles oscuros / elegantes de CartoDB
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap &copy; CARTO &copy; U3 Seguridad Privada',
+      maxZoom: 19
+    }).addTo(map);
+
+    let clusterGroup = L.markerClusterGroup({
+      chunkedLoading: true,
+      maxClusterRadius: 50,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true
+    });
+    map.addLayer(clusterGroup);
+
+    let prospectosGlobal = [];
+    let filtroPrio = 'Todas';
+    let filtroCanal = 'Todos';
+    let filtroAlcaldia = 'Todas';
+    let filtroBusqueda = '';
+
+    // Iconos personalizados por prioridad
+    function crearIcono(prio) {
+      const color = prio === 'A' ? '#10b981' : prio === 'B' ? '#38bdf8' : '#94a3b8';
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 32" width="24" height="32">
+          <path fill="${color}" stroke="#ffffff" stroke-width="1.5" d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20s12-11 12-20c0-6.627-5.373-12-12-12zm0 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/>
+        </svg>`;
+      return L.divIcon({
+        className: 'custom-pin',
+        html: svg,
+        iconSize: [24, 32],
+        iconAnchor: [12, 32],
+        popupAnchor: [0, -32]
+      });
+    }
+
+    const iconoA = crearIcono('A');
+    const iconoB = crearIcono('B');
+    const iconoC = crearIcono('C');
+
+    // Cargar datos
+    fetch('/data/prospectos-cdmx.json')
+      .then(r => r.json())
+      .then(data => {
+        prospectosGlobal = data;
+        document.getElementById('loader').style.opacity = '0';
+        setTimeout(() => document.getElementById('loader').style.display = 'none', 400);
+        aplicarFiltros();
+      })
+      .catch(err => {
+        console.error('Error cargando prospectos:', err);
+        document.getElementById('loader').innerHTML = '<div style="color:#ef4444; font-weight:700;">Error cargando datos.</div>';
+      });
+
+    function aplicarFiltros() {
+      clusterGroup.clearLayers();
+
+      const q = filtroBusqueda.trim().toLowerCase();
+      let visibles = 0;
+      let countA = 0;
+      let countWa = 0;
+      let countMail = 0;
+
+      const markers = [];
+
+      for (let i = 0; i < prospectosGlobal.length; i++) {
+        const [id, nombre, giro, alc, col, lat, lng, tel, mail, prio] = prospectosGlobal[i];
+
+        if (!lat || !lng) continue;
+        if (filtroPrio !== 'Todas' && prio !== filtroPrio) continue;
+        if (filtroAlcaldia !== 'Todas' && alc !== filtroAlcaldia) continue;
+        if (filtroCanal === 'wa' && !tel) continue;
+        if (filtroCanal === 'mail' && !mail) continue;
+
+        if (q) {
+          const haystack = (nombre + ' ' + giro + ' ' + (alc||'') + ' ' + (col||'')).toLowerCase();
+          if (!haystack.includes(q)) continue;
+        }
+
+        visibles++;
+        if (prio === 'A') countA++;
+        if (tel) countWa++;
+        if (mail) countMail++;
+
+        // Crear popup interactivo
+        const cleanTel = tel.replace(/\\D/g, '');
+        const waLink = cleanTel ? `https://wa.me/52${cleanTel.slice(-10)}?text=${encodeURIComponent('Buen día, le contacto de U3 Seguridad Privada (Permiso SSC CDMX) para presentarle nuestra propuesta de vigilancia intramuros...')}` : null;
+        const mailLink = mail ? `mailto:${mail}?subject=${encodeURIComponent('Servicio de Seguridad Privada — U3 Seguridad Privada (Permiso SSC CDMX)')}` : null;
+
+        const popupHtml = `
+          <div class="popup-card">
+            <span class="popup-badge prio-${prio}">Prioridad ${prio}</span>
+            <div class="popup-title">${nombre || 'Empresa'}</div>
+            <div class="popup-giro">${giro || 'Giro comercial'}</div>
+            <div class="popup-loc">📍 ${col ? col + ', ' : ''}${alc || 'Ciudad de México'}</div>
+            <div class="popup-actions">
+              ${waLink ? `<a href="${waLink}" target="_blank" class="btn-wa">💬 WhatsApp</a>` : ''}
+              ${mailLink ? `<a href="${mailLink}" class="btn-mail">✉️ Correo</a>` : ''}
+            </div>
+          </div>
+        `;
+
+        const icon = prio === 'A' ? iconoA : prio === 'B' ? iconoB : iconoC;
+        const marker = L.marker([lat, lng], { icon }).bindPopup(popupHtml);
+        markers.push(marker);
+      }
+
+      clusterGroup.addLayers(markers);
+
+      // Actualizar contadores
+      document.getElementById('stat-total').textContent = visibles.toLocaleString('es-MX');
+      document.getElementById('stat-a').textContent = countA.toLocaleString('es-MX');
+      document.getElementById('stat-wa').textContent = countWa.toLocaleString('es-MX');
+      document.getElementById('stat-mail').textContent = countMail.toLocaleString('es-MX');
+    }
+
+    // Eventos de interacción
+    document.getElementById('input-busqueda').addEventListener('input', (e) => {
+      filtroBusqueda = e.target.value;
+      aplicarFiltros();
+    });
+
+    document.getElementById('select-alcaldia').addEventListener('change', (e) => {
+      filtroAlcaldia = e.target.value;
+      aplicarFiltros();
+      if (ALCALDIAS_CENTROS[filtroAlcaldia]) {
+        map.flyTo(ALCALDIAS_CENTROS[filtroAlcaldia], 13, { duration: 1.2 });
+      } else {
+        map.flyTo(CDMX_COORDS, 11, { duration: 1.2 });
+      }
+    });
+
+    // Chips de Prioridad
+    document.querySelectorAll('[data-prio]').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('[data-prio]').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        filtroPrio = el.getAttribute('data-prio');
+        aplicarFiltros();
+      });
+    });
+
+    // Chips de Canal
+    document.querySelectorAll('[data-canal]').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('[data-canal]').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        filtroCanal = el.getAttribute('data-canal');
+        aplicarFiltros();
+      });
+    });
+  </script>
+</body>
+</html>
