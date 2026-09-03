@@ -1114,13 +1114,6 @@ export default function DocumentoReglamentoApp({
         </div>
       </div>
 
-      {/* Barra de Formato Flotante Adherente (permanece visible al editar sin tapar la pantalla) */}
-      {editable && (
-        <div className="sticky top-2 z-30 print:hidden animate-in slide-in-from-top-1 duration-150">
-          <BarraFormatoFlotante visible={editable} />
-        </div>
-      )}
-
       {/* Banner informativo de política de salidas de 10 minutos */}
       <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs print:hidden shadow-xs">
         <div className="flex items-center gap-2.5">
@@ -1151,8 +1144,8 @@ export default function DocumentoReglamentoApp({
 
       {/* Contenedor con Navegación Lateral (Índice) y Hojas de Papel */}
       <div className="flex flex-col xl:flex-row items-start gap-6">
-        {/* Índice lateral interactivo */}
-        <aside className="w-full xl:w-72 bg-card border border-border rounded-xl p-4 shadow-sm xl:sticky xl:top-20 max-h-[85vh] overflow-y-auto no-scrollbar print:hidden">
+        {/* Índice lateral interactivo (nunca tapado por la barra de formato) */}
+        <aside className="w-full xl:w-72 bg-card border border-border rounded-xl p-4 shadow-sm xl:sticky xl:top-2 max-h-[92vh] overflow-y-auto no-scrollbar print:hidden">
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <ListOrdered className="w-4 h-4 text-primary" /> Índice del Reglamento
@@ -1178,12 +1171,12 @@ export default function DocumentoReglamentoApp({
                   <div className="font-semibold text-foreground group-hover:text-primary leading-tight">
                     {sec.numero ? `${sec.numero}: ` : ''}{sec.titulo}
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">
-                    {sec.bloques.length} {sec.bloques.length === 1 ? 'bloque' : 'bloques'}
+                  <div className="text-[10.5px] text-muted-foreground">
+                    {sec.bloques.length} bloque{sec.bloques.length === 1 ? '' : 's'}
                   </div>
                 </a>
                 {editable && (
-                  <div className="flex flex-col opacity-0 group-hover/idx:opacity-100 transition-opacity">
+                  <div className="hidden group-hover/idx:flex items-center gap-0.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => moverSeccion(sec.id, -1)}
@@ -1211,6 +1204,13 @@ export default function DocumentoReglamentoApp({
 
         {/* Visor de Páginas Tamaño Carta */}
         <main className="flex-1 w-full flex flex-col items-center overflow-x-auto pb-12">
+          {/* Barra de Formato Flotante Adherente sobre las hojas del documento (NUNCA tapa el índice lateral) */}
+          {editable && (
+            <div className="sticky top-2 z-20 mb-4 print:hidden animate-in slide-in-from-top-1 duration-150 w-full max-w-[816px]">
+              <BarraFormatoFlotante visible={editable} />
+            </div>
+          )}
+
           <div
             id="documento-print"
             onFocusCapture={marcarFoco}
