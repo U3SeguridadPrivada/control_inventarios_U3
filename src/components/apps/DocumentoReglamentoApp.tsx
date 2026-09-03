@@ -855,6 +855,17 @@ export default function DocumentoReglamentoApp({
   }, [layout, escribiendo]);
   const hojas = escribiendo ? layoutCongeladoRef.current : layout;
 
+  // Portada e Índice oficial del documento
+  const SECCIONES_POR_INDICE = 16;
+  const indicePartido = secciones.length > SECCIONES_POR_INDICE;
+  const hojasPreliminares = indicePartido ? 3 : 2; // Portada + 1 o 2 hojas de índice
+  const totalHojas = hojasPreliminares + hojas.length;
+  const fechaEmision = new Date(registro?.actualizado_en ?? Date.now()).toLocaleDateString('es-MX', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
   const marcarFoco = () => {
     if (finEscrituraRef.current) clearTimeout(finEscrituraRef.current);
     finEscrituraRef.current = null;
@@ -1217,112 +1228,291 @@ export default function DocumentoReglamentoApp({
               className="hoja-carta-canvas hoja-zoom transition-transform duration-150 origin-top flex flex-col items-center space-y-8 print:space-y-0"
               style={{ transform: `scale(${zoom})` }}
             >
-            {hojas.map((hojaSecciones, hojaIdx) => (
+              {/* HOJA 1: PORTADA EJECUTIVA MODERNA FORMAL */}
               <div
-                key={hojaIdx}
-                className={cn(
-                  'hoja-carta w-[816px] min-h-[1056px] bg-white text-slate-900 shadow-xl rounded-sm p-12 sm:p-14 relative flex flex-col justify-between border border-slate-200'
-                )}
-                style={{
-                  fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-                }}
+                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-12 sm:p-16 flex flex-col justify-between shadow-xl"
+                style={{ width: '816px', minHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
               >
-                {/* Membrete Oficial Superior */}
-                <header className="border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between">
+                {/* Header Superior Corporativo */}
+                <div className="bg-[#0f172a] text-white -mx-12 -mt-12 sm:-mx-16 sm:-mt-16 px-8 py-5 flex items-center justify-between mb-8">
                   <div className="flex items-center gap-3">
-                    <img
-                      src={COMPANY.logoPublicPath || '/logo_b.png'}
-                      alt={COMPANY.razonSocial}
-                      className="w-12 h-12 object-contain"
-                    />
+                    <img src={COMPANY.logoPublicPath || '/logo_b.png'} alt="U3" className="w-10 h-10 object-contain bg-white p-1 rounded" />
                     <div>
-                      <div className="text-[13px] font-extrabold tracking-wider text-[#0f172a] uppercase">
-                        {COMPANY.razonSocial}
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-medium tracking-tight">
-                        Seguridad Patrimonial · Custodia · Control Operativo
-                      </div>
+                      <p className="text-[12px] font-extrabold uppercase tracking-widest">{COMPANY.razonSocial}</p>
+                      <p className="text-[9.5px] text-slate-300 uppercase tracking-wider font-semibold">
+                        {ambito === 'oficinas' ? 'Dirección General · Corporativo Insurgentes' : 'Dirección de Operaciones · Seguridad en Servicio'}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-[10.5px] font-bold text-blue-900 uppercase tracking-wider">
-                      Reglamento Normativo · {ambitoMeta.etiqueta}
-                    </div>
-                    <div className="text-[9.5px] text-slate-500 font-mono">
-                      CÓDIGO: {ambitoMeta.codigo}
-                    </div>
-                  </div>
-                </header>
-
-                {/* Contenido de la hoja */}
-                <div className="flex-1 space-y-6">
-                  {hojaIdx === 0 && (
-                    <div className="text-center pb-4 mb-4 border-b border-slate-200">
-                      <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight uppercase">
-                        {registro.titulo}
-                      </h2>
-                      <div className="text-[11.5px] text-slate-600 font-medium mt-1 max-w-xl mx-auto italic">
-                        <EditableText
-                          value={contenidoLocal?.subtitulo ?? registro.descripcion ?? ''}
-                          onChange={(subtitulo) => mutarContenido((c) => ({ ...c, subtitulo }))}
-                          readOnly={!editable}
-                          placeholder="Subtítulo o alcance del reglamento"
-                          className="text-center"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {hojaSecciones.map((frag) => {
-                    const seccion = secciones.find((s) => s.id === frag.seccionId);
-                    if (!seccion) return null;
-                    const idxSeccion = secciones.findIndex((s) => s.id === frag.seccionId);
-                    // Al congelar el reparto mientras se escribe, el último
-                    // fragmento se estira hasta el final para que un bloque
-                    // recién insertado se vea de inmediato.
-                    const hasta = frag.ultimo ? seccion.bloques.length : Math.min(frag.hasta, seccion.bloques.length);
-                    return (
-                      <SeccionVistaEditable
-                        key={`${frag.seccionId}-${frag.desde}`}
-                        seccion={seccion}
-                        desde={Math.min(frag.desde, seccion.bloques.length)}
-                        hasta={hasta}
-                        continuacion={frag.continuacion}
-                        ultimo={frag.ultimo}
-                        primeraSeccion={idxSeccion === 0}
-                        ultimaSeccion={idxSeccion === secciones.length - 1}
-                        onActualizar={(fn) => actualizarSeccion(seccion.id, fn)}
-                        onEliminar={() => eliminarSeccion(seccion.id)}
-                        onMoverSeccion={(delta) => moverSeccion(seccion.id, delta)}
-                        readOnly={!editable}
-                      />
-                    );
-                  })}
-
-                  {editable && hojaIdx === hojas.length - 1 && (
-                    <div className="pt-4 print:hidden">
-                      <button
-                        type="button"
-                        onClick={handleAgregarCapitulo}
-                        className="w-full flex items-center justify-center gap-1.5 py-2 rounded border border-dashed border-slate-300 text-[11px] font-semibold text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Agregar capítulo al final del reglamento
-                      </button>
-                    </div>
-                  )}
+                  <span className="bg-blue-600 text-white font-mono text-[9.5px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-xs">
+                    {ambitoMeta.codigo}
+                  </span>
                 </div>
 
-                {/* Pie de Página Oficial con Foliado */}
-                <footer className="border-t border-slate-200 pt-3 mt-8 flex items-start justify-between gap-6 text-[9.5px] text-slate-500 font-sans">
-                  <div className="leading-snug min-w-0 flex-1">
-                    <span>{COMPANY.razonSocial} · Documento de Control y Régimen Interno</span>
+                {/* Cuerpo Principal de Portada */}
+                <div className="my-auto py-6 space-y-8">
+                  <div className="space-y-4 max-w-xl">
+                    <div className="border-l-4 border-[#1e3a8a] pl-4 py-1">
+                      <span className="text-[11px] font-extrabold uppercase tracking-widest text-blue-800 font-mono">DOCUMENTO RECTOR OFICIAL</span>
+                      <h1 className="text-2xl sm:text-3xl font-extrabold uppercase leading-tight text-[#0f172a] tracking-tight mt-1">
+                        {registro.titulo}
+                      </h1>
+                    </div>
+
+                    <div className="text-[13px] text-slate-600 leading-relaxed font-medium pl-4">
+                      <EditableText
+                        value={contenidoLocal?.subtitulo ?? registro.descripcion ?? ''}
+                        onChange={(subtitulo) => mutarContenido((c) => ({ ...c, subtitulo }))}
+                        readOnly={!editable}
+                        placeholder="Escribe el subtítulo o alcance del reglamento..."
+                      />
+                    </div>
                   </div>
-                  <div className="font-mono whitespace-nowrap shrink-0">
-                    Página {hojaIdx + 1} de {hojas.length}
+
+                  {/* Ficha Técnica Corporativa Estructurada */}
+                  <div className="max-w-lg border border-slate-200 bg-slate-50 p-5 rounded-none font-sans space-y-3">
+                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 border-b border-slate-200 pb-1.5">
+                      Control Documental Institucional
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 text-[11px]">
+                      <div>
+                        <span className="text-slate-500 text-[10px] uppercase font-bold block">Ámbito de Aplicación</span>
+                        <span className="font-bold text-[#0f172a]">{ambito === 'oficinas' ? 'Personal Administrativo y Directivo' : 'Personal Operativo y Guardias'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-[10px] uppercase font-bold block">Versión Oficial</span>
+                        <span className="font-mono font-bold text-[#0f172a]">{contenidoLocal?.version ?? 'V1.0-2026'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-[10px] uppercase font-bold block">Fecha de Emisión</span>
+                        <span className="font-bold text-slate-800">{fechaEmision}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-[10px] uppercase font-bold block">Clasificación</span>
+                        <span className="font-bold text-slate-800 text-[10.5px] uppercase">Reglamento Laboral Interno</span>
+                      </div>
+                    </div>
                   </div>
-                </footer>
+                </div>
+
+                {/* Pie de Portada */}
+                <div className="border-t-2 border-[#0f172a] pt-3 flex items-start justify-between gap-6 text-[10px] text-slate-600 font-sans">
+                  <span className="font-bold leading-snug min-w-0 flex-1">{COMPANY.razonSocial} · {COMPANY.domicilio}</span>
+                  <span className="font-mono font-bold whitespace-nowrap shrink-0">Hoja 1 de {totalHojas}</span>
+                </div>
               </div>
-            ))}
+
+              {/* HOJA 2: ÍNDICE GENERAL (PARTE I) */}
+              <div
+                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-10 sm:p-14 flex flex-col justify-between shadow-xl"
+                style={{ width: '816px', minHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+              >
+                <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase">
+                  <span className="font-extrabold text-[#0f172a]">{COMPANY.razonSocial}</span>
+                  <span className="font-semibold">Índice General{indicePartido ? ' · Parte I' : ''}</span>
+                </div>
+
+                <div className="my-auto py-2 space-y-3 font-sans">
+                  <div className="border-b border-slate-200 pb-2">
+                    <h2 className="text-lg font-extrabold uppercase tracking-tight text-[#0f172a]">Índice de Contenido{indicePartido ? ' (1 / 2)' : ''}</h2>
+                    <p className="text-[11px] text-slate-500">Capítulos, políticas y anexos del reglamento oficial</p>
+                  </div>
+
+                  <div className="space-y-1 text-[11.5px] leading-relaxed">
+                    {secciones.slice(0, SECCIONES_POR_INDICE).map((sec) => {
+                      const idxEnHojas = hojas.findIndex((h) => h.some((x) => x.seccionId === sec.id));
+                      const pageNum = hojasPreliminares + 1 + (idxEnHojas >= 0 ? idxEnHojas : 0);
+                      const isCapitulo = (sec.numero ?? '').toLowerCase().startsWith('capítulo') || sec.tipo === 'capitulo';
+                      return (
+                        <a
+                          key={sec.id}
+                          href={`#${sec.id}`}
+                          className={cn(
+                            'py-1.5 border-b border-slate-100 flex items-baseline justify-between hover:bg-slate-50 transition-colors',
+                            isCapitulo ? 'font-extrabold text-[#0f172a] pt-3.5 text-[12px] uppercase' : 'text-slate-700 pl-4 font-medium'
+                          )}
+                        >
+                          <div className="flex items-baseline gap-2 min-w-0 pr-4">
+                            {sec.numero && (
+                              <span className="font-mono text-blue-800 font-bold shrink-0 text-[11px]">{sec.numero}</span>
+                            )}
+                            <span className="break-words">{sec.titulo}</span>
+                          </div>
+                          <span className="font-mono text-[10.5px] font-bold text-slate-500 shrink-0 whitespace-nowrap">
+                            Pág. {pageNum}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-300 pt-2.5 flex items-center justify-between text-[9.5px] text-slate-600 font-sans">
+                  <span className="font-bold">{COMPANY.razonSocial}</span>
+                  <span className="font-mono font-bold">Hoja 2 de {totalHojas}</span>
+                </div>
+              </div>
+
+              {/* HOJA 3: ÍNDICE GENERAL (PARTE II, solo en documentos extensos) */}
+              {indicePartido && (
+                <div
+                  className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-10 sm:p-14 flex flex-col justify-between shadow-xl"
+                  style={{ width: '816px', minHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                >
+                  <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase">
+                    <span className="font-extrabold text-[#0f172a]">{COMPANY.razonSocial}</span>
+                    <span className="font-semibold">Índice General · Parte II</span>
+                  </div>
+
+                  <div className="my-auto py-2 space-y-3 font-sans">
+                    <div className="border-b border-slate-200 pb-2">
+                      <h2 className="text-lg font-extrabold uppercase tracking-tight text-[#0f172a]">Índice de Contenido (2 / 2)</h2>
+                      <p className="text-[11px] text-slate-500">Capítulos, anexos y cédulas de conformidad</p>
+                    </div>
+
+                    <div className="space-y-1 text-[11.5px] leading-relaxed">
+                      {secciones.slice(SECCIONES_POR_INDICE).map((sec) => {
+                        const idxEnHojas = hojas.findIndex((h) => h.some((x) => x.seccionId === sec.id));
+                        const pageNum = hojasPreliminares + 1 + (idxEnHojas >= 0 ? idxEnHojas : 0);
+                        const isCapitulo = (sec.numero ?? '').toLowerCase().startsWith('capítulo') || sec.tipo === 'capitulo';
+                        return (
+                          <a
+                            key={sec.id}
+                            href={`#${sec.id}`}
+                            className={cn(
+                              'py-1.5 border-b border-slate-100 flex items-baseline justify-between hover:bg-slate-50 transition-colors',
+                              isCapitulo ? 'font-extrabold text-[#0f172a] pt-3.5 text-[12px] uppercase' : 'text-slate-700 pl-4 font-medium'
+                            )}
+                          >
+                            <div className="flex items-baseline gap-2 min-w-0 pr-4">
+                              {sec.numero && (
+                                <span className="font-mono text-blue-800 font-bold shrink-0 text-[11px]">{sec.numero}</span>
+                              )}
+                              <span className="break-words">{sec.titulo}</span>
+                            </div>
+                            <span className="font-mono text-[10.5px] font-bold text-slate-500 shrink-0 whitespace-nowrap">
+                              Pág. {pageNum}
+                            </span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-300 pt-2.5 flex items-center justify-between text-[9.5px] text-slate-600 font-sans">
+                    <span className="font-bold">{COMPANY.razonSocial}</span>
+                    <span className="font-mono font-bold">Hoja 3 de {totalHojas}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* HOJAS DE CONTENIDO DEL REGLAMENTO */}
+              {hojas.map((hojaSecciones, hojaIdx) => (
+                <div
+                  key={hojaIdx}
+                  className={cn(
+                    'hoja-carta w-[816px] min-h-[1056px] bg-white text-slate-900 shadow-xl rounded-sm p-12 sm:p-14 relative flex flex-col justify-between border border-slate-200'
+                  )}
+                  style={{
+                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                  }}
+                >
+                  {/* Membrete Oficial Superior */}
+                  <header className="border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={COMPANY.logoPublicPath || '/logo_b.png'}
+                        alt={COMPANY.razonSocial}
+                        className="w-12 h-12 object-contain"
+                      />
+                      <div>
+                        <div className="text-[13px] font-extrabold tracking-wider text-[#0f172a] uppercase">
+                          {COMPANY.razonSocial}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-medium tracking-tight">
+                          Seguridad Patrimonial · Custodia · Control Operativo
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10.5px] font-bold text-blue-900 uppercase tracking-wider">
+                        Reglamento Normativo · {ambitoMeta.etiqueta}
+                      </div>
+                      <div className="text-[9.5px] text-slate-500 font-mono">
+                        CÓDIGO: {ambitoMeta.codigo}
+                      </div>
+                    </div>
+                  </header>
+
+                  {/* Contenido de la hoja */}
+                  <div className="flex-1 space-y-6">
+                    {hojaIdx === 0 && (
+                      <div className="text-center pb-4 mb-4 border-b border-slate-200">
+                        <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight uppercase">
+                          {registro.titulo}
+                        </h2>
+                        <div className="text-[11.5px] text-slate-600 font-medium mt-1 max-w-xl mx-auto italic">
+                          <EditableText
+                            value={contenidoLocal?.subtitulo ?? registro.descripcion ?? ''}
+                            onChange={(subtitulo) => mutarContenido((c) => ({ ...c, subtitulo }))}
+                            readOnly={!editable}
+                            placeholder="Subtítulo o alcance del reglamento"
+                            className="text-center"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {hojaSecciones.map((frag) => {
+                      const seccion = secciones.find((s) => s.id === frag.seccionId);
+                      if (!seccion) return null;
+                      const idxSeccion = secciones.findIndex((s) => s.id === frag.seccionId);
+                      // Al congelar el reparto mientras se escribe, el último
+                      // fragmento se estira hasta el final para que un bloque
+                      // recién insertado se vea de inmediato.
+                      const hasta = frag.ultimo ? seccion.bloques.length : Math.min(frag.hasta, seccion.bloques.length);
+                      return (
+                        <SeccionVistaEditable
+                          key={`${frag.seccionId}-${frag.desde}`}
+                          seccion={seccion}
+                          desde={Math.min(frag.desde, seccion.bloques.length)}
+                          hasta={hasta}
+                          continuacion={frag.continuacion}
+                          ultimo={frag.ultimo}
+                          primeraSeccion={idxSeccion === 0}
+                          ultimaSeccion={idxSeccion === secciones.length - 1}
+                          onActualizar={(fn) => actualizarSeccion(seccion.id, fn)}
+                          onEliminar={() => eliminarSeccion(seccion.id)}
+                          onMoverSeccion={(delta) => moverSeccion(seccion.id, delta)}
+                          readOnly={!editable}
+                        />
+                      );
+                    })}
+
+                    {editable && hojaIdx === hojas.length - 1 && (
+                      <div className="pt-4 print:hidden">
+                        <button
+                          type="button"
+                          onClick={handleAgregarCapitulo}
+                          className="w-full flex items-center justify-center gap-1.5 py-2 rounded border border-dashed border-slate-300 text-[11px] font-semibold text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Agregar capítulo al final del reglamento
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pie de Página Oficial con Foliado */}
+                  <footer className="border-t border-slate-200 pt-3 mt-8 flex items-start justify-between gap-6 text-[9.5px] text-slate-500 font-sans">
+                    <div className="leading-snug min-w-0 flex-1">
+                      <span>{COMPANY.razonSocial} · Documento de Control y Régimen Interno</span>
+                    </div>
+                    <div className="font-mono whitespace-nowrap shrink-0">
+                      Hoja {hojasPreliminares + hojaIdx + 1} de {totalHojas}
+                    </div>
+                  </footer>
+                </div>
+              ))}
             </div>
           </div>
         </main>
