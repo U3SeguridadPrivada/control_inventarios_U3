@@ -969,160 +969,157 @@ export default function DocumentoReglamentoApp({
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300 pb-16 font-sans">
-      {/* Contenedor Superior Adherente (Garantiza que la barra de formato NUNCA se pase detrás de la cabecera) */}
-      <div className="sticky top-2 z-30 space-y-2 print:hidden">
-        {/* Cabecera institucional de herramientas */}
-        <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 backdrop-blur-md bg-card/95">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <Button variant="ghost" size="sm" className="h-9 px-2 text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="w-4 h-4 mr-1" /> Inicio
-              </Button>
-            </Link>
-            <div className="h-5 w-px bg-border hidden sm:block" />
-            <div>
-              <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-primary" /> {registro.titulo}
-              </h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">
-                {secciones.length} capítulos y anexos · Formato Oficial U3 Seguridad Privada
-              </p>
-            </div>
-          </div>
-
-          {/* Selector de reglamento: oficinistas u operativo */}
-          <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-1 border border-border self-start md:self-auto">
-            {AMBITOS.map((a) => {
-              const Icono = a.icono;
-              const activo = a.id === ambito;
-              return (
-                <button
-                  key={a.id}
-                  onClick={() => cambiarAmbito(a.id)}
-                  title={`Ver el reglamento de ${a.etiqueta.toLowerCase()}`}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-semibold transition-colors',
-                    activo
-                      ? 'bg-background text-foreground shadow-sm border border-border'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Icono className="w-3.5 h-3.5" /> {a.etiqueta}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 justify-end">
-            {/* Buscador en vivo */}
-            <div className="relative max-w-[200px] sm:max-w-[240px]">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Buscar artículo..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-8 pl-8 pr-3 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary w-full"
-              />
-            </div>
-
-            {/* Controles de Zoom */}
-            <div className="hidden lg:flex items-center bg-muted/60 rounded-lg p-0.5 border border-border">
-              <button
-                onClick={() => setZoom((z) => Math.max(0.7, z - 0.1))}
-                title="Alejar"
-                className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <span className="text-[11px] font-mono px-2 text-muted-foreground">
-                {Math.round(zoom * 100)}%
-              </span>
-              <button
-                onClick={() => setZoom((z) => Math.min(1.4, z + 0.1))}
-                title="Acercar"
-                className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setZoom(1)}
-                title="Restablecer"
-                className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground border-l border-border"
-              >
-                <RotateCcw className="w-3 h-3" />
-              </button>
-            </div>
-
-            {/* Edición o solo lectura */}
-            {canEdit && (
-              <Button
-                onClick={() => setModoEdicion((v) => !v)}
-                variant={modoEdicion ? 'default' : 'outline'}
-                size="sm"
-                className="h-8 text-xs font-semibold"
-                title={modoEdicion ? 'Ocultar los controles y ver el documento limpio' : 'Mostrar los controles para editar el documento'}
-              >
-                {modoEdicion ? (
-                  <>
-                    <Pencil className="w-3.5 h-3.5 mr-1.5" /> Editando
-                  </>
-                ) : (
-                  <>
-                    <Eye className="w-3.5 h-3.5 mr-1.5" /> Solo lectura
-                  </>
-                )}
-              </Button>
-            )}
-
-            {/* Botón Imprimir / PDF */}
-            <Button onClick={handleImprimir} variant="outline" size="sm" className="h-8 text-xs font-semibold">
-              <Printer className="w-3.5 h-3.5 mr-1.5" /> Imprimir / PDF
+      {/* Cabecera institucional de herramientas (estática, no fija) */}
+      <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 print:hidden">
+        <div className="flex items-center gap-3">
+          <Link href="/">
+            <Button variant="ghost" size="sm" className="h-9 px-2 text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="w-4 h-4 mr-1" /> Inicio
             </Button>
-
-            {/* Acceso directo al Checador de Salidas de 10 min */}
-            <Link href="/checador">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 font-semibold"
-                title="Abrir el Checador de Salidas de 10 min (Reglamento Art. IV)"
-              >
-                <Timer className="w-3.5 h-3.5 mr-1.5 text-amber-600 dark:text-amber-400" /> Checador (10 min)
-              </Button>
-            </Link>
-
-            {/* Guardar cambios (si es editor/admin) */}
-            {canEdit && (
-              <Button
-                onClick={handleGuardar}
-                disabled={!cambiosPendientes || updateMutation.isPending}
-                size="sm"
-                className={cn('h-8 text-xs font-semibold', cambiosPendientes && 'animate-pulse')}
-              >
-                {updateMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Guardando...
-                  </>
-                ) : cambiosPendientes ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-green-300" /> Guardar Cambios
-                  </>
-                ) : (
-                  'Guardado'
-                )}
-              </Button>
-            )}
+          </Link>
+          <div className="h-5 w-px bg-border hidden sm:block" />
+          <div>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-primary" /> {registro.titulo}
+            </h1>
+            <p className="text-xs text-muted-foreground hidden sm:block">
+              {secciones.length} capítulos y anexos · Formato Oficial U3 Seguridad Privada
+            </p>
           </div>
         </div>
 
-        {/* Barra de Formato Flotante Independiente (dentro del mismo bloque sticky: NUNCA se oculta ni pasa detrás) */}
-        {editable && (
-          <div className="animate-in slide-in-from-top-1 duration-150">
-            <BarraFormatoFlotante visible={editable} />
+        {/* Selector de reglamento: oficinistas u operativo */}
+        <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-1 border border-border self-start md:self-auto">
+          {AMBITOS.map((a) => {
+            const Icono = a.icono;
+            const activo = a.id === ambito;
+            return (
+              <button
+                key={a.id}
+                onClick={() => cambiarAmbito(a.id)}
+                title={`Ver el reglamento de ${a.etiqueta.toLowerCase()}`}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-semibold transition-colors',
+                  activo
+                    ? 'bg-background text-foreground shadow-sm border border-border'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Icono className="w-3.5 h-3.5" /> {a.etiqueta}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 justify-end">
+          {/* Buscador en vivo */}
+          <div className="relative max-w-[200px] sm:max-w-[240px]">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Buscar artículo..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-8 pl-8 pr-3 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary w-full"
+            />
           </div>
-        )}
+
+          {/* Controles de Zoom */}
+          <div className="hidden lg:flex items-center bg-muted/60 rounded-lg p-0.5 border border-border">
+            <button
+              onClick={() => setZoom((z) => Math.max(0.7, z - 0.1))}
+              title="Alejar"
+              className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[11px] font-mono px-2 text-muted-foreground">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={() => setZoom((z) => Math.min(1.4, z + 0.1))}
+              title="Acercar"
+              className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setZoom(1)}
+              title="Restablecer"
+              className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground border-l border-border"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* Edición o solo lectura */}
+          {canEdit && (
+            <Button
+              onClick={() => setModoEdicion((v) => !v)}
+              variant={modoEdicion ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 text-xs font-semibold"
+              title={modoEdicion ? 'Ocultar los controles y ver el documento limpio' : 'Mostrar los controles para editar el documento'}
+            >
+              {modoEdicion ? (
+                <>
+                  <Pencil className="w-3.5 h-3.5 mr-1.5" /> Editando
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5 mr-1.5" /> Solo lectura
+                </>
+              )}
+            </Button>
+          )}
+
+          {/* Botón Imprimir / PDF */}
+          <Button onClick={handleImprimir} variant="outline" size="sm" className="h-8 text-xs font-semibold">
+            <Printer className="w-3.5 h-3.5 mr-1.5" /> Imprimir / PDF
+          </Button>
+
+          {/* Acceso directo al Checador de Salidas de 10 min */}
+          <Link href="/checador">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 font-semibold"
+              title="Abrir el Checador de Salidas de 10 min (Reglamento Art. IV)"
+            >
+              <Timer className="w-3.5 h-3.5 mr-1.5 text-amber-600 dark:text-amber-400" /> Checador (10 min)
+            </Button>
+          </Link>
+
+          {/* Guardar cambios (si es editor/admin) */}
+          {canEdit && (
+            <Button
+              onClick={handleGuardar}
+              disabled={!cambiosPendientes || updateMutation.isPending}
+              size="sm"
+              className={cn('h-8 text-xs font-semibold', cambiosPendientes && 'animate-pulse')}
+            >
+              {updateMutation.isPending ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Guardando...
+                </>
+              ) : cambiosPendientes ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-green-300" /> Guardar Cambios
+                </>
+              ) : (
+                'Guardado'
+              )}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Barra de Formato Flotante Adherente (permanece visible al editar sin tapar la pantalla) */}
+      {editable && (
+        <div className="sticky top-2 z-30 print:hidden animate-in slide-in-from-top-1 duration-150">
+          <BarraFormatoFlotante visible={editable} />
+        </div>
+      )}
 
       {/* Banner informativo de política de salidas de 10 minutos */}
       <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs print:hidden shadow-xs">
