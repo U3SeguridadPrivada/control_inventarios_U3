@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/src/lib/api';
@@ -7,10 +7,10 @@ import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Select } from '@/src/components/ui/select';
 import {
-  Timer, Clock, ArrowLeft, CheckCircle2, AlertTriangle, Play,
-  RotateCcw, User, Building2, Search, Download, Trash2,
-  FileText, ShieldCheck, Coffee, Cigarette, Utensils, Briefcase, Plus,
-  ChevronRight, Sparkles, MessageSquare,
+  Timer, Clock, ArrowLeft, CheckCircle2, AlertCircle, Play,
+  User, Building2, Search, Download, Trash2,
+  FileText, ShieldCheck, Coffee, Utensils, Briefcase, Plus,
+  Camera, Upload, X, Eye, RefreshCw, Check, AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
@@ -23,6 +23,9 @@ interface RegistroChecador {
   departamento: string;
   tipo_salida: string;
   limite_minutos: number;
+  numero_descanso: number;
+  foto_evidencia: string | null;
+  foto_regreso: string | null;
   hora_salida: string;
   hora_entrada: string | null;
   duracion_segundos: number | null;
@@ -31,6 +34,37 @@ interface RegistroChecador {
   justificacion: string | null;
   registrado_por: string | null;
   created_at: string;
+}
+
+interface ResumenOficinista {
+  total_10min: number;
+  restantes_10min: number;
+  cupo_agotado: boolean;
+  detalles: Array<{
+    id: number;
+    numero_descanso: number;
+    hora_salida: string;
+    hora_entrada: string | null;
+    duracion_segundos: number | null;
+    estado: string;
+    foto_evidencia: string | null;
+  }>;
+}
+
+interface ConfiguracionReglamento {
+  protocolo_id: number;
+  titulo_seccion: string;
+  actualizado_en: string | null;
+  total_descansos: number;
+  limite_minutos_defecto: number;
+  descansos: Array<{
+    id: string;
+    numero: number;
+    titulo: string;
+    limite_minutos: number;
+    descripcion: string;
+    condicion: string;
+  }>;
 }
 
 interface MetricasChecador {
@@ -43,276 +77,138 @@ interface MetricasChecador {
   promedio_minutos: number;
 }
 
-const TIPOS_SALIDA = [
+interface ChecadorResponse {
+  registros: RegistroChecador[];
+  configuracion_reglamento?: ConfiguracionReglamento;
+  empleados_sugeridos: string[];
+  resumen_oficinistas_hoy: Record<string, ResumenOficinista>;
+  metricas: MetricasChecador;
+}
+
+const DESCANSOS_REGLAMENTO_DEFECTO = [
   {
-    id: '10_min',
-    titulo: 'Salida de 10 min (Reglamento)',
-    limite: 10,
-    icono: Timer,
-    badge: 'Capítulo IV Art. 1',
-    color: 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200',
-    descripcion: 'Salida extendida permitida (1 vez al día): Trámite menor, cajero, compra.',
+    id: '10_min_1',
+    tipo: '10_min',
+    numero: 1,
+    titulo: 'Descanso 1 (10 min)',
+    limite_minutos: 10,
+    subtitulo: 'Primer descanso oficial del día',
+    descripcion: 'Cafetería, paso a la tienda o descanso matutino.',
   },
   {
-    id: '5_min_1',
-    titulo: 'Salida Corta 1 (5 min)',
-    limite: 5,
-    icono: Coffee,
-    badge: 'Máx 5 min',
-    color: 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200',
-    descripcion: 'Paso rápido a la tienda, café o bebidas.',
+    id: '10_min_2',
+    tipo: '10_min',
+    numero: 2,
+    titulo: 'Descanso 2 (10 min)',
+    limite_minutos: 10,
+    subtitulo: 'Segundo descanso oficial del día',
+    descripcion: 'Refrigerio, cajero automático o trámite breve.',
   },
   {
-    id: '5_min_2',
-    titulo: 'Salida Corta 2 (5 min)',
-    limite: 5,
-    icono: Cigarette,
-    badge: 'Máx 5 min',
-    color: 'border-slate-500 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-200',
-    descripcion: 'Descanso breve o zona exterior designada.',
+    id: '10_min_3',
+    tipo: '10_min',
+    numero: 3,
+    titulo: 'Descanso 3 (10 min)',
+    limite_minutos: 10,
+    subtitulo: 'Tercer descanso oficial del día',
+    descripcion: 'Zona exterior, fumar o descanso vespertino.',
   },
+];
+
+const OTRAS_SALIDAS = [
   {
     id: 'comida',
+    tipo: 'comida',
+    numero: 1,
     titulo: 'Comida (60 min)',
     limite: 60,
-    icono: Utensils,
-    badge: '1 Hora',
-    color: 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200',
-    descripcion: 'Ventana de 14:00 a 18:00 hrs de forma escalonada.',
+    subtitulo: 'Horario oficial de alimentos',
+    descripcion: 'Turno escalonado entre 14:00 y 18:00 hrs.',
   },
   {
     id: 'comision',
-    titulo: 'Comisión Oficial / Mandos',
+    tipo: 'comision',
+    numero: 1,
+    titulo: 'Comisión Oficial',
     limite: 120,
-    icono: Briefcase,
-    badge: 'Oficial',
-    color: 'border-purple-500 bg-purple-50 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200',
-    descripcion: 'Diligencia bancaria o encargo específico ordenado por directivos.',
+    subtitulo: 'Encomienda de mandos o directivos',
+    descripcion: 'Diligencia bancaria o trámite laboral asignado.',
   },
 ];
 
-const MOTIVOS_RAPIDOS = [
-  'Cajero automático',
-  'Farmacia / Tienda',
+const MOTIVOS_SUGERIDOS = [
   'Cafetería / Bebidas',
-  'Trámite personal breve',
-  'Descanso exterior',
-  'Diligencia laboral',
+  'Paso a la tienda / Alimentos',
+  'Cajero automático',
+  'Farmacia / Medicina',
+  'Zona exterior / Descanso',
+  'Diligencia laboral de oficina',
 ];
 
-/** Componente de cronómetro en tiempo real para salidas activas */
-function TarjetaSalidaActiva({
-  registro,
-  onMarcarEntrada,
-  isPending,
-}: {
-  registro: RegistroChecador;
-  onMarcarEntrada: (id: number) => void;
-  isPending: boolean;
-}) {
-  const [segundosTranscurridos, setSegundosTranscurridos] = useState(() => {
-    const salida = new Date(registro.hora_salida).getTime();
-    const ahora = Date.now();
-    return Math.max(0, Math.floor((ahora - salida) / 1000));
-  });
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const salida = new Date(registro.hora_salida).getTime();
-      const ahora = Date.now();
-      setSegundosTranscurridos(Math.max(0, Math.floor((ahora - salida) / 1000)));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [registro.hora_salida]);
-
-  const limiteSegundos = (registro.limite_minutos || 10) * 60;
-  const segundosRestantes = limiteSegundos - segundosTranscurridos;
-  const estaExcedido = segundosRestantes < 0;
-  const porExpirar = segundosRestantes >= 0 && segundosRestantes <= 120; // 2 minutos o menos
-
-  const formatearTiempo = (totalSegs: number) => {
-    const absSegs = Math.abs(totalSegs);
-    const mins = Math.floor(absSegs / 60);
-    const segs = absSegs % 60;
-    return `${mins.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
-  };
-
-  const porcentajeProgreso = Math.min(100, Math.round((segundosTranscurridos / limiteSegundos) * 100));
-
-  return (
-    <div
-      className={cn(
-        'rounded-2xl p-4 sm:p-5 border transition-all duration-300 relative overflow-hidden flex flex-col justify-between shadow-md',
-        estaExcedido
-          ? 'bg-red-50/90 dark:bg-red-950/40 border-red-500 shadow-red-500/10'
-          : porExpirar
-          ? 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-500 shadow-amber-500/10'
-          : 'bg-card border-border hover:border-primary/50'
-      )}
-    >
-      {/* Barra de progreso de tiempo superior */}
-      <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-200 dark:bg-slate-800">
-        <div
-          className={cn(
-            'h-full transition-all duration-1000',
-            estaExcedido ? 'bg-red-600 animate-pulse' : porExpirar ? 'bg-amber-500' : 'bg-primary'
-          )}
-          style={{ width: `${porcentajeProgreso}%` }}
-        />
-      </div>
-
-      <div>
-        {/* Cabecera de la tarjeta */}
-        <div className="flex items-start justify-between gap-2 mb-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping inline-block shrink-0" />
-              <h3 className="font-bold text-foreground text-base sm:text-lg truncate">
-                {registro.nombre_empleado}
-              </h3>
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-              <Building2 className="w-3 h-3" /> {registro.departamento || 'Oficinas'}
-              {registro.motivo && <span>· {registro.motivo}</span>}
-            </p>
-          </div>
-
-          <span
-            className={cn(
-              'px-2 py-0.5 rounded-full text-[11px] font-bold shrink-0 uppercase tracking-wider',
-              estaExcedido
-                ? 'bg-red-600 text-white animate-bounce'
-                : porExpirar
-                ? 'bg-amber-500 text-white animate-pulse'
-                : 'bg-primary/10 text-primary'
-            )}
-          >
-            {estaExcedido
-              ? '¡TIEMPO EXCEDIDO!'
-              : porExpirar
-              ? 'Por vencer'
-              : `${registro.limite_minutos} min límite`}
-          </span>
-        </div>
-
-        {/* Panel del Cronómetro */}
-        <div className="my-3 p-3 rounded-xl bg-background/80 border border-border flex items-center justify-between">
-          <div>
-            <div className="text-[10.5px] text-muted-foreground font-semibold uppercase tracking-wider">
-              {estaExcedido ? 'Exceso acumulado' : 'Tiempo restante'}
-            </div>
-            <div
-              className={cn(
-                'text-2xl sm:text-3xl font-mono font-black tracking-tight',
-                estaExcedido ? 'text-red-600 dark:text-red-400' : porExpirar ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'
-              )}
-            >
-              {estaExcedido ? `+${formatearTiempo(segundosRestantes)}` : formatearTiempo(segundosRestantes)}
-            </div>
-          </div>
-
-          <div className="text-right">
-            <div className="text-[10px] text-muted-foreground font-medium">Hora de salida</div>
-            <div className="text-sm font-semibold font-mono text-foreground">
-              {new Date(registro.hora_salida).toLocaleTimeString('es-MX', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-              })}
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              Transcurrido: {formatearTiempo(segundosTranscurridos)}
-            </div>
-          </div>
-        </div>
-
-        {/* Advertencia si está excedido */}
-        {estaExcedido && (
-          <div className="mb-3 p-2 rounded-lg bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs flex items-center gap-1.5 font-medium">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>Superó la tolerancia estipulada en el reglamento ({registro.limite_minutos} min).</span>
-          </div>
-        )}
-      </div>
-
-      {/* Botón prominente de Entrada / Regreso */}
-      <Button
-        onClick={() => onMarcarEntrada(registro.id)}
-        disabled={isPending}
-        className={cn(
-          'w-full py-2.5 font-bold text-sm shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2',
-          estaExcedido
-            ? 'bg-red-600 hover:bg-red-700 text-white'
-            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-        )}
-      >
-        <CheckCircle2 className="w-4 h-4" />
-        <span>REGISTRAR REGRESO (ENTRADA)</span>
-      </Button>
-    </div>
-  );
+function formatearSegundos(segundosTotales: number) {
+  const abs = Math.abs(segundosTotales);
+  const m = Math.floor(abs / 60);
+  const s = abs % 60;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
 export default function ChecadorApp() {
-  const { user, isAdmin, isEditor } = useAuth();
+  const { user, isEditor, isAdmin } = useAuth();
   const queryClient = useQueryClient();
 
-  // Reloj digital en vivo del encabezado
-  const [relojHora, setRelojHora] = useState('');
-  const [relojFecha, setRelojFecha] = useState('');
-
-  // Formulario de salida
-  const [empleadoSeleccionado, setEmpleadoSeleccionado] = useState(user?.username || '');
-  const [departamento, setDepartamento] = useState('Oficinas');
-  const [tipoSalidaId, setTipoSalidaId] = useState('10_min');
-  const [motivo, setMotivo] = useState('Cajero automático');
-  const [motivoManual, setMotivoManual] = useState('');
-
-  // Filtros de bitácora
-  const [filtroFecha, setFiltroFecha] = useState<string>(() => new Date().toISOString().slice(0, 10));
-  const [filtroEstado, setFiltroEstado] = useState<string>('todos');
-  const [busquedaEmpleado, setBusquedaEmpleado] = useState('');
-
-  // Modal para agregar justificación
-  const [modalJustificar, setModalJustificar] = useState<{ id: number; nombre: string; texto: string } | null>(null);
-
+  // Reloj digital en vivo
+  const [ahora, setAhora] = useState<Date>(new Date());
   useEffect(() => {
-    const actualizarReloj = () => {
-      const d = new Date();
-      setRelojHora(d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      setRelojFecha(d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
-    };
-    actualizarReloj();
-    const interval = setInterval(actualizarReloj, 1000);
-    return () => clearInterval(interval);
+    const timer = setInterval(() => setAhora(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  // Si cambia el usuario logueado y el campo está vacío, adoptarlo
-  useEffect(() => {
-    if (user?.username && !empleadoSeleccionado) {
-      setEmpleadoSeleccionado(user.username);
-    }
-  }, [user]);
+  // Formulario de salida
+  const [nombreEmpleado, setNombreEmpleado] = useState('');
+  const [departamento, setDepartamento] = useState('Oficinas');
+  const [tipoSeleccionado, setTipoSeleccionado] = useState<string>('10_min_1');
+  const [motivo, setMotivo] = useState('');
+  const [fotoEvidencia, setFotoEvidencia] = useState<string | null>(null);
 
-  // Consulta de datos al endpoint /api/checador
-  const { data, isLoading } = useQuery<{
-    registros: RegistroChecador[];
-    empleados_sugeridos: string[];
-    metricas: MetricasChecador;
-  }>({
-    queryKey: ['checador-datos', filtroFecha, filtroEstado, busquedaEmpleado],
+  // Cámara web
+  const [camaraAbierta, setCamaraAbierta] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Filtros de historial
+  const [filtroFecha, setFiltroFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [busqueda, setBusqueda] = useState('');
+  const [tabActual, setTabActual] = useState<'activo' | 'resumen' | 'historial'>('activo');
+
+  // Modal para ver foto ampliada
+  const [fotoModalUrl, setFotoModalUrl] = useState<string | null>(null);
+
+  // Modal para justificación al regresar
+  const [justificarModal, setJustificarModal] = useState<{
+    id: number;
+    nombre: string;
+    excesoMinutos: number;
+  } | null>(null);
+  const [textoJustificacion, setTextoJustificacion] = useState('');
+
+  // Consulta de datos
+  const { data, isLoading } = useQuery<ChecadorResponse>({
+    queryKey: ['checador', filtroFecha, filtroEstado, busqueda],
     queryFn: () => {
-      const params = new URLSearchParams();
-      if (filtroFecha) params.set('fecha', filtroFecha);
-      if (filtroEstado) params.set('estado', filtroEstado);
-      if (busquedaEmpleado.trim()) params.set('empleado', busquedaEmpleado.trim());
-      return apiFetch(`/api/checador?${params.toString()}`);
+      const p = new URLSearchParams();
+      if (filtroFecha) p.set('fecha', filtroFecha);
+      if (filtroEstado) p.set('estado', filtroEstado);
+      if (busqueda) p.set('empleado', busqueda);
+      return apiFetch<ChecadorResponse>(`/api/checador?${p.toString()}`);
     },
-    refetchInterval: 4000, // Actualización automática en vivo
+    refetchInterval: 5000,
   });
 
   const registros = data?.registros ?? [];
+  const empleadosSugeridos = data?.empleados_sugeridos ?? [];
+  const resumenOficinistas = data?.resumen_oficinistas_hoy ?? {};
   const metricas = data?.metricas ?? {
     activas_ahora: 0,
     total_hoy: 0,
@@ -322,9 +218,103 @@ export default function ChecadorApp() {
     porcentaje_cumplimiento: 100,
     promedio_minutos: 0,
   };
-  const empleadosSugeridos = data?.empleados_sugeridos ?? [];
 
-  // Mutación: Registrar Salida
+  // Configuración viva desde el Capítulo IV del Reglamento Interior
+  const configReglamento = data?.configuracion_reglamento ?? {
+    protocolo_id: 23,
+    titulo_seccion: 'Política de Salidas Intermedias (Breaks y Permisos Cortos)',
+    actualizado_en: null,
+    total_descansos: 3,
+    limite_minutos_defecto: 10,
+    descansos: DESCANSOS_REGLAMENTO_DEFECTO,
+  };
+
+  const descansosReglamento = configReglamento.descansos?.length
+    ? configReglamento.descansos
+    : DESCANSOS_REGLAMENTO_DEFECTO;
+
+  // Prellenar nombre con usuario en sesión si está vacío
+  useEffect(() => {
+    if (!nombreEmpleado && user?.username) {
+      setNombreEmpleado(user.username);
+    }
+  }, [user?.username, nombreEmpleado]);
+
+  // Resumen del colaborador actualmente seleccionado
+  const resumenSeleccionado = useMemo(() => {
+    const key = nombreEmpleado.trim();
+    if (!key) return null;
+    return resumenOficinistas[key] ?? {
+      total_10min: 0,
+      restantes_10min: configReglamento.total_descansos,
+      cupo_agotado: false,
+      detalles: [],
+    };
+  }, [nombreEmpleado, resumenOficinistas, configReglamento.total_descansos]);
+
+  // Ajustar automáticamente el tipo de salida según descansos ya tomados
+  useEffect(() => {
+    if (!resumenSeleccionado) return;
+    const tomados = resumenSeleccionado.total_10min;
+    if (descansosReglamento[tomados]) {
+      setTipoSeleccionado(descansosReglamento[tomados].id);
+    }
+  }, [resumenSeleccionado?.total_10min, descansosReglamento]);
+
+  // Manejo de la cámara web
+  const abrirCamara = async () => {
+    try {
+      setCamaraAbierta(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch {
+      toast.error('No se pudo abrir la cámara. Puede seleccionar un archivo de foto.');
+      setCamaraAbierta(false);
+    }
+  };
+
+  const cerrarCamara = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setCamaraAbierta(false);
+  };
+
+  const tomarFoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth || 640;
+    canvas.height = videoRef.current.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    cerrarCamara();
+    setFotoEvidencia(dataUrl);
+    toast.success('Foto de evidencia capturada');
+  };
+
+  const subirArchivoFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setFotoEvidencia(reader.result);
+        toast.success('Foto de evidencia adjuntada');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Mutaciones
   const salidaMutation = useMutation({
     mutationFn: (payload: any) =>
       apiFetch('/api/checador', {
@@ -332,592 +322,937 @@ export default function ChecadorApp() {
         body: JSON.stringify({ action: 'salida', ...payload }),
       }),
     onSuccess: (res: any) => {
-      queryClient.invalidateQueries({ queryKey: ['checador-datos'] });
-      toast.success(`Salida registrada para ${res.registro.nombre_empleado}. Cronómetro de ${res.registro.limite_minutos} min iniciado.`);
-      setMotivoManual('');
+      queryClient.invalidateQueries({ queryKey: ['checador'] });
+      toast.success(
+        res.numero_descanso
+          ? `Salida registrada · Descanso ${res.numero_descanso} de 3`
+          : 'Salida registrada correctamente'
+      );
+      setMotivo('');
+      setFotoEvidencia(null);
+      cerrarCamara();
     },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Error al registrar salida');
-    },
+    onError: (err: any) => toast.error(err.message || 'Error al registrar salida'),
   });
 
-  // Mutación: Registrar Entrada / Regreso
   const entradaMutation = useMutation({
-    mutationFn: (id: number) =>
+    mutationFn: (payload: { id: number; justificacion?: string }) =>
       apiFetch('/api/checador', {
         method: 'POST',
-        body: JSON.stringify({ action: 'entrada', id }),
+        body: JSON.stringify({ action: 'entrada', ...payload }),
       }),
     onSuccess: (res: any) => {
-      queryClient.invalidateQueries({ queryKey: ['checador-datos'] });
+      queryClient.invalidateQueries({ queryKey: ['checador'] });
       const reg = res.registro;
-      const mins = Math.floor((reg.duracion_segundos || 0) / 60);
-      const segs = (reg.duracion_segundos || 0) % 60;
-      if (reg.estado === 'excedido') {
-        toast.warning(
-          `Regreso registrado para ${reg.nombre_empleado}. Duración: ${mins}m ${segs}s (Superó el límite de ${reg.limite_minutos} min).`,
-          { duration: 6000 }
-        );
-        // Abrir modal de justificación de inmediato
-        setModalJustificar({ id: reg.id, nombre: reg.nombre_empleado, texto: '' });
+      if (reg?.estado === 'a_tiempo') {
+        toast.success(`Regreso registrado a tiempo (${Math.round((reg.duracion_segundos || 0) / 60)} min)`);
       } else {
-        toast.success(`Regreso a tiempo registrado para ${reg.nombre_empleado} (${mins}m ${segs}s).`);
+        const exceso = Math.max(0, Math.round(((reg.duracion_segundos || 0) - reg.limite_minutos * 60) / 60));
+        toast.warning(`Regreso registrado con exceso de ${exceso} min`);
+        setJustificarModal({
+          id: reg.id,
+          nombre: reg.nombre_empleado,
+          excesoMinutos: exceso,
+        });
+        setTextoJustificacion('');
       }
     },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Error al registrar entrada');
-    },
+    onError: (err: any) => toast.error(err.message || 'Error al registrar entrada'),
   });
 
-  // Mutación: Guardar Justificación
   const justificarMutation = useMutation({
-    mutationFn: ({ id, justificacion }: { id: number; justificacion: string }) =>
+    mutationFn: (payload: { id: number; justificacion: string }) =>
       apiFetch('/api/checador', {
         method: 'POST',
-        body: JSON.stringify({ action: 'justificar', id, justificacion }),
+        body: JSON.stringify({ action: 'justificar', ...payload }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['checador-datos'] });
+      queryClient.invalidateQueries({ queryKey: ['checador'] });
       toast.success('Justificación guardada');
-      setModalJustificar(null);
+      setJustificarModal(null);
     },
-    onError: (err: Error) => toast.error(err.message || 'Error al guardar justificación'),
+    onError: (err: any) => toast.error(err.message || 'Error al guardar justificación'),
   });
 
-  // Mutación: Eliminar Registro (Admin/Editor)
   const eliminarMutation = useMutation({
     mutationFn: (id: number) => apiFetch(`/api/checador?id=${id}`, { method: 'DELETE' }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['checador-datos'] });
+      queryClient.invalidateQueries({ queryKey: ['checador'] });
       toast.success('Registro eliminado');
     },
-    onError: (err: Error) => toast.error(err.message || 'Error al eliminar'),
+    onError: (err: any) => toast.error(err.message || 'Error al eliminar'),
   });
 
-  const tipoSalidaSeleccionado = TIPOS_SALIDA.find((t) => t.id === tipoSalidaId) ?? TIPOS_SALIDA[0];
-
-  const handleRegistrarSalida = () => {
-    const nombre = empleadoSeleccionado.trim();
+  // Manejar envío de salida
+  const handleRegistrarSalida = (e: React.FormEvent) => {
+    e.preventDefault();
+    const nombre = nombreEmpleado.trim();
     if (!nombre) {
-      toast.error('Ingresa o selecciona el nombre del colaborador');
+      toast.error('Por favor indique el nombre del colaborador');
       return;
     }
 
-    const motivoFinal = motivo === 'Otro' ? motivoManual.trim() || 'Salida intermedia' : motivo;
+    const opcionReglamento = descansosReglamento.find((d) => d.id === tipoSeleccionado);
+    const opcionOtra = OTRAS_SALIDAS.find((o) => o.id === tipoSeleccionado);
+
+    const tipo_salida = opcionReglamento ? '10_min' : opcionOtra ? opcionOtra.tipo : '10_min';
+    const limite_minutos = opcionReglamento ? opcionReglamento.limite_minutos : opcionOtra ? opcionOtra.limite : 10;
 
     salidaMutation.mutate({
       nombre_empleado: nombre,
       departamento,
-      tipo_salida: tipoSalidaId,
-      limite_minutos: tipoSalidaSeleccionado.limite,
-      motivo: motivoFinal,
+      tipo_salida,
+      limite_minutos,
+      motivo,
+      foto_evidencia: fotoEvidencia,
     });
   };
 
   // Salidas activas en curso
-  const salidasActivas = useMemo(
-    () => registros.filter((r) => r.estado === 'en_curso'),
-    [registros]
-  );
+  const salidasActivas = useMemo(() => {
+    return registros.filter((r) => r.estado === 'en_curso');
+  }, [registros]);
 
-  // Salidas finalizadas para la bitácora
-  const bitacoraRegistros = useMemo(
-    () => registros.filter((r) => r.estado !== 'en_curso'),
-    [registros]
-  );
-
-  // Exportar a CSV / Excel
+  // Exportar a CSV
   const exportarCSV = () => {
-    if (registros.length === 0) {
-      toast.info('No hay registros para exportar');
+    if (!registros.length) {
+      toast.error('No hay registros para exportar');
       return;
     }
-
-    const encabezados = ['ID', 'Colaborador', 'Departamento', 'Tipo Salida', 'Límite (min)', 'Hora Salida', 'Hora Entrada', 'Duración (seg)', 'Estado', 'Motivo', 'Justificación', 'Registrado Por'];
-    const filas = registros.map((r) => [
+    const headers = [
+      'ID', 'Colaborador', 'Departamento', 'Descanso', 'Límite (min)',
+      'Hora Salida', 'Hora Entrada', 'Duración (seg)', 'Estado', 'Motivo', 'Justificación', 'Registrado Por'
+    ];
+    const rows = registros.map((r) => [
       r.id,
       `"${r.nombre_empleado}"`,
-      `"${r.departamento || ''}"`,
-      `"${r.tipo_salida}"`,
+      `"${r.departamento}"`,
+      r.tipo_salida === '10_min' ? `Descanso ${r.numero_descanso || 1} de 3` : r.tipo_salida,
       r.limite_minutos,
-      `"${r.hora_salida}"`,
-      `"${r.hora_entrada || ''}"`,
-      r.duracion_segundos || 0,
-      `"${r.estado}"`,
+      r.hora_salida,
+      r.hora_entrada || '',
+      r.duracion_segundos || '',
+      r.estado,
       `"${(r.motivo || '').replace(/"/g, '""')}"`,
       `"${(r.justificacion || '').replace(/"/g, '""')}"`,
-      `"${r.registrado_por || ''}"`,
+      `"${r.registrado_por || ''}"`
     ]);
-
-    const contenido = [encabezados.join(','), ...filas.map((f) => f.join(','))].join('\n');
-    const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `checador_salidas_${filtroFecha || 'reporte'}.csv`);
+    link.href = url;
+    link.setAttribute('download', `checador_salidas_${filtroFecha || 'general'}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success('Bitácora descargada en formato CSV');
+    toast.success('Archivo CSV descargado');
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 pb-16 font-sans">
-      {/* Encabezado Principal y Reloj Digital */}
-      <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link href="/reglamento">
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Reglamento
-              </Button>
-            </Link>
-            <span className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold px-2 py-0.5 rounded-full border border-amber-500/20 flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3" /> Política Oficial de Trabajo
-            </span>
+    <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100 max-w-7xl mx-auto pb-12">
+      {/* Cabecera institucional sobria */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div className="flex items-start gap-3">
+          <Link
+            href="/reglamento"
+            className="p-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors mt-0.5"
+            title="Volver al Reglamento"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                Control de Descansos y Salidas
+              </h1>
+              <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+                Reglamento Art. IV
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Registro obligatorio de los {configReglamento.total_descansos} descansos de {configReglamento.limite_minutos_defecto} minutos con evidencia fotográfica.
+            </p>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
-            <Timer className="w-6 h-6 text-amber-500 shrink-0" />
-            Checador de Salidas de 10 Minutos
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 max-w-2xl">
-            Control en tiempo real de salidas intermedias personales y comisiones laborales estipuladas en el Capítulo IV del Reglamento Interior.
-          </p>
         </div>
 
-        {/* Reloj Digital en Vivo */}
-        <div className="bg-slate-950 text-white rounded-xl px-4 py-3 border border-slate-800 shadow-inner flex flex-col items-center sm:items-end self-stretch lg:self-auto shrink-0">
-          <div className="text-2xl sm:text-3xl font-mono font-black tracking-wider text-emerald-400">
-            {relojHora || '--:--:--'}
-          </div>
-          <div className="text-[11px] text-slate-400 capitalize mt-0.5">
-            {relojFecha || 'Cargando fecha...'}
+        {/* Reloj digital sobrio de precisión */}
+        <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5">
+          <Clock className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+          <div>
+            <div className="text-lg font-mono font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-none">
+              {ahora.toLocaleTimeString('es-MX', { hour12: false })}
+            </div>
+            <div className="text-[10.5px] text-slate-500 uppercase font-medium mt-0.5">
+              {ahora.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' })}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Tarjetas KPI del Día */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-xs">
-          <div className="text-xs text-muted-foreground font-semibold flex items-center justify-between">
-            <span>En Curso Ahora</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+      {/* Banner de vinculación en vivo con el Reglamento Interior */}
+      <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
+        <div className="flex items-start gap-2.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 mt-1" />
+          <div>
+            <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+              <span>Normativa vinculada en tiempo real con el Reglamento Interior de Trabajo</span>
+              <span className="text-[10px] font-semibold px-2 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                Enlace Activo
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500 mt-0.5">
+              Capítulo IV: {configReglamento.titulo_seccion} · {configReglamento.total_descansos} descansos autorizados ({configReglamento.limite_minutos_defecto} min c/u)
+              {configReglamento.actualizado_en &&
+                ` · Última actualización: ${new Date(configReglamento.actualizado_en).toLocaleDateString('es-MX', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}`}
+            </div>
           </div>
-          <div className="text-2xl font-bold font-mono text-primary mt-1">{metricas.activas_ahora}</div>
-          <div className="text-[10.5px] text-muted-foreground mt-0.5">Personal fuera del edificio</div>
+        </div>
+        <Link
+          href="/protocolos/23"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-slate-800 dark:text-slate-200 shrink-0 text-xs transition-colors shadow-xs"
+        >
+          <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          <span>Editar en Reglamento</span>
+        </Link>
+      </div>
+
+      {/* Indicadores clave del día (KPIs sobrios) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 shadow-xs">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Personal Fuera Ahora</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+            {metricas.activas_ahora}
+          </div>
+          <div className="text-[10px] text-slate-400 mt-0.5">En conteo decreciente</div>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-xs">
-          <div className="text-xs text-muted-foreground font-semibold">Salidas Hoy</div>
-          <div className="text-2xl font-bold font-mono text-foreground mt-1">{metricas.total_hoy}</div>
-          <div className="text-[10.5px] text-muted-foreground mt-0.5">{metricas.completadas_hoy} concluidas</div>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 shadow-xs">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Salidas Hoy</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+            {metricas.total_hoy}
+          </div>
+          <div className="text-[10px] text-slate-400 mt-0.5">{metricas.completadas_hoy} concluidas</div>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-xs">
-          <div className="text-xs text-muted-foreground font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" /> A Tiempo
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 shadow-xs">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Cumplimiento a Tiempo</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+            {metricas.porcentaje_cumplimiento}%
           </div>
-          <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-            {metricas.a_tiempo_hoy}
-          </div>
-          <div className="text-[10.5px] text-muted-foreground mt-0.5">{metricas.porcentaje_cumplimiento}% de cumplimiento</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">{metricas.a_tiempo_hoy} dentro de los 10 min</div>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-xs">
-          <div className="text-xs text-muted-foreground font-semibold text-red-600 dark:text-red-400 flex items-center gap-1">
-            <AlertTriangle className="w-3.5 h-3.5" /> Excedidas
-          </div>
-          <div className="text-2xl font-bold font-mono text-red-600 dark:text-red-400 mt-1">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 shadow-xs">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Tiempo Excedido</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
             {metricas.excedidas_hoy}
           </div>
-          <div className="text-[10.5px] text-muted-foreground mt-0.5">Superaron tolerancia</div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-xs col-span-2 lg:col-span-1">
-          <div className="text-xs text-muted-foreground font-semibold">Duración Promedio</div>
-          <div className="text-2xl font-bold font-mono text-foreground mt-1">
-            {metricas.promedio_minutos} <span className="text-sm font-normal text-muted-foreground">min</span>
-          </div>
-          <div className="text-[10.5px] text-muted-foreground mt-0.5">Por salida hoy</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Requieren justificación</div>
         </div>
       </div>
 
-      {/* Sección Doble: Registrar Salida + Salidas Activas */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Panel Izquierdo: Formulario de Nueva Salida (5 cols) */}
-        <div className="lg:col-span-5 bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-border">
-              <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-                <Play className="w-4 h-4 text-emerald-500 fill-emerald-500" /> Registrar Salida
-              </h2>
-              <span className="text-[11px] font-mono text-muted-foreground">Inicia cronómetro</span>
+      {/* Selector de pestañas */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6 text-sm font-medium">
+        <button
+          onClick={() => setTabActual('activo')}
+          className={cn(
+            'pb-2.5 transition-colors border-b-2 -mb-px flex items-center gap-2',
+            tabActual === 'activo'
+              ? 'border-slate-900 dark:border-white text-slate-900 dark:text-white font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
+          )}
+        >
+          <Timer className="w-4 h-4" /> Registro y Salidas Activas ({salidasActivas.length})
+        </button>
+
+        <button
+          onClick={() => setTabActual('resumen')}
+          className={cn(
+            'pb-2.5 transition-colors border-b-2 -mb-px flex items-center gap-2',
+            tabActual === 'resumen'
+              ? 'border-slate-900 dark:border-white text-slate-900 dark:text-white font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
+          )}
+        >
+          <User className="w-4 h-4" /> Monitor de Oficinistas (3 Descansos de 10 min)
+        </button>
+
+        <button
+          onClick={() => setTabActual('historial')}
+          className={cn(
+            'pb-2.5 transition-colors border-b-2 -mb-px flex items-center gap-2',
+            tabActual === 'historial'
+              ? 'border-slate-900 dark:border-white text-slate-900 dark:text-white font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
+          )}
+        >
+          <FileText className="w-4 h-4" /> Bitácora General y Evidencias
+        </button>
+      </div>
+
+      {/* TAB 1: REGISTRO Y SALIDAS ACTIVAS */}
+      {tabActual === 'activo' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Formulario de registro de salida (Lado izquierdo) */}
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-white">
+                  Registrar Salida de Oficina
+                </h2>
+              </div>
+              <span className="text-[10.5px] text-slate-500 font-mono">10 min oficiales</span>
             </div>
 
-            {/* Selector o entrada de Colaborador */}
-            <div className="space-y-3">
+            <form onSubmit={handleRegistrarSalida} className="space-y-4">
+              {/* Colaborador */}
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                  Colaborador / Personal que sale:
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Nombre del Colaborador
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
-                  <input
-                    type="text"
-                    list="lista-empleados"
-                    value={empleadoSeleccionado}
-                    onChange={(e) => setEmpleadoSeleccionado(e.target.value)}
-                    placeholder="Escribe o selecciona nombre..."
-                    className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+                  <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                  <Input
+                    list="empleados-sugeridos"
+                    value={nombreEmpleado}
+                    onChange={(e) => setNombreEmpleado(e.target.value)}
+                    placeholder="Ej. Ana García, Carlos López..."
+                    className="pl-8 text-xs font-medium"
+                    required
                   />
-                  <datalist id="lista-empleados">
+                  <datalist id="empleados-sugeridos">
                     {empleadosSugeridos.map((n) => (
                       <option key={n} value={n} />
                     ))}
                   </datalist>
                 </div>
-                {user?.username && empleadoSeleccionado !== user.username && (
-                  <button
-                    type="button"
-                    onClick={() => setEmpleadoSeleccionado(user.username)}
-                    className="text-[11px] text-primary hover:underline mt-1 inline-block"
+              </div>
+
+              {/* Contador de descansos del día para el colaborador */}
+              {resumenSeleccionado && (
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      Descansos utilizados hoy:
+                    </span>
+                    <span
+                      className={cn(
+                        'font-bold px-2 py-0.5 rounded text-[11px]',
+                        resumenSeleccionado.cupo_agotado
+                          ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                          : 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
+                      )}
+                    >
+                      {resumenSeleccionado.total_10min} de {configReglamento.total_descansos} usados
+                    </span>
+                  </div>
+
+                  {/* Pasos dinámicos de descansos */}
+                  <div
+                    className="grid gap-2 text-center text-[10.5px]"
+                    style={{ gridTemplateColumns: `repeat(${Math.max(1, configReglamento.total_descansos)}, minmax(0, 1fr))` }}
                   >
-                    Usar mi usuario ({user.username})
-                  </button>
-                )}
-              </div>
+                    {Array.from({ length: configReglamento.total_descansos }, (_, i) => i + 1).map((num) => {
+                      const usado = resumenSeleccionado.total_10min >= num;
+                      return (
+                        <div
+                          key={num}
+                          className={cn(
+                            'py-1.5 px-1 rounded border font-medium flex items-center justify-center gap-1',
+                            usado
+                              ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 text-emerald-800 dark:text-emerald-300'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500'
+                          )}
+                        >
+                          {usado ? <Check className="w-3 h-3" /> : null}
+                          Descanso {num}
+                        </div>
+                      );
+                    })}
+                  </div>
 
-              {/* Departamento */}
+                  {resumenSeleccionado.cupo_agotado && (
+                    <div className="flex items-center gap-1.5 mt-2.5 text-[11px] text-amber-700 dark:text-amber-300">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        Atención: El colaborador ya cubrió sus {configReglamento.total_descansos} descansos de {configReglamento.limite_minutos_defecto} min permitidos por el reglamento.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Selección del tipo de descanso (Reglamento vs Otro) */}
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                  Área / Departamento:
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Permiso de Descanso ({configReglamento.limite_minutos_defecto} Minutos Oficiales)
                 </label>
-                <Select
-                  value={departamento}
-                  onChange={(e) => setDepartamento(e.target.value)}
-                  className="h-9 text-xs rounded-xl bg-background"
+                <div
+                  className="grid gap-2"
+                  style={{ gridTemplateColumns: `repeat(${Math.min(3, Math.max(1, descansosReglamento.length))}, minmax(0, 1fr))` }}
                 >
-                  <option value="Oficinas">Personal de Oficina · Corporativo Insurgentes</option>
-                  <option value="Administración">Administración y Finanzas</option>
-                  <option value="Ventas">Ventas y Comercial</option>
-                  <option value="Operativo">Personal Operativo / Guardias</option>
-                  <option value="Reclutamiento">Reclutamiento y RRHH</option>
-                </Select>
-              </div>
-
-              {/* Tipo de Salida (Botones interactivos) */}
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                  Tipo de Salida Estipulada:
-                </label>
-                <div className="space-y-2">
-                  {TIPOS_SALIDA.map((t) => {
-                    const Icono = t.icono;
-                    const activo = tipoSalidaId === t.id;
+                  {descansosReglamento.map((d) => {
+                    const seleccionado = tipoSeleccionado === d.id;
+                    const yaTomado = (resumenSeleccionado?.total_10min ?? 0) >= d.numero;
                     return (
                       <button
-                        key={t.id}
+                        key={d.id}
                         type="button"
-                        onClick={() => setTipoSalidaId(t.id)}
+                        onClick={() => setTipoSeleccionado(d.id)}
                         className={cn(
-                          'w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2',
-                          activo
-                            ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary'
-                            : 'border-border hover:bg-muted/50'
+                          'p-2.5 rounded-lg border text-left transition-all',
+                          seleccionado
+                            ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-100 dark:text-slate-900 font-bold'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
                         )}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div
-                            className={cn(
-                              'p-1.5 rounded-lg shrink-0',
-                              activo ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
-                            )}
-                          >
-                            <Icono className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-foreground truncate">{t.titulo}</div>
-                            <div className="text-[10.5px] text-muted-foreground truncate">{t.descripcion}</div>
-                          </div>
+                        <div className="text-xs font-bold leading-tight flex items-center justify-between">
+                          <span>{d.titulo}</span>
+                          {yaTomado && (
+                            <span className={cn('text-[9px] px-1 py-0.2 rounded', seleccionado ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500')}>
+                              Tomado
+                            </span>
+                          )}
                         </div>
-                        <span className="text-[10.5px] font-mono font-bold px-2 py-0.5 rounded bg-background border shrink-0">
-                          {t.limite} min
-                        </span>
+                        <div className={cn('text-[10px] mt-0.5 line-clamp-2', seleccionado ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400')}>
+                          {d.descripcion || `${d.limite_minutos} min autorizados`}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Salidas no personales (Comida / Comisión) */}
+                <div className="flex gap-2 mt-2">
+                  {OTRAS_SALIDAS.map((o) => {
+                    const seleccionado = tipoSeleccionado === o.id;
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => setTipoSeleccionado(o.id)}
+                        className={cn(
+                          'flex-1 py-1.5 px-2 rounded-md border text-[11px] transition-colors',
+                          seleccionado
+                            ? 'border-slate-900 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                        )}
+                      >
+                        {o.titulo}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Motivo de la salida */}
+              {/* Motivo o destino breve */}
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                  Motivo / Destino:
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Motivo / Destino breve
                 </label>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {MOTIVOS_RAPIDOS.map((m) => (
+                <Input
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Ej. Tienda OXXO, café, cajero..."
+                  className="text-xs"
+                />
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {MOTIVOS_SUGERIDOS.slice(0, 4).map((m) => (
                     <button
                       key={m}
                       type="button"
-                      onClick={() => {
-                        setMotivo(m);
-                        setMotivoManual('');
-                      }}
-                      className={cn(
-                        'px-2 py-1 rounded-lg text-[11px] font-medium transition-colors border',
-                        motivo === m
-                          ? 'bg-primary text-white border-primary'
-                          : 'bg-muted/60 text-muted-foreground border-border hover:text-foreground'
-                      )}
+                      onClick={() => setMotivo(m)}
+                      className="text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
                     >
                       {m}
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => setMotivo('Otro')}
-                    className={cn(
-                      'px-2 py-1 rounded-lg text-[11px] font-medium transition-colors border',
-                      motivo === 'Otro'
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-muted/60 text-muted-foreground border-border hover:text-foreground'
-                    )}
-                  >
-                    Otro motivo...
-                  </button>
+                </div>
+              </div>
+
+              {/* SECCIÓN DE FOTO DE EVIDENCIA */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-slate-600" /> Foto de Evidencia
+                  </label>
+                  {fotoEvidencia && (
+                    <button
+                      type="button"
+                      onClick={() => setFotoEvidencia(null)}
+                      className="text-[10.5px] text-red-600 hover:underline flex items-center gap-0.5"
+                    >
+                      <X className="w-3 h-3" /> Quitar foto
+                    </button>
+                  )}
                 </div>
 
-                {motivo === 'Otro' && (
-                  <Input
-                    type="text"
-                    value={motivoManual}
-                    onChange={(e) => setMotivoManual(e.target.value)}
-                    placeholder="Especifica el motivo de la salida..."
-                    className="h-8 text-xs mt-1"
-                  />
+                {/* Cámara en vivo activa */}
+                {camaraAbierta ? (
+                  <div className="space-y-2">
+                    <div className="relative rounded-lg overflow-hidden border-2 border-slate-800 bg-black aspect-video max-h-48 flex items-center justify-center">
+                      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        onClick={tomarFoto}
+                        className="flex-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
+                      >
+                        <Camera className="w-3.5 h-3.5 mr-1.5" /> Capturar Foto Ahora
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={cerrarCamara}
+                        className="text-xs"
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                ) : fotoEvidencia ? (
+                  /* Preview de foto capturada */
+                  <div className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                    <img
+                      src={fotoEvidencia}
+                      alt="Evidencia"
+                      className="w-16 h-16 rounded object-cover border border-slate-300 dark:border-slate-600 shadow-xs cursor-pointer"
+                      onClick={() => setFotoModalUrl(fotoEvidencia)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Evidencia lista
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        Foto capturada para validar el descanso.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFotoModalUrl(fotoEvidencia)}
+                        className="text-[10px] text-blue-600 hover:underline mt-1 inline-flex items-center gap-1"
+                      >
+                        <Eye className="w-3 h-3" /> Ver tamaño completo
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Botones para tomar o subir foto */
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={abrirCamara}
+                      className="text-xs flex items-center justify-center gap-1.5 py-2.5 border-slate-300 dark:border-slate-700"
+                    >
+                      <Camera className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" /> Tomar Foto
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs flex items-center justify-center gap-1.5 py-2.5 border-slate-300 dark:border-slate-700"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" /> Subir Archivo
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="user"
+                      className="hidden"
+                      onChange={subirArchivoFoto}
+                    />
+                  </div>
                 )}
               </div>
-            </div>
+
+              {/* Botón principal de salida */}
+              <Button
+                type="submit"
+                disabled={salidaMutation.isPending}
+                className="w-full bg-[#0f172a] hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-lg transition-all"
+              >
+                <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
+                Registrar Salida de 10 Minutos
+              </Button>
+            </form>
           </div>
 
-          {/* Botón principal de salida */}
-          <div className="mt-5 pt-4 border-t border-border">
-            <Button
-              onClick={handleRegistrarSalida}
-              disabled={salidaMutation.isPending || !empleadoSeleccionado.trim()}
-              className="w-full py-3 h-12 text-sm font-extrabold bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md flex items-center justify-center gap-2 tracking-wide"
-            >
-              <Timer className="w-5 h-5 text-slate-950" />
-              <span>REGISTRAR SALIDA ({tipoSalidaSeleccionado.limite} MIN)</span>
-            </Button>
-            <p className="text-[10.5px] text-muted-foreground text-center mt-2">
-              Se iniciará el temporizador decreciente con tolerancia de {tipoSalidaSeleccionado.limite} minutos.
-            </p>
-          </div>
-        </div>
-
-        {/* Panel Derecho: Salidas en Curso Activas (7 cols) */}
-        <div className="lg:col-span-7 flex flex-col space-y-4">
-          <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-sm flex-1 flex flex-col">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-border">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" />
-                <h2 className="text-base font-bold text-foreground">Salidas Activas en Este Momento</h2>
-              </div>
-              <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
-                {salidasActivas.length} {salidasActivas.length === 1 ? 'persona fuera' : 'personas fuera'}
-              </span>
+          {/* Salidas Activas en Vivo (Lado derecho) */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-white flex items-center gap-2">
+                <Timer className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                Personal Fuera de Oficina ({salidasActivas.length})
+              </h2>
+              <span className="text-xs text-slate-500">Temporizador oficial en vivo</span>
             </div>
 
             {salidasActivas.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-muted-foreground space-y-3">
-                <div className="w-16 h-16 rounded-full bg-muted/60 flex items-center justify-center">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-10 text-center text-slate-500">
+                <CheckCircle2 className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Todo el personal se encuentra en oficinas
                 </div>
-                <div>
-                  <h3 className="font-bold text-foreground text-sm sm:text-base">No hay salidas en curso</h3>
-                  <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                    Todo el personal se encuentra dentro de las instalaciones o ya ha registrado su regreso.
-                  </p>
+                <div className="text-xs text-slate-400 mt-1">
+                  No hay salidas ni descansos activos en este momento.
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto max-h-[580px] pr-1">
-                {salidasActivas.map((reg) => (
-                  <TarjetaSalidaActiva
-                    key={reg.id}
-                    registro={reg}
-                    onMarcarEntrada={(id) => entradaMutation.mutate(id)}
-                    isPending={entradaMutation.isPending}
-                  />
-                ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {salidasActivas.map((reg) => {
+                  const salidaMs = new Date(reg.hora_salida).getTime();
+                  const transcurridoSeg = Math.max(0, Math.floor((ahora.getTime() - salidaMs) / 1000));
+                  const limiteSeg = reg.limite_minutos * 60;
+                  const restanteSeg = limiteSeg - transcurridoSeg;
+                  const esExcedido = restanteSeg < 0;
+
+                  return (
+                    <div
+                      key={reg.id}
+                      className={cn(
+                        'rounded-xl border p-4 transition-all bg-white dark:bg-slate-900 shadow-xs flex flex-col justify-between',
+                        esExcedido
+                          ? 'border-red-400 dark:border-red-800'
+                          : 'border-slate-200 dark:border-slate-700'
+                      )}
+                    >
+                      <div>
+                        {/* Cabecera del colaborador y número de descanso */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                              {reg.nombre_empleado}
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate">
+                              {reg.departamento} · {reg.motivo || 'Sin motivo especificado'}
+                            </div>
+                          </div>
+                          {/* Miniatura de foto si existe */}
+                          {reg.foto_evidencia ? (
+                            <img
+                              src={reg.foto_evidencia}
+                              alt="Evidencia"
+                              onClick={() => setFotoModalUrl(reg.foto_evidencia)}
+                              className="w-10 h-10 rounded-md object-cover border border-slate-300 dark:border-slate-600 shadow-xs cursor-pointer shrink-0"
+                              title="Ver foto de evidencia"
+                            />
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">Sin foto</span>
+                          )}
+                        </div>
+
+                        {/* Distintivo de descanso */}
+                        <div className="flex items-center gap-1.5 mt-2">
+                          <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            {reg.tipo_salida === '10_min'
+                              ? `Descanso ${reg.numero_descanso || 1} de 3 · 10 min`
+                              : `${reg.tipo_salida} · ${reg.limite_minutos} min`}
+                          </span>
+                        </div>
+
+                        {/* Cronómetro sobrio de tiempo restante o excedido */}
+                        <div className="my-3 text-center py-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <div
+                            className={cn(
+                              'text-2xl font-mono font-bold tracking-tight',
+                              esExcedido
+                                ? 'text-red-700 dark:text-red-400'
+                                : restanteSeg <= 120
+                                ? 'text-amber-700 dark:text-amber-400'
+                                : 'text-slate-900 dark:text-slate-100'
+                            )}
+                          >
+                            {esExcedido
+                              ? `+${formatearSegundos(Math.abs(restanteSeg))}`
+                              : formatearSegundos(restanteSeg)}
+                          </div>
+                          <div className="text-[10px] uppercase font-semibold text-slate-500 mt-0.5">
+                            {esExcedido ? 'Tiempo Excedido del Reglamento' : 'Tiempo Restante Permitido'}
+                          </div>
+                        </div>
+
+                        <div className="text-[10.5px] text-slate-500 flex items-center justify-between">
+                          <span>Salió: {new Date(reg.hora_salida).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>Límite: {reg.limite_minutos} min</span>
+                        </div>
+                      </div>
+
+                      {/* Botón de Entrada (Regreso) */}
+                      <Button
+                        size="sm"
+                        onClick={() => entradaMutation.mutate({ id: reg.id })}
+                        disabled={entradaMutation.isPending}
+                        className="w-full mt-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-2 rounded-lg"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                        Registrar Entrada (Regreso)
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Sección Bitácora / Historial de Checadas */}
-      <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" /> Bitácora de Registro de Salidas y Entradas
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Historial de movimientos, tiempos de estancia exterior y cumplimiento normativo.
-            </p>
+      {/* TAB 2: MONITOR DE OFICINISTAS (3 DESCANSOS DE 10 MINUTOS) */}
+      {tabActual === 'resumen' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-white">
+                Monitoreo de Descansos por Colaborador de Oficina
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Reglamento: {configReglamento.total_descansos} descansos de {configReglamento.limite_minutos_defecto} minutos cada uno al día.
+              </p>
+            </div>
+            <div className="text-xs font-semibold text-slate-500">
+              Fecha: {new Date().toLocaleDateString('es-MX', { dateStyle: 'long' })}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={exportarCSV} variant="outline" size="sm" className="h-8 text-xs">
-              <Download className="w-3.5 h-3.5 mr-1.5" /> Exportar CSV / Excel
-            </Button>
-            <Link href="/reglamento">
-              <Button variant="outline" size="sm" className="h-8 text-xs">
-                <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-blue-600" /> Ver Reglamento Oficial
-              </Button>
-            </Link>
-          </div>
+          {Object.keys(resumenOficinistas).length === 0 ? (
+            <div className="p-8 text-center text-slate-500 text-sm">
+              Aún no hay colaboradores con descansos registrados el día de hoy.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200 dark:divide-slate-800">
+              {Object.entries(resumenOficinistas).map(([nombre, resumen]) => {
+                return (
+                  <div key={nombre} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-700 dark:text-slate-300">
+                        {nombre.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-900 dark:text-white">{nombre}</div>
+                        <div className="text-xs text-slate-500">
+                          {resumen.total_10min} de {configReglamento.total_descansos} descansos tomados · Le quedan {resumen.restantes_10min}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Barra visual dinámica de los descansos */}
+                    <div className="flex items-center gap-2">
+                      {Array.from({ length: configReglamento.total_descansos }, (_, i) => i + 1).map((num) => {
+                        const detalle = resumen.detalles.find((d) => d.numero_descanso === num);
+                        const tomado = Boolean(detalle);
+                        const aTiempo = detalle?.estado === 'a_tiempo';
+                        const excedido = detalle?.estado === 'excedido';
+
+                        return (
+                          <div
+                            key={num}
+                            className={cn(
+                              'px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5',
+                              tomado
+                                ? excedido
+                                  ? 'bg-red-50 dark:bg-red-950/30 border-red-300 text-red-800 dark:text-red-300'
+                                  : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 text-emerald-800 dark:text-emerald-300'
+                                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'
+                            )}
+                          >
+                            <span>Descanso {num}</span>
+                            {tomado ? (
+                              excedido ? (
+                                <span className="text-[10px] font-bold text-red-600">Excedido</span>
+                              ) : (
+                                <Check className="w-3 h-3 text-emerald-700" />
+                              )
+                            ) : (
+                              <span className="text-[10px] text-slate-400">Disponible</span>
+                            )}
+                            {detalle?.foto_evidencia && (
+                              <button
+                                type="button"
+                                onClick={() => setFotoModalUrl(detalle.foto_evidencia)}
+                                className="text-blue-600 hover:text-blue-800"
+                                title="Ver foto de evidencia"
+                              >
+                                <Camera className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {resumen.cupo_agotado && (
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
+                          Cupo Agotado
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
+      )}
 
-        {/* Filtros de la tabla */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar colaborador..."
-              value={busquedaEmpleado}
-              onChange={(e) => setBusquedaEmpleado(e.target.value)}
-              className="w-full pl-8 pr-3 h-8 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-            />
+      {/* TAB 3: BITÁCORA GENERAL Y EVIDENCIAS */}
+      {tabActual === 'historial' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-white">
+                Bitácora de Salidas y Evidencias Fotográficas
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">Historial con foto para auditoría interna.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportarCSV}
+                className="text-xs font-semibold border-slate-300 dark:border-slate-700"
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5" /> Exportar CSV
+              </Button>
+            </div>
           </div>
 
-          <div>
-            <input
+          {/* Filtros */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <Input
               type="date"
               value={filtroFecha}
               onChange={(e) => setFiltroFecha(e.target.value)}
-              className="w-full px-3 h-8 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              className="text-xs"
             />
-          </div>
-
-          <div>
             <Select
               value={filtroEstado}
               onChange={(e) => setFiltroEstado(e.target.value)}
-              className="h-8 text-xs rounded-lg bg-background"
+              className="text-xs"
             >
-              <option value="todos">Todos los estatus</option>
-              <option value="en_curso">En curso (actualmente fuera)</option>
-              <option value="a_tiempo">A tiempo (≤ tolerancia)</option>
-              <option value="excedido">Excedidas (retardo)</option>
+              <option value="todos">Todos los estados</option>
+              <option value="en_curso">En curso (fuera ahora)</option>
+              <option value="a_tiempo">A tiempo (≤ 10 min)</option>
+              <option value="excedido">Excedido (&gt; 10 min)</option>
             </Select>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+              <Input
+                placeholder="Buscar por colaborador..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="pl-8 text-xs"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Tabla de Registros */}
-        <div className="border border-border rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Tabla sobria de registros */}
+          <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-muted/60 text-muted-foreground font-semibold border-b border-border">
+                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
+                  <th className="p-3">Foto</th>
                   <th className="p-3">Colaborador</th>
-                  <th className="p-3">Tipo Salida</th>
-                  <th className="p-3">Hora Salida</th>
-                  <th className="p-3">Hora Regreso</th>
+                  <th className="p-3">Tipo / Descanso</th>
+                  <th className="p-3">Salida</th>
+                  <th className="p-3">Regreso</th>
                   <th className="p-3">Duración</th>
-                  <th className="p-3">Estatus</th>
+                  <th className="p-3">Estado</th>
                   <th className="p-3">Motivo / Justificación</th>
                   {(isAdmin || isEditor) && <th className="p-3 text-right">Acciones</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
                 {registros.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                      No se encontraron registros de salidas con los filtros aplicados.
+                    <td colSpan={9} className="p-6 text-center text-slate-400">
+                      No se encontraron registros para los filtros seleccionados.
                     </td>
                   </tr>
                 ) : (
                   registros.map((r) => {
-                    const duracionMins = r.duracion_segundos ? Math.floor(r.duracion_segundos / 60) : 0;
-                    const duracionSegs = r.duracion_segundos ? r.duracion_segundos % 60 : 0;
-                    const duracionTexto = r.duracion_segundos !== null ? `${duracionMins}m ${duracionSegs}s` : 'En curso';
-
+                    const duracionMin = r.duracion_segundos ? Math.round(r.duracion_segundos / 60) : null;
                     return (
-                      <tr key={r.id} className="hover:bg-muted/30 transition-colors">
+                      <tr key={r.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
                         <td className="p-3">
-                          <div className="font-bold text-foreground">{r.nombre_empleado}</div>
-                          <div className="text-[10.5px] text-muted-foreground">{r.departamento || 'Oficinas'}</div>
-                        </td>
-                        <td className="p-3 font-medium">
-                          <span className="px-2 py-0.5 rounded bg-muted text-[11px] font-mono">
-                            {r.limite_minutos} min
-                          </span>
-                        </td>
-                        <td className="p-3 font-mono text-muted-foreground">
-                          {new Date(r.hora_salida).toLocaleTimeString('es-MX', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                          })}
-                        </td>
-                        <td className="p-3 font-mono text-muted-foreground">
-                          {r.hora_entrada
-                            ? new Date(r.hora_entrada).toLocaleTimeString('es-MX', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit',
-                              })
-                            : <span className="text-amber-600 font-semibold animate-pulse">Fuera</span>}
-                        </td>
-                        <td className="p-3 font-mono font-bold">
-                          {duracionTexto}
-                        </td>
-                        <td className="p-3">
-                          {r.estado === 'en_curso' ? (
-                            <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[10.5px] font-bold inline-flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" /> En curso
-                            </span>
-                          ) : r.estado === 'a_tiempo' ? (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10.5px] font-bold inline-flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> A tiempo
-                            </span>
+                          {r.foto_evidencia ? (
+                            <img
+                              src={r.foto_evidencia}
+                              alt="Evidencia"
+                              onClick={() => setFotoModalUrl(r.foto_evidencia)}
+                              className="w-10 h-10 rounded object-cover border border-slate-300 dark:border-slate-600 shadow-xs cursor-pointer"
+                              title="Ver foto completa"
+                            />
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 text-[10.5px] font-bold inline-flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" /> Excedido
-                            </span>
+                            <span className="text-[10px] text-slate-400 italic">Sin foto</span>
                           )}
                         </td>
                         <td className="p-3">
-                          <div className="text-foreground">{r.motivo || '—'}</div>
-                          {r.justificacion ? (
-                            <div className="text-[11px] text-amber-700 dark:text-amber-400 italic mt-0.5 flex items-center gap-1">
-                              <MessageSquare className="w-3 h-3 shrink-0" /> {r.justificacion}
+                          <div className="font-bold text-slate-900 dark:text-white">{r.nombre_empleado}</div>
+                          <div className="text-[10.5px] text-slate-500">{r.departamento}</div>
+                        </td>
+                        <td className="p-3">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {r.tipo_salida === '10_min'
+                              ? `Descanso ${r.numero_descanso || 1} de 3`
+                              : r.tipo_salida}
+                          </span>
+                          <span className="text-[10.5px] text-slate-500 block">Máx {r.limite_minutos} min</span>
+                        </td>
+                        <td className="p-3 font-mono text-[11.5px]">
+                          {new Date(r.hora_salida).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="p-3 font-mono text-[11.5px]">
+                          {r.hora_entrada
+                            ? new Date(r.hora_entrada).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+                            : <span className="text-amber-600 font-semibold">En curso</span>}
+                        </td>
+                        <td className="p-3 font-mono text-[11.5px]">
+                          {duracionMin !== null ? `${duracionMin} min` : '—'}
+                        </td>
+                        <td className="p-3">
+                          {r.estado === 'en_curso' && (
+                            <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                              Fuera ahora
+                            </span>
+                          )}
+                          {r.estado === 'a_tiempo' && (
+                            <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                              A tiempo
+                            </span>
+                          )}
+                          {r.estado === 'excedido' && (
+                            <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-red-50 text-red-800 border border-red-300">
+                              Excedido
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 max-w-xs">
+                          <div className="truncate text-slate-700 dark:text-slate-300">{r.motivo || '—'}</div>
+                          {r.justificacion && (
+                            <div className="text-[10.5px] text-amber-800 dark:text-amber-300 italic truncate mt-0.5">
+                              Justificación: {r.justificacion}
                             </div>
-                          ) : r.estado === 'excedido' ? (
-                            <button
-                              type="button"
-                              onClick={() => setModalJustificar({ id: r.id, nombre: r.nombre_empleado, texto: '' })}
-                              className="text-[10.5px] text-blue-600 hover:underline flex items-center gap-0.5 mt-0.5 font-medium"
-                            >
-                              <Plus className="w-2.5 h-2.5" /> Agregar justificación
-                            </button>
-                          ) : null}
+                          )}
                         </td>
                         {(isAdmin || isEditor) && (
                           <td className="p-3 text-right">
                             <button
                               type="button"
                               onClick={() => {
-                                if (window.confirm(`¿Eliminar registro de ${r.nombre_empleado}?`)) {
+                                if (confirm(`¿Eliminar registro de ${r.nombre_empleado}?`)) {
                                   eliminarMutation.mutate(r.id);
                                 }
                               }}
+                              className="text-slate-400 hover:text-red-600 p-1"
                               title="Eliminar registro"
-                              className="text-muted-foreground hover:text-red-500 p-1"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -931,47 +1266,74 @@ export default function ChecadorApp() {
             </table>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Modal para ingresar Justificación de Retardo */}
-      {modalJustificar && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold">
-              <AlertTriangle className="w-5 h-5 shrink-0" />
-              <h3 className="text-base">Justificación de Salida Excedida</h3>
+      {/* MODAL PARA VER FOTO AMPLIADA */}
+      {fotoModalUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-xs"
+          onClick={() => setFotoModalUrl(null)}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden max-w-lg w-full border border-slate-300 dark:border-slate-700 shadow-2xl p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                Evidencia Fotográfica de Salida
+              </span>
+              <button
+                type="button"
+                onClick={() => setFotoModalUrl(null)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              El colaborador <strong className="text-foreground">{modalJustificar.nombre}</strong> excedió el tiempo establecido por el reglamento. Ingresa una justificación u observación para el expediente:
+            <img src={fotoModalUrl} alt="Evidencia ampliada" className="w-full h-auto rounded-lg object-contain max-h-[70vh]" />
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA JUSTIFICAR TIEMPO EXCEDIDO */}
+      {justificarModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full border border-slate-300 dark:border-slate-700 shadow-2xl p-5 space-y-4">
+            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 border-b border-slate-200 dark:border-slate-800 pb-3">
+              <AlertCircle className="w-5 h-5" />
+              <h3 className="text-sm font-bold uppercase tracking-wide">
+                Tiempo de Descanso Excedido ({justificarModal.excesoMinutos} min)
+              </h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              El descanso de <strong>{justificarModal.nombre}</strong> superó los 10 minutos autorizados por el reglamento. Indique el motivo o justificación para el expediente:
             </p>
-
             <textarea
+              value={textoJustificacion}
+              onChange={(e) => setTextoJustificacion(e.target.value)}
+              placeholder="Ej. Fila en el banco, atención de urgencia médica..."
+              className="w-full text-xs p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
               rows={3}
-              value={modalJustificar.texto}
-              onChange={(e) => setModalJustificar({ ...modalJustificar, texto: e.target.value })}
-              placeholder="Ej. Fila extraordinaria en sucursal bancaria, tráfico vehicular, encargo urgente..."
-              className="w-full p-2.5 text-xs rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
             />
-
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setModalJustificar(null)}
-                className="h-8 text-xs"
+                onClick={() => setJustificarModal(null)}
+                className="text-xs"
               >
-                Omitir
+                Omitir por ahora
               </Button>
               <Button
                 size="sm"
-                onClick={() =>
+                onClick={() => {
                   justificarMutation.mutate({
-                    id: modalJustificar.id,
-                    justificacion: modalJustificar.texto,
-                  })
-                }
-                disabled={justificarMutation.isPending || !modalJustificar.texto.trim()}
-                className="h-8 text-xs"
+                    id: justificarModal.id,
+                    justificacion: textoJustificacion,
+                  });
+                }}
+                disabled={justificarMutation.isPending}
+                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
               >
                 Guardar Justificación
               </Button>

@@ -160,34 +160,34 @@
           },
           {
             "tipo": "parrafo",
-            "texto": "Para mantener un ambiente de trabajo balanceado y facilitar necesidades breves (comprar café, fumar, ir a la tienda de conveniencia, etc.), el personal tendrá la oportunidad de salir del edificio hasta 3 veces en el transcurso del día, distribuidas estrictamente de la siguiente manera:"
+            "texto": "Para mantener un ambiente de trabajo balanceado y atender necesidades personales breves (café, alimentos, descanso exterior, trámites rápidos o compras menores), el personal de oficina cuenta con un total de exactamente 3 descansos de máximo 10 minutos cada uno al día, distribuidos de la siguiente manera:"
           },
           {
             "tipo": "tabla",
             "encabezados": [
-              "Salida",
+              "Permiso de Descanso",
               "Duración Máxima",
-              "Finalidad Permitida",
-              "Condición"
+              "Finalidad y Uso",
+              "Condición de Control"
             ],
             "filas": [
               [
-                "Salida Corta 1",
-                "Máximo 5 minutos",
-                "Comprar café, bebidas o paso rápido a la tienda",
-                "Sin descuidar llamadas ni pendientes inmediatos"
-              ],
-              [
-                "Salida Corta 2",
-                "Máximo 5 minutos",
-                "Fumar en zona exterior designada o descanso breve",
-                "Cumplir estrictamente el límite de tiempo"
-              ],
-              [
-                "Salida Extendida",
+                "Descanso 1 (Matutino)",
                 "Máximo 10 minutos",
-                "Trámite personal menor, cajero automático o compra",
-                "Avisar a compañero de área antes de salir"
+                "Café, bebidas o paso rápido a la tienda",
+                "Registro obligatorio en checador con foto de evidencia"
+              ],
+              [
+                "Descanso 2 (Intermedio)",
+                "Máximo 10 minutos",
+                "Refrigerio, cajero automático o compra menor",
+                "Registro obligatorio en checador con foto de evidencia"
+              ],
+              [
+                "Descanso 3 (Vespertino)",
+                "Máximo 10 minutos",
+                "Zona exterior designada, fumar o descanso breve",
+                "Registro obligatorio en checador con foto de evidencia"
               ]
             ]
           },
@@ -197,11 +197,11 @@
           },
           {
             "tipo": "nota",
-            "texto": "Las 3 salidas intermedias personales descritas son totalmente independientes y NO toman en cuenta aquellas salidas que los directivos o mandos soliciten al personal por alguna razón laboral en particular, encomienda oficial, diligencia bancaria, entrega de documentación o encargo específico de trabajo."
+            "texto": "Los 3 descansos de 10 minutos personales descritos son totalmente independientes y NO toman en cuenta aquellas salidas que los directivos o mandos soliciten al personal por alguna razón laboral en particular, encomienda oficial, diligencia bancaria, entrega de documentación o encargo específico de trabajo."
           },
           {
             "tipo": "parrafo",
-            "texto": "El abuso de las salidas intermedias, exceder los tiempos estipulados (5 y 10 minutos) o ausentarse sin notificar se considerará como falta disciplinaria con su debida sanción."
+            "texto": "El abuso de los descansos intermedios, exceder los 10 minutos permitidos, tomar más de los 3 descansos estipulados al día o ausentarse sin registrarse con foto de evidencia se considerará como falta disciplinaria con su debida sanción."
           }
         ]
       },
@@ -299,8 +299,8 @@
                 "1 día de suspensión sin goce de sueldo (fecha designada por directivos)."
               ],
               [
-                "Exceso en Tiempos de Alimento / Salidas",
-                "Superar 30m desayuno, 1h comida o 5/10m salidas",
+                "Exceso en Tiempos de Alimento / Descansos",
+                "Superar 30m desayuno, 1h comida o 10m en descansos",
                 "Llamada de atención y acta administrativa en caso de reincidencia."
               ],
               [
@@ -325,7 +325,7 @@
         "bloques": [
           {
             "tipo": "parrafo",
-            "texto": "Hago constar que he recibido de U3 Seguridad Privada un ejemplar íntegro del presente Reglamento Interior de Trabajo aplicable al personal de oficina del Corporativo de Insurgentes. Declaro conocer y aceptar las disposiciones referentes a: entrada a las 9:00 AM con 10 minutos de tolerancia; acumulación de 3 retardos = 1 día de suspensión sin goce de sueldo en la fecha que designen los directivos; salida a las 7:00 PM sujeta a carga de trabajo extra; 30 minutos de desayuno a tomar entre 9:00 y 11:00 AM cuando no exista actividad prioritaria ni personal por atender; 1 hora de comida a tomar entre las 2:00 y las 6:00 PM; y 3 salidas intermedias al día (dos de máximo 5 minutos y una de máximo 10 minutos), independientes de las salidas que ordenen los mandos. Me comprometo a su cabal y permanente observancia."
+            "texto": "Hago constar que he recibido de U3 Seguridad Privada un ejemplar íntegro del presente Reglamento Interior de Trabajo aplicable al personal de oficina del Corporativo de Insurgentes. Declaro conocer y aceptar las disposiciones referentes a: entrada a las 9:00 AM con 10 minutos de tolerancia; acumulación de 3 retardos = 1 día de suspensión sin goce de sueldo en la fecha que designen los directivos; salida a las 7:00 PM sujeta a carga de trabajo extra; 30 minutos de desayuno a tomar entre 9:00 y 11:00 AM cuando no exista actividad prioritaria ni personal por atender; 1 hora de comida a tomar entre las 2:00 y las 6:00 PM; y 3 descansos intermedios al día de máximo 10 minutos cada uno con registro en checador y foto de evidencia, independientes de las salidas que ordenen los mandos. Me comprometo a su cabal y permanente observancia."
           },
           {
             "tipo": "campos",

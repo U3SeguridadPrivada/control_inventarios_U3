@@ -339,6 +339,9 @@ CREATE TABLE IF NOT EXISTS checador_salidas (
   departamento TEXT DEFAULT 'Oficinas',
   tipo_salida TEXT NOT NULL DEFAULT '10_min',
   limite_minutos INTEGER NOT NULL DEFAULT 10,
+  numero_descanso INTEGER NOT NULL DEFAULT 1,
+  foto_evidencia TEXT,
+  foto_regreso TEXT,
   hora_salida TEXT NOT NULL,
   hora_entrada TEXT,
   duracion_segundos INTEGER,
@@ -469,6 +472,9 @@ function initDb(): DrizzleDB {
     `ALTER TABLE clientes ADD COLUMN latitud TEXT;`,
     `ALTER TABLE clientes ADD COLUMN longitud TEXT;`,
     `ALTER TABLE clientes ADD COLUMN lote TEXT;`,
+    `ALTER TABLE checador_salidas ADD COLUMN numero_descanso INTEGER NOT NULL DEFAULT 1;`,
+    `ALTER TABLE checador_salidas ADD COLUMN foto_evidencia TEXT;`,
+    `ALTER TABLE checador_salidas ADD COLUMN foto_regreso TEXT;`,
   ]) {
     try { sqlite.exec(stmt); } catch (e) { /* Column might already exist */ }
   }

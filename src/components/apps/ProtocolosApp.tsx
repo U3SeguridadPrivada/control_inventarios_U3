@@ -31,7 +31,7 @@ interface Protocolo {
   actualizado_en: string | null;
 }
 
-const CATEGORIAS = ['Emergencia', 'Operativo', 'Seguridad', 'Recursos Humanos', 'Administrativo'];
+const CATEGORIAS = ['Reglamento', 'Emergencia', 'Operativo', 'Seguridad', 'Recursos Humanos', 'Administrativo'];
 const PRIORIDADES = ['Alta', 'Media', 'Baja'];
 
 const FORM_INICIAL = {

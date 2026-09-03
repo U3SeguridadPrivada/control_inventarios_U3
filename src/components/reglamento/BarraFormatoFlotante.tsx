@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Type, Palette, Highlighter, RemoveFormatting, Sparkles
+  Type, Palette, Highlighter, RemoveFormatting
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
@@ -40,16 +40,16 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
   const [mostrarPaletaTexto, setMostrarPaletaTexto] = useState(false);
   const [mostrarPaletaFondo, setMostrarPaletaFondo] = useState(false);
   const [mostrarTamanos, setMostrarTamanos] = useState(false);
-  const [seleccionActiva, setSeleccionActiva] = useState(false);
 
+  // Cerrar popovers al hacer clic fuera
   useEffect(() => {
-    const checkSelection = () => {
-      const sel = window.getSelection();
-      setSeleccionActiva(!!(sel && !sel.isCollapsed && sel.toString().trim().length > 0));
+    const handleDocumentClick = () => {
+      setMostrarTamanos(false);
+      setMostrarPaletaTexto(false);
+      setMostrarPaletaFondo(false);
     };
-
-    document.addEventListener('selectionchange', checkSelection);
-    return () => document.removeEventListener('selectionchange', checkSelection);
+    document.addEventListener('click', handleDocumentClick);
+    return () => document.removeEventListener('click', handleDocumentClick);
   }, []);
 
   const dispararCambioEnActivo = () => {
@@ -69,9 +69,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
 
-    if (sel.isCollapsed) {
-      return;
-    }
+    if (sel.isCollapsed) return;
 
     try {
       const span = document.createElement('span');
@@ -79,7 +77,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
       span.appendChild(range.extractContents());
       range.insertNode(span);
 
-      // Mantener la selección
+      // Mantener la selección activa
       sel.removeAllRanges();
       const nuevoRango = document.createRange();
       nuevoRango.selectNodeContents(span);
@@ -95,7 +93,6 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
     document.execCommand('removeFormat', false);
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) {
-      // Limpiar spans envolventes si los hay
       const range = sel.getRangeAt(0);
       const text = range.toString();
       range.deleteContents();
@@ -107,10 +104,12 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
   if (!visible) return null;
 
   return (
-    <div className="bg-slate-900/95 text-white border border-slate-700/80 shadow-2xl rounded-xl px-3 py-1.5 flex flex-wrap items-center gap-1.5 backdrop-blur-md transition-all duration-200 z-40 print:hidden text-xs">
-      <div className="flex items-center gap-1 pr-2 border-r border-slate-700">
-        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-        <span className="text-[11px] font-semibold text-slate-200">Formato:</span>
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="bg-slate-900/95 text-white border border-slate-700/80 shadow-lg rounded-xl px-3 py-1.5 flex flex-wrap items-center gap-1.5 backdrop-blur-md transition-all z-40 print:hidden text-xs"
+    >
+      <div className="flex items-center gap-1 pr-2.5 border-r border-slate-700 text-slate-400 font-semibold text-[10px] uppercase tracking-wider select-none">
+        <span>Formato</span>
       </div>
 
       {/* Botones de Estilo Básico */}
@@ -122,7 +121,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             ejecutarComando('bold');
           }}
           title="Negrita (Ctrl+B)"
-          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 active:scale-95 transition-all"
+          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 active:scale-95 text-slate-300 transition-all"
         >
           <Bold className="w-3.5 h-3.5" />
         </button>
@@ -134,7 +133,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             ejecutarComando('italic');
           }}
           title="Cursiva (Ctrl+I)"
-          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 active:scale-95 transition-all"
+          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 active:scale-95 text-slate-300 transition-all"
         >
           <Italic className="w-3.5 h-3.5" />
         </button>
@@ -146,13 +145,13 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             ejecutarComando('underline');
           }}
           title="Subrayado (Ctrl+U)"
-          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 active:scale-95 transition-all"
+          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 active:scale-95 text-slate-300 transition-all"
         >
           <Underline className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      <div className="h-4 w-px bg-slate-700" />
+      <div className="h-4 w-px bg-slate-700 mx-0.5" />
 
       {/* Selector de Tamaño de Texto */}
       <div className="relative">
@@ -165,7 +164,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             setMostrarPaletaFondo(false);
           }}
           title="Cambiar tamaño de texto"
-          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-200"
+          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-[11px] font-medium text-slate-200"
         >
           <Type className="w-3.5 h-3.5 text-blue-400" />
           <span>Tamaño</span>
@@ -208,7 +207,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             setMostrarPaletaFondo(false);
           }}
           title="Color de texto"
-          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-200"
+          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-[11px] font-medium text-slate-200"
         >
           <Palette className="w-3.5 h-3.5 text-indigo-400" />
           <span>Color</span>
@@ -252,7 +251,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             setMostrarPaletaTexto(false);
           }}
           title="Resaltador / Marcatextos"
-          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-200"
+          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-[11px] font-medium text-slate-200"
         >
           <Highlighter className="w-3.5 h-3.5 text-yellow-400" />
           <span>Resaltar</span>
@@ -289,7 +288,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
         )}
       </div>
 
-      <div className="h-4 w-px bg-slate-700" />
+      <div className="h-4 w-px bg-slate-700 mx-0.5" />
 
       {/* Alineación */}
       <div className="flex items-center gap-0.5">
@@ -300,7 +299,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             ejecutarComando('justifyLeft');
           }}
           title="Alinear a la izquierda"
-          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 transition-colors"
+          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 text-slate-300 transition-colors"
         >
           <AlignLeft className="w-3.5 h-3.5" />
         </button>
@@ -311,7 +310,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             ejecutarComando('justifyCenter');
           }}
           title="Centrar"
-          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 transition-colors"
+          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 text-slate-300 transition-colors"
         >
           <AlignCenter className="w-3.5 h-3.5" />
         </button>
@@ -322,7 +321,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             ejecutarComando('justifyRight');
           }}
           title="Alinear a la derecha"
-          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 transition-colors"
+          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 text-slate-300 transition-colors"
         >
           <AlignRight className="w-3.5 h-3.5" />
         </button>
@@ -333,13 +332,13 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             ejecutarComando('justifyFull');
           }}
           title="Justificar texto"
-          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 transition-colors"
+          className="p-1.5 rounded hover:bg-slate-800 hover:text-blue-400 text-slate-300 transition-colors"
         >
           <AlignJustify className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      <div className="h-4 w-px bg-slate-700" />
+      <div className="h-4 w-px bg-slate-700 mx-0.5" />
 
       {/* Limpiar formato */}
       <button
@@ -348,16 +347,16 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
           e.preventDefault();
           limpiarFormato();
         }}
-        title="Limpiar formato del texto seleccionado"
-        className="flex items-center gap-1 px-2 py-1 rounded hover:bg-red-950/60 hover:text-red-300 text-[10.5px] text-slate-400 transition-colors"
+        title="Quitar formato del texto seleccionado"
+        className="flex items-center gap-1 px-2 py-1 rounded hover:bg-red-950/60 text-slate-400 hover:text-red-300 text-[10.5px] transition-colors"
       >
         <RemoveFormatting className="w-3 h-3" />
         <span className="hidden sm:inline">Quitar formato</span>
       </button>
 
-      {/* Indicador de ayuda */}
-      <div className="hidden lg:flex items-center text-[10px] text-slate-400 ml-auto pl-2">
-        <span>Tip: Selecciona texto y usa <strong className="text-slate-300">Ctrl+B</strong>, <strong className="text-slate-300">Ctrl+U</strong> o <strong className="text-slate-300">Ctrl+I</strong></span>
+      {/* Atajos de teclado */}
+      <div className="hidden xl:flex items-center text-[10.5px] text-slate-400 ml-auto pl-2">
+        <span>Atajos: <strong className="text-slate-300">Ctrl+B</strong>, <strong className="text-slate-300">Ctrl+U</strong>, <strong className="text-slate-300">Ctrl+I</strong></span>
       </div>
     </div>
   );

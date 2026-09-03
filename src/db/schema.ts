@@ -414,8 +414,11 @@ export const checador_salidas = sqliteTable('checador_salidas', {
   usuario_id: integer('usuario_id').references(() => users.id),
   nombre_empleado: text('nombre_empleado').notNull(),
   departamento: text('departamento').default('Oficinas'),
-  tipo_salida: text('tipo_salida').notNull().default('10_min'), // '10_min' | '5_min' | 'comida' | 'comision' | 'otro'
+  tipo_salida: text('tipo_salida').notNull().default('10_min'),
   limite_minutos: integer('limite_minutos').notNull().default(10),
+  numero_descanso: integer('numero_descanso').notNull().default(1), // 1 | 2 | 3 (los 3 descansos del día)
+  foto_evidencia: text('foto_evidencia'), // Foto al salir (evidencia)
+  foto_regreso: text('foto_regreso'), // Foto al regresar
   hora_salida: text('hora_salida').notNull(),
   hora_entrada: text('hora_entrada'),
   duracion_segundos: integer('duracion_segundos'),
