@@ -749,7 +749,11 @@ interface FragmentoLayout {
 
 export default function DocumentoReglamentoApp({
   ambitoInicial = 'oficinas',
-}: { ambitoInicial?: AmbitoReglamento } = {}) {
+  protocoloId,
+}: {
+  ambitoInicial?: AmbitoReglamento;
+  protocoloId?: number;
+} = {}) {
   const { isEditor, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [ambito, setAmbito] = useState<AmbitoReglamento>(ambitoInicial);
@@ -762,8 +766,9 @@ export default function DocumentoReglamentoApp({
   const finEscrituraRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: registro, isLoading, error } = useQuery({
-    queryKey: ['reglamento-documento', ambito],
-    queryFn: () => apiFetch<ProtocoloRegistro>(`/api/reglamento?ambito=${ambito}`),
+    queryKey: protocoloId ? ['protocolo-documento', protocoloId] : ['reglamento-documento', ambito],
+    queryFn: () =>
+      apiFetch<ProtocoloRegistro>(protocoloId ? `/api/protocolos/${protocoloId}` : `/api/reglamento?ambito=${ambito}`),
   });
 
   // El documento del servidor solo se adopta cuando es una versión distinta de la
@@ -772,12 +777,12 @@ export default function DocumentoReglamentoApp({
   const versionCargada = useRef<string | null>(null);
   useEffect(() => {
     if (!registro?.contenido) return;
-    const version = `${ambito}:${registro.id}:${registro.actualizado_en ?? ''}`;
+    const version = `${protocoloId ?? ambito}:${registro.id}:${registro.actualizado_en ?? ''}`;
     if (versionCargada.current === version) return;
     if (cambiosPendientes) return;
     versionCargada.current = version;
     setContenidoLocal(registro.contenido as ContenidoDoc);
-  }, [registro, ambito, cambiosPendientes]);
+  }, [registro, ambito, protocoloId, cambiosPendientes]);
 
   // Cambiar de reglamento descarta el borrador en pantalla, nunca lo mezcla con el otro documento.
   const cambiarAmbito = (nuevo: AmbitoReglamento) => {
@@ -794,21 +799,47 @@ export default function DocumentoReglamentoApp({
 
   const updateMutation = useMutation({
     mutationFn: (payload: any) =>
-      apiFetch(`/api/reglamento?ambito=${ambito}`, {
-        method: 'PUT',
-        body: JSON.stringify({ ...payload, ambito }),
-      }),
+      protocoloId
+        ? apiFetch(`/api/protocolos/${protocoloId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              titulo: registro?.titulo,
+              categoria: registro?.categoria,
+              descripcion: registro?.descripcion,
+              prioridad: registro?.prioridad,
+              activo: registro?.activo,
+              tipo: 'documento',
+              pasos: [],
+              contenido: payload.contenido,
+            }),
+          })
+        : apiFetch(`/api/reglamento?ambito=${ambito}`, {
+            method: 'PUT',
+            body: JSON.stringify({ ...payload, ambito }),
+          }),
     onSuccess: () => {
       setCambiosPendientes(false);
-      queryClient.invalidateQueries({ queryKey: ['reglamento-documento', ambito] });
-      toast.success('Reglamento guardado correctamente');
+      queryClient.invalidateQueries({
+        queryKey: protocoloId ? ['protocolo-documento', protocoloId] : ['reglamento-documento', ambito],
+      });
+      toast.success('Documento guardado correctamente');
     },
     onError: (err: Error) => {
       toast.error(err.message || 'Error al guardar');
     },
   });
 
+  const esReglamento = Boolean(
+    registro &&
+      (registro.categoria === 'Reglamento' ||
+        registro.titulo?.toLowerCase().includes('reglamento') ||
+        (!protocoloId && ambitoInicial))
+  );
+
   const ambitoMeta = AMBITOS.find((a) => a.id === ambito) ?? AMBITOS[0];
+  const codigoDocumento = esReglamento
+    ? ambitoMeta.codigo
+    : (registro?.contenido as any)?.codigo || `U3-PROT-${protocoloId ?? registro?.id ?? 'DOC'}-2026`;
   const secciones = useMemo(() => contenidoLocal?.secciones ?? [], [contenidoLocal]);
 
   const seccionesFiltradas = useMemo(() => {
@@ -978,12 +1009,76 @@ export default function DocumentoReglamentoApp({
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300 pb-16 font-sans">
+      {/* Estilos globales para impresión y exportación en PDF oficial tamaño Carta */}
+      <style>{`
+        @media print {
+          @page {
+            size: letter portrait;
+            margin: 0;
+          }
+          html, body {
+            background: white !important;
+            color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .print\\:hidden, nav, aside, .no-print {
+            display: none !important;
+          }
+          .hoja-carta-canvas {
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            transform: none !important;
+          }
+          .hoja-carta {
+            width: 215.9mm !important;
+            height: 279.4mm !important;
+            min-height: 279.4mm !important;
+            max-height: 279.4mm !important;
+            padding: 16mm 18mm 14mm 18mm !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            box-sizing: border-box !important;
+            background: white !important;
+            position: relative !important;
+          }
+          .hoja-carta:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
+          }
+          .hoja-footer {
+            display: flex !important;
+            margin-top: auto !important;
+            padding-top: 3mm !important;
+            border-top: 1px solid #cbd5e1 !important;
+            width: 100% !important;
+          }
+          .hoja-zoom {
+            transform: none !important;
+            transform-origin: top left !important;
+          }
+        }
+      `}</style>
+
       {/* Cabecera institucional de herramientas (estática, no fija) */}
       <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 print:hidden">
         <div className="flex items-center gap-3">
-          <Link href="/">
+          <Link href={esReglamento ? "/" : "/protocolos"}>
             <Button variant="ghost" size="sm" className="h-9 px-2 text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="w-4 h-4 mr-1" /> Inicio
+              <ArrowLeft className="w-4 h-4 mr-1" /> {esReglamento ? 'Inicio' : 'Protocolos'}
             </Button>
           </Link>
           <div className="h-5 w-px bg-border hidden sm:block" />
@@ -992,33 +1087,44 @@ export default function DocumentoReglamentoApp({
               <ShieldCheck className="w-5 h-5 text-primary" /> {registro.titulo}
             </h1>
             <p className="text-xs text-muted-foreground hidden sm:block">
-              {secciones.length} capítulos y anexos · Formato Oficial U3 Seguridad Privada
+              {secciones.length} capítulos y secciones · Formato Oficial U3 Seguridad Privada
             </p>
           </div>
         </div>
 
-        {/* Selector de reglamento: oficinistas u operativo */}
-        <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-1 border border-border self-start md:self-auto">
-          {AMBITOS.map((a) => {
-            const Icono = a.icono;
-            const activo = a.id === ambito;
-            return (
-              <button
-                key={a.id}
-                onClick={() => cambiarAmbito(a.id)}
-                title={`Ver el reglamento de ${a.etiqueta.toLowerCase()}`}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-semibold transition-colors',
-                  activo
-                    ? 'bg-background text-foreground shadow-sm border border-border'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Icono className="w-3.5 h-3.5" /> {a.etiqueta}
-              </button>
-            );
-          })}
-        </div>
+        {/* Selector de reglamento: oficinistas u operativo, o Badge institucional */}
+        {esReglamento ? (
+          <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-1 border border-border self-start md:self-auto">
+            {AMBITOS.map((a) => {
+              const Icono = a.icono;
+              const activo = a.id === ambito;
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => cambiarAmbito(a.id)}
+                  title={`Ver el reglamento de ${a.etiqueta.toLowerCase()}`}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-semibold transition-colors',
+                    activo
+                      ? 'bg-background text-foreground shadow-sm border border-border'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Icono className="w-3.5 h-3.5" /> {a.etiqueta}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 self-start md:self-auto">
+            <span className="text-xs font-mono font-bold uppercase px-2.5 py-1 rounded bg-primary/10 text-primary border border-primary/20">
+              {codigoDocumento}
+            </span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded bg-muted text-muted-foreground border border-border">
+              {registro.categoria || 'Normativa'}
+            </span>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2 justify-end">
           {/* Buscador en vivo */}
@@ -1087,17 +1193,19 @@ export default function DocumentoReglamentoApp({
             <Printer className="w-3.5 h-3.5 mr-1.5" /> Imprimir / PDF
           </Button>
 
-          {/* Acceso directo al Checador de Salidas de 10 min */}
-          <Link href="/checador">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 font-semibold"
-              title="Abrir el Checador de Salidas de 10 min (Reglamento Art. IV)"
-            >
-              <Timer className="w-3.5 h-3.5 mr-1.5 text-amber-600 dark:text-amber-400" /> Checador (10 min)
-            </Button>
-          </Link>
+          {/* Acceso directo al Checador de Salidas de 10 min (solo en reglamento) */}
+          {esReglamento && (
+            <Link href="/checador">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 font-semibold"
+                title="Abrir el Checador de Salidas de 10 min (Reglamento Art. IV)"
+              >
+                <Timer className="w-3.5 h-3.5 mr-1.5 text-amber-600 dark:text-amber-400" /> Checador (10 min)
+              </Button>
+            </Link>
+          )}
 
           {/* Guardar cambios (si es editor/admin) */}
           {canEdit && (
@@ -1123,27 +1231,29 @@ export default function DocumentoReglamentoApp({
         </div>
       </div>
 
-      {/* Banner informativo de política de salidas de 10 minutos */}
-      <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs print:hidden shadow-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg">
-            <Timer className="w-4 h-4" />
+      {/* Banner informativo de política de salidas de 10 minutos (solo en reglamento) */}
+      {esReglamento && (
+        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs print:hidden shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg">
+              <Timer className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-slate-900 dark:text-slate-100">
+                Control de Salidas Intermedias (Capítulo IV del Reglamento):
+              </span>{' '}
+              <span className="text-slate-600 dark:text-slate-300">
+                El personal cuenta con 3 descansos de hasta 10 minutos al día con registro obligatorio y foto de evidencia.
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="font-bold text-slate-900 dark:text-slate-100">
-              Control de Salidas Intermedias (Capítulo IV del Reglamento):
-            </span>{' '}
-            <span className="text-slate-600 dark:text-slate-300">
-              El personal cuenta con 3 descansos de hasta 10 minutos al día con registro obligatorio y foto de evidencia.
-            </span>
-          </div>
+          <Link href="/checador">
+            <Button size="sm" variant="outline" className="h-7 text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0 font-semibold">
+              <Timer className="w-3 h-3 mr-1 text-slate-600 dark:text-slate-400" /> Abrir Checador en Vivo
+            </Button>
+          </Link>
         </div>
-        <Link href="/checador">
-          <Button size="sm" variant="outline" className="h-7 text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0 font-semibold">
-            <Timer className="w-3 h-3 mr-1 text-slate-600 dark:text-slate-400" /> Abrir Checador en Vivo
-          </Button>
-        </Link>
-      </div>
+      )}
 
       {editable && searchTerm.trim() && (
         <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 print:hidden">
@@ -1230,11 +1340,11 @@ export default function DocumentoReglamentoApp({
             >
               {/* HOJA 1: PORTADA EJECUTIVA MODERNA FORMAL */}
               <div
-                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-12 sm:p-16 flex flex-col justify-between shadow-xl"
-                style={{ width: '816px', minHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-12 sm:p-14 flex flex-col justify-between shadow-xl shrink-0 box-border overflow-hidden"
+                style={{ width: '816px', height: '1056px', minHeight: '1056px', maxHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
               >
                 {/* Header Superior Corporativo */}
-                <div className="bg-[#0f172a] text-white -mx-12 -mt-12 sm:-mx-16 sm:-mt-16 px-8 py-5 flex items-center justify-between mb-8">
+                <div className="bg-[#0f172a] text-white -mx-12 -mt-12 sm:-mx-14 sm:-mt-14 px-8 py-5 flex items-center justify-between mb-8 shrink-0">
                   <div className="flex items-center gap-3">
                     <img src={COMPANY.logoPublicPath || '/logo_b.png'} alt="U3" className="w-10 h-10 object-contain bg-white p-1 rounded" />
                     <div>
@@ -1245,12 +1355,12 @@ export default function DocumentoReglamentoApp({
                     </div>
                   </div>
                   <span className="bg-blue-600 text-white font-mono text-[9.5px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-xs">
-                    {ambitoMeta.codigo}
+                    {codigoDocumento}
                   </span>
                 </div>
 
                 {/* Cuerpo Principal de Portada */}
-                <div className="my-auto py-6 space-y-8">
+                <div className="my-auto py-6 space-y-8 flex-1 flex flex-col justify-center">
                   <div className="space-y-4 max-w-xl">
                     <div className="border-l-4 border-[#1e3a8a] pl-4 py-1">
                       <span className="text-[11px] font-extrabold uppercase tracking-widest text-blue-800 font-mono">DOCUMENTO RECTOR OFICIAL</span>
@@ -1277,7 +1387,11 @@ export default function DocumentoReglamentoApp({
                     <div className="grid grid-cols-2 gap-3 text-[11px]">
                       <div>
                         <span className="text-slate-500 text-[10px] uppercase font-bold block">Ámbito de Aplicación</span>
-                        <span className="font-bold text-[#0f172a]">{ambito === 'oficinas' ? 'Personal Administrativo y Directivo' : 'Personal Operativo y Guardias'}</span>
+                        <span className="font-bold text-[#0f172a]">
+                          {esReglamento
+                            ? (ambito === 'oficinas' ? 'Personal Administrativo y Directivo' : 'Personal Operativo y Guardias')
+                            : (registro.categoria ? `${registro.categoria} · Aplicación General` : 'Todo el Personal Operativo')}
+                        </span>
                       </div>
                       <div>
                         <span className="text-slate-500 text-[10px] uppercase font-bold block">Versión Oficial</span>
@@ -1289,33 +1403,35 @@ export default function DocumentoReglamentoApp({
                       </div>
                       <div>
                         <span className="text-slate-500 text-[10px] uppercase font-bold block">Clasificación</span>
-                        <span className="font-bold text-slate-800 text-[10.5px] uppercase">Reglamento Laboral Interno</span>
+                        <span className="font-bold text-slate-800 text-[10.5px] uppercase">
+                          {esReglamento ? 'Reglamento Laboral Interno' : (registro.categoria || 'Normativa Institucional')}
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Pie de Portada */}
-                <div className="border-t-2 border-[#0f172a] pt-3 flex items-start justify-between gap-6 text-[10px] text-slate-600 font-sans">
+                <footer className="hoja-footer border-t-2 border-[#0f172a] pt-3 mt-auto flex items-center justify-between gap-6 text-[10px] text-slate-600 font-sans w-full shrink-0">
                   <span className="font-bold leading-snug min-w-0 flex-1">{COMPANY.razonSocial} · {COMPANY.domicilio}</span>
                   <span className="font-mono font-bold whitespace-nowrap shrink-0">Hoja 1 de {totalHojas}</span>
-                </div>
+                </footer>
               </div>
 
               {/* HOJA 2: ÍNDICE GENERAL (PARTE I) */}
               <div
-                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-10 sm:p-14 flex flex-col justify-between shadow-xl"
-                style={{ width: '816px', minHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-12 sm:p-14 flex flex-col justify-between shadow-xl shrink-0 box-border overflow-hidden"
+                style={{ width: '816px', height: '1056px', minHeight: '1056px', maxHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
               >
-                <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase">
+                <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase shrink-0">
                   <span className="font-extrabold text-[#0f172a]">{COMPANY.razonSocial}</span>
                   <span className="font-semibold">Índice General{indicePartido ? ' · Parte I' : ''}</span>
                 </div>
 
-                <div className="my-auto py-2 space-y-3 font-sans">
+                <div className="my-auto py-2 space-y-3 font-sans flex-1">
                   <div className="border-b border-slate-200 pb-2">
                     <h2 className="text-lg font-extrabold uppercase tracking-tight text-[#0f172a]">Índice de Contenido{indicePartido ? ' (1 / 2)' : ''}</h2>
-                    <p className="text-[11px] text-slate-500">Capítulos, políticas y anexos del reglamento oficial</p>
+                    <p className="text-[11px] text-slate-500">Capítulos, políticas y secciones oficiales del documento</p>
                   </div>
 
                   <div className="space-y-1 text-[11.5px] leading-relaxed">
@@ -1347,24 +1463,24 @@ export default function DocumentoReglamentoApp({
                   </div>
                 </div>
 
-                <div className="border-t border-slate-300 pt-2.5 flex items-center justify-between text-[9.5px] text-slate-600 font-sans">
-                  <span className="font-bold">{COMPANY.razonSocial}</span>
-                  <span className="font-mono font-bold">Hoja 2 de {totalHojas}</span>
-                </div>
+                <footer className="hoja-footer border-t border-slate-300 pt-3 mt-auto flex items-center justify-between gap-6 text-[10px] text-slate-600 font-sans w-full shrink-0">
+                  <span className="font-bold leading-snug min-w-0 flex-1">{COMPANY.razonSocial} · Control Documental</span>
+                  <span className="font-mono font-bold whitespace-nowrap shrink-0">Hoja 2 de {totalHojas}</span>
+                </footer>
               </div>
 
               {/* HOJA 3: ÍNDICE GENERAL (PARTE II, solo en documentos extensos) */}
               {indicePartido && (
                 <div
-                  className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-10 sm:p-14 flex flex-col justify-between shadow-xl"
-                  style={{ width: '816px', minHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                  className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-12 sm:p-14 flex flex-col justify-between shadow-xl shrink-0 box-border overflow-hidden"
+                  style={{ width: '816px', height: '1056px', minHeight: '1056px', maxHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
                 >
-                  <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase">
+                  <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase shrink-0">
                     <span className="font-extrabold text-[#0f172a]">{COMPANY.razonSocial}</span>
                     <span className="font-semibold">Índice General · Parte II</span>
                   </div>
 
-                  <div className="my-auto py-2 space-y-3 font-sans">
+                  <div className="my-auto py-2 space-y-3 font-sans flex-1">
                     <div className="border-b border-slate-200 pb-2">
                       <h2 className="text-lg font-extrabold uppercase tracking-tight text-[#0f172a]">Índice de Contenido (2 / 2)</h2>
                       <p className="text-[11px] text-slate-500">Capítulos, anexos y cédulas de conformidad</p>
@@ -1399,26 +1515,24 @@ export default function DocumentoReglamentoApp({
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-300 pt-2.5 flex items-center justify-between text-[9.5px] text-slate-600 font-sans">
-                    <span className="font-bold">{COMPANY.razonSocial}</span>
-                    <span className="font-mono font-bold">Hoja 3 de {totalHojas}</span>
-                  </div>
+                  <footer className="hoja-footer border-t border-slate-300 pt-3 mt-auto flex items-center justify-between gap-6 text-[10px] text-slate-600 font-sans w-full shrink-0">
+                    <span className="font-bold leading-snug min-w-0 flex-1">{COMPANY.razonSocial} · Control Documental</span>
+                    <span className="font-mono font-bold whitespace-nowrap shrink-0">Hoja 3 de {totalHojas}</span>
+                  </footer>
                 </div>
               )}
 
-              {/* HOJAS DE CONTENIDO DEL REGLAMENTO */}
+              {/* HOJAS DE CONTENIDO DEL DOCUMENTO */}
               {hojas.map((hojaSecciones, hojaIdx) => (
                 <div
                   key={hojaIdx}
-                  className={cn(
-                    'hoja-carta w-[816px] min-h-[1056px] bg-white text-slate-900 shadow-xl rounded-sm p-12 sm:p-14 relative flex flex-col justify-between border border-slate-200'
-                  )}
+                  className="hoja-carta w-[816px] h-[1056px] min-h-[1056px] max-h-[1056px] bg-white text-slate-900 shadow-xl rounded-none p-12 sm:p-14 relative flex flex-col justify-between border border-slate-200 shrink-0 box-border overflow-hidden"
                   style={{
                     fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
                   }}
                 >
                   {/* Membrete Oficial Superior */}
-                  <header className="border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between">
+                  <header className="border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3">
                       <img
                         src={COMPANY.logoPublicPath || '/logo_b.png'}
@@ -1436,16 +1550,16 @@ export default function DocumentoReglamentoApp({
                     </div>
                     <div className="text-right">
                       <div className="text-[10.5px] font-bold text-blue-900 uppercase tracking-wider">
-                        Reglamento Normativo · {ambitoMeta.etiqueta}
+                        {esReglamento ? `Reglamento Normativo · ${ambitoMeta.etiqueta}` : (registro.categoria || 'Normativa Oficial')}
                       </div>
                       <div className="text-[9.5px] text-slate-500 font-mono">
-                        CÓDIGO: {ambitoMeta.codigo}
+                        CÓDIGO: {codigoDocumento}
                       </div>
                     </div>
                   </header>
 
                   {/* Contenido de la hoja */}
-                  <div className="flex-1 space-y-6">
+                  <div className="flex-1 space-y-6 overflow-hidden">
                     {hojaIdx === 0 && (
                       <div className="text-center pb-4 mb-4 border-b border-slate-200">
                         <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight uppercase">
@@ -1503,11 +1617,11 @@ export default function DocumentoReglamentoApp({
                   </div>
 
                   {/* Pie de Página Oficial con Foliado */}
-                  <footer className="border-t border-slate-200 pt-3 mt-8 flex items-start justify-between gap-6 text-[9.5px] text-slate-500 font-sans">
-                    <div className="leading-snug min-w-0 flex-1">
-                      <span>{COMPANY.razonSocial} · Documento de Control y Régimen Interno</span>
+                  <footer className="hoja-footer border-t border-slate-200 pt-3 mt-auto flex items-center justify-between gap-6 text-[10px] text-slate-600 font-sans w-full shrink-0">
+                    <div className="leading-snug min-w-0 flex-1 truncate">
+                      <strong className="text-slate-800">{COMPANY.razonSocial}</strong> · {registro.titulo}
                     </div>
-                    <div className="font-mono whitespace-nowrap shrink-0">
+                    <div className="font-mono font-bold whitespace-nowrap shrink-0 text-slate-700">
                       Hoja {hojasPreliminares + hojaIdx + 1} de {totalHojas}
                     </div>
                   </footer>
