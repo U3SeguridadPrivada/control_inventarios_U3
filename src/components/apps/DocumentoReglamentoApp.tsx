@@ -1,28 +1,31 @@
 'use client';
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/src/lib/api';
 import { Button } from '@/src/components/ui/button';
 import { Select } from '@/src/components/ui/select';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/src/components/ui/dialog';
 import {
   ArrowLeft, Printer, Plus, Trash2, ArrowUp, ArrowDown,
   ZoomIn, ZoomOut, RotateCcw, Loader2, CheckCircle2,
   BookOpen, Search, ShieldCheck, ListOrdered, Building2, Pencil, Eye, X,
-  Timer,
+  Timer, Undo2, Redo2, FilePlus2, Scissors, Copy, ChevronRight, AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DOMPurify from 'isomorphic-dompurify';
 import { COMPANY } from '@/src/lib/company';
 import {
   bloqueVacio, ETIQUETA_BLOQUE, limpiarContenido, mover, paginarFragmentos, seccionVacia,
-  type Bloque, type ContenidoDoc, type EstiloLista, type ProtocoloRegistro, type SeccionDoc, type TipoBloque,
+  ALTO_HOJA, ANCHO_HOJA, ANCHO_CONTENIDO, MARGEN_HOJA, ALTO_UTIL_HOJA,
+  type Bloque, type ContenidoDoc, type EstiloLista, type MedidasDoc, type ProtocoloRegistro,
+  type SeccionDoc, type TipoBloque,
 } from '@/src/lib/documentoProtocolo';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
 import BarraFormatoFlotante from '@/src/components/reglamento/BarraFormatoFlotante';
 
-const TIPOS_BLOQUE: TipoBloque[] = ['parrafo', 'subtitulo', 'lista', 'nota', 'tabla', 'campos', 'firma'];
+const TIPOS_BLOQUE: TipoBloque[] = ['parrafo', 'subtitulo', 'lista', 'nota', 'tabla', 'campos', 'firma', 'salto'];
 
 const ESTILOS_LISTA: { id: EstiloLista; etiqueta: string }[] = [
   { id: 'decimal', etiqueta: '1. 2. 3.' },
@@ -157,6 +160,239 @@ function BarraInsertar({
   );
 }
 
+/* --------------------------------------------------------- confirmaciones */
+
+interface Confirmacion {
+  titulo: string;
+  mensaje: string;
+  /** Lo que se va a perder, enumerado para que la decisión sea informada. */
+  detalle?: string[];
+  etiqueta: string;
+  nota?: string;
+  peligro?: boolean;
+  onConfirmar: () => void;
+}
+
+/**
+ * Reemplaza al `confirm()` del navegador, que se presenta como «localhost:3000
+ * dice» y no dice de qué documento habla. Este avisa con el lenguaje y la
+ * identidad de la suite, y enumera lo que se va a perder.
+ */
+function DialogoConfirmar({ datos, onCerrar }: { datos: Confirmacion; onCerrar: () => void }) {
+  const botonRef = useRef<HTMLButtonElement>(null);
+
+  // El foco arranca en Cancelar: si la acción borra, la tecla Enter no debe
+  // confirmarla por inercia.
+  useEffect(() => {
+    botonRef.current?.focus();
+  }, []);
+
+  const confirmar = () => {
+    datos.onConfirmar();
+    onCerrar();
+  };
+
+  const Icono = datos.peligro ? Trash2 : AlertTriangle;
+
+  return (
+    <Dialog open onOpenChange={(abierto) => !abierto && onCerrar()} className="max-w-md">
+      <div className="p-5 sm:p-6 space-y-4">
+        <DialogHeader>
+          <div className="flex items-start gap-3 text-left">
+            <div
+              className={cn(
+                'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+                datos.peligro ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-600'
+              )}
+            >
+              <Icono className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <DialogTitle>{datos.titulo}</DialogTitle>
+              <DialogDescription>{datos.mensaje}</DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {!!datos.detalle?.length && (
+          <ul className="rounded-lg border border-border bg-muted/40 px-3 py-2 space-y-1 max-h-40 overflow-y-auto">
+            {datos.detalle.map((linea, i) => (
+              <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                <span className="text-muted-foreground/50">·</span>
+                <span className="min-w-0">{linea}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {datos.nota && (
+          <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+            <Undo2 className="w-3.5 h-3.5 shrink-0" /> {datos.nota}
+          </p>
+        )}
+
+        <DialogFooter>
+          <Button ref={botonRef} variant="outline" size="sm" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button
+            variant={datos.peligro ? 'destructive' : 'default'}
+            size="sm"
+            onClick={confirmar}
+          >
+            {datos.etiqueta}
+          </Button>
+        </DialogFooter>
+      </div>
+    </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------ menú contextual */
+
+interface OpcionMenu {
+  id: string;
+  etiqueta: string;
+  icono?: React.ComponentType<{ className?: string }>;
+  atajo?: string;
+  peligro?: boolean;
+  deshabilitado?: boolean;
+  onClick?: () => void;
+  submenu?: OpcionMenu[];
+}
+
+interface GrupoMenu {
+  titulo?: string;
+  opciones: OpcionMenu[];
+}
+
+/**
+ * Menú del botón derecho sobre el documento. Se arma según dónde se hizo clic
+ * (hoja, capítulo o bloque). Con Shift+clic derecho sale el menú del navegador,
+ * que es el que hace falta para pegar o revisar la ortografía.
+ */
+function MenuContextual({
+  x,
+  y,
+  grupos,
+  onCerrar,
+}: {
+  x: number;
+  y: number;
+  grupos: GrupoMenu[];
+  onCerrar: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x, y });
+  const [submenuAbierto, setSubmenuAbierto] = useState<string | null>(null);
+
+  // El menú nunca debe salirse de la ventana.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const caja = el.getBoundingClientRect();
+    setPos({
+      x: Math.max(8, Math.min(x, window.innerWidth - caja.width - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - caja.height - 8)),
+    });
+  }, [x, y, grupos]);
+
+  useEffect(() => {
+    const alTeclado = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCerrar();
+    };
+    window.addEventListener('click', onCerrar);
+    window.addEventListener('resize', onCerrar);
+    window.addEventListener('scroll', onCerrar, true);
+    window.addEventListener('keydown', alTeclado);
+    return () => {
+      window.removeEventListener('click', onCerrar);
+      window.removeEventListener('resize', onCerrar);
+      window.removeEventListener('scroll', onCerrar, true);
+      window.removeEventListener('keydown', alTeclado);
+    };
+  }, [onCerrar]);
+
+  const pintarOpcion = (op: OpcionMenu) => {
+    const Icono = op.icono;
+    const tieneSubmenu = !!op.submenu?.length;
+    return (
+      <div
+        key={op.id}
+        className="relative"
+        onMouseEnter={() => setSubmenuAbierto(tieneSubmenu ? op.id : null)}
+      >
+        <button
+          type="button"
+          disabled={op.deshabilitado}
+          onClick={() => {
+            if (tieneSubmenu) return;
+            op.onClick?.();
+            onCerrar();
+          }}
+          className={cn(
+            'w-full flex items-center gap-2 px-2.5 py-1.5 text-[12px] rounded-md text-left transition-colors',
+            op.deshabilitado
+              ? 'text-slate-300 cursor-default'
+              : op.peligro
+                ? 'text-red-600 hover:bg-red-50'
+                : 'text-slate-700 hover:bg-slate-100'
+          )}
+        >
+          {Icono && <Icono className="w-3.5 h-3.5 shrink-0" />}
+          <span className="flex-1 whitespace-nowrap">{op.etiqueta}</span>
+          {op.atajo && <span className="text-[10px] font-mono text-slate-400 shrink-0">{op.atajo}</span>}
+          {tieneSubmenu && <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />}
+        </button>
+
+        {tieneSubmenu && submenuAbierto === op.id && (
+          <div className="absolute left-full top-0 -ml-1 bg-white border border-slate-200 rounded-lg shadow-xl p-1 min-w-[190px] z-10">
+            {op.submenu!.map((sub) => (
+              <button
+                key={sub.id}
+                type="button"
+                onClick={() => {
+                  sub.onClick?.();
+                  onCerrar();
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[12px] rounded-md text-left text-slate-700 hover:bg-slate-100 whitespace-nowrap"
+              >
+                {sub.icono && <sub.icono className="w-3.5 h-3.5 shrink-0" />}
+                {sub.etiqueta}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      ref={ref}
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}
+      className="fixed z-[100] bg-white border border-slate-200 rounded-lg shadow-2xl p-1 min-w-[230px] print:hidden animate-in fade-in zoom-in-95 duration-100"
+      style={{ left: pos.x, top: pos.y }}
+    >
+      {grupos.map((grupo, i) => (
+        <div key={i}>
+          {i > 0 && <div className="my-1 h-px bg-slate-200" />}
+          {grupo.titulo && (
+            <div className="px-2.5 pt-1 pb-0.5 text-[9.5px] font-bold uppercase tracking-widest text-slate-400 truncate">
+              {grupo.titulo}
+            </div>
+          )}
+          {grupo.opciones.map(pintarOpcion)}
+        </div>
+      ))}
+      <div className="mt-1 pt-1 border-t border-slate-100 px-2.5 pb-0.5 text-[9.5px] text-slate-400">
+        Shift + clic derecho para el menú del navegador
+      </div>
+    </div>
+  );
+}
+
 function BloqueVistaEditable({
   bloque,
   onChange,
@@ -175,7 +411,13 @@ function BloqueVistaEditable({
   readOnly?: boolean;
 }) {
   return (
-    <div className="group/bloque relative my-2 first:mt-0 font-sans">
+    <div
+      className={cn(
+        'group/bloque relative my-2 first:mt-0 font-sans',
+        // El salto solo marca dónde corta la hoja; en papel no existe.
+        bloque.tipo === 'salto' && 'print:hidden'
+      )}
+    >
       {!readOnly && (
         <div className="absolute -right-2 -top-3 flex items-center gap-1 bg-slate-900 text-white shadow-md rounded px-1.5 py-0.5 z-20 print:hidden text-[10px] opacity-30 group-hover/bloque:opacity-100 transition-opacity">
           <span className="hidden group-hover/bloque:inline pr-1 text-[9px] uppercase tracking-wide text-slate-300">
@@ -487,6 +729,16 @@ function BloqueVistaEditable({
         </div>
       )}
 
+      {bloque.tipo === 'salto' && (
+        <div className="my-1 flex items-center gap-2 select-none print:hidden" title="Aquí termina la hoja: lo que sigue empieza en una hoja nueva">
+          <div className="h-px flex-1 border-t-2 border-dashed border-blue-300" />
+          <span className="text-[9.5px] font-bold uppercase tracking-widest text-blue-500 whitespace-nowrap">
+            Fin de hoja
+          </span>
+          <div className="h-px flex-1 border-t-2 border-dashed border-blue-300" />
+        </div>
+      )}
+
       {bloque.tipo === 'campos' && (
         <div className="my-6 p-5 sm:p-6 font-sans bg-slate-50/80 dark:bg-slate-900/40 rounded-xl border border-slate-300 dark:border-slate-700 shadow-xs">
           <div className="flex items-center justify-between pb-3 mb-5 border-b-2 border-slate-900 dark:border-slate-600">
@@ -610,6 +862,7 @@ function SeccionVistaEditable({
   hasta = seccion.bloques.length,
   continuacion = false,
   ultimo = true,
+  medicion = false,
 }: {
   seccion: SeccionDoc;
   /** Recibe una función para que el cambio se aplique siempre sobre la última versión. */
@@ -624,6 +877,8 @@ function SeccionVistaEditable({
   hasta?: number;
   continuacion?: boolean;
   ultimo?: boolean;
+  /** Copia oculta que el visor usa para medir el alto real de cada bloque. */
+  medicion?: boolean;
 }) {
   const setBloque = (idx: number, b: Bloque) =>
     onActualizar((s) => ({ ...s, bloques: s.bloques.map((item, i) => (i === idx ? b : item)) }));
@@ -642,10 +897,14 @@ function SeccionVistaEditable({
     onActualizar((s) => ({ ...s, bloques: mover(s.bloques, idx, delta) }));
 
   return (
-    <div id={continuacion ? undefined : seccion.id} className="mb-6 last:mb-0 font-sans">
+    <div
+      id={medicion || continuacion ? undefined : seccion.id}
+      data-seccion={seccion.id}
+      className="mb-6 last:mb-0 font-sans"
+    >
       {/* Encabezado de la sección; en la continuación va en versión compacta. */}
       {continuacion ? (
-        <div className="border-b border-slate-300 pb-1 mb-3 flex items-baseline gap-2 text-slate-500">
+        <div data-medir-encabezado={medicion ? 'si' : undefined} className="border-b border-slate-300 pb-1 mb-3 flex items-baseline gap-2 text-slate-500">
           {seccion.numero && (
             <span className="text-[10px] font-bold tracking-widest text-blue-800 uppercase">{seccion.numero}</span>
           )}
@@ -653,7 +912,7 @@ function SeccionVistaEditable({
           <span className="text-[10px] italic shrink-0 ml-auto">continúa</span>
         </div>
       ) : (
-        <div className="border-b-2 border-slate-900 pb-1 mb-3 flex items-end justify-between gap-2">
+        <div data-medir-encabezado={medicion ? 'si' : undefined} className="border-b-2 border-slate-900 pb-1 mb-3 flex items-end justify-between gap-2">
           <div className="flex-1">
             <EditableText
               value={seccion.numero ?? ''}
@@ -710,7 +969,7 @@ function SeccionVistaEditable({
         {seccion.bloques.slice(desde, hasta).map((b, i) => {
           const idx = desde + i;
           return (
-            <div key={idx}>
+            <div key={idx} data-bloque={idx} data-medir-bloque={medicion ? idx : undefined}>
               <BloqueVistaEditable
                 bloque={b}
                 onChange={(nb) => setBloque(idx, nb)}
@@ -761,6 +1020,8 @@ export default function DocumentoReglamentoApp({
   const [searchTerm, setSearchTerm] = useState('');
   const [contenidoLocal, setContenidoLocal] = useState<ContenidoDoc | null>(null);
   const [cambiosPendientes, setCambiosPendientes] = useState(false);
+  /** Confirmación en curso. Sustituye a los avisos del navegador. */
+  const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
   const [modoEdicion, setModoEdicion] = useState(true);
   const [escribiendo, setEscribiendo] = useState(false);
   const finEscrituraRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -781,20 +1042,40 @@ export default function DocumentoReglamentoApp({
     if (versionCargada.current === version) return;
     if (cambiosPendientes) return;
     versionCargada.current = version;
+    contenidoRef.current = registro.contenido as ContenidoDoc;
     setContenidoLocal(registro.contenido as ContenidoDoc);
+    // El documento que llega del servidor arranca su propio historial.
+    historialRef.current = { pasado: [], futuro: [] };
+    ultimoRegistroRef.current = 0;
+    setPuedeDeshacer(false);
+    setPuedeRehacer(false);
   }, [registro, ambito, protocoloId, cambiosPendientes]);
 
   // Cambiar de reglamento descarta el borrador en pantalla, nunca lo mezcla con el otro documento.
   const cambiarAmbito = (nuevo: AmbitoReglamento) => {
     if (nuevo === ambito) return;
-    if (cambiosPendientes && !window.confirm('Tienes cambios sin guardar en este reglamento. ¿Cambiar de documento y descartarlos?')) {
+
+    const aplicar = () => {
+      setCambiosPendientes(false);
+      contenidoRef.current = null;
+      setContenidoLocal(null);
+      versionCargada.current = null;
+      reiniciarHistorial();
+      setSearchTerm('');
+      setAmbito(nuevo);
+    };
+
+    if (cambiosPendientes) {
+      setConfirmacion({
+        titulo: 'Tienes cambios sin guardar',
+        mensaje: 'Si abres el otro reglamento ahora, lo que escribiste en este se pierde.',
+        etiqueta: 'Descartar y cambiar',
+        peligro: true,
+        onConfirmar: aplicar,
+      });
       return;
     }
-    setCambiosPendientes(false);
-    setContenidoLocal(null);
-    versionCargada.current = null;
-    setSearchTerm('');
-    setAmbito(nuevo);
+    aplicar();
   };
 
   const updateMutation = useMutation({
@@ -862,9 +1143,97 @@ export default function DocumentoReglamentoApp({
     });
   }, [secciones, searchTerm]);
 
+  // ------------------------------------------------------------- medición real
+  // El reparto en hojas se calcula con el alto que de verdad ocupa cada bloque
+  // ya pintado, medido sobre una copia oculta con el mismo ancho de columna que
+  // la hoja. Estimarlo a partir del texto siempre se quedaba corto: la hoja se
+  // pasaba de largo y el navegador la partía sola, sacando una página de más al
+  // imprimir con el pie de página descolgado.
+  const medidorRef = useRef<HTMLDivElement>(null);
+  const membreteRef = useRef<HTMLElement>(null);
+  const pieRef = useRef<HTMLElement>(null);
+  const portadillaRef = useRef<HTMLDivElement>(null);
+  const [medidas, setMedidas] = useState<Partial<MedidasDoc> | null>(null);
+  const [altoUtil, setAltoUtil] = useState(ALTO_UTIL_HOJA);
+
+  useEffect(() => {
+    // Mientras se escribe no se remide: el reparto está congelado de todos modos.
+    if (escribiendo) return;
+    let cancelado = false;
+
+    const medir = () => {
+      if (cancelado || !medidorRef.current) return;
+      const bloques: Record<string, number> = {};
+      const encabezados: Record<string, number> = {};
+
+      medidorRef.current.querySelectorAll<HTMLElement>('[data-medir-seccion]').forEach((nodo) => {
+        const id = nodo.dataset.medirSeccion;
+        if (!id) return;
+        const esContinuacion = nodo.dataset.medirContinuacion === 'si';
+        const marco = nodo.getBoundingClientRect();
+        const items = Array.from(nodo.querySelectorAll<HTMLElement>('[data-medir-bloque]'));
+        const cabecera = nodo.querySelector<HTMLElement>('[data-medir-encabezado]');
+
+        // El encabezado se mide hasta donde empieza el primer bloque, así queda
+        // incluida la separación que los navegadores colapsan entre ambos.
+        const inicioBloques = items.length
+          ? items[0].getBoundingClientRect().top
+          : cabecera?.getBoundingClientRect().bottom ?? marco.bottom;
+        encabezados[esContinuacion ? `${id}:cont` : id] = Math.max(0, inicioBloques - marco.top);
+
+        if (esContinuacion) return;
+        const seccion = secciones.find((x) => x.id === id);
+        items.forEach((el, i) => {
+          // El salto de página no se imprime: no ocupa alto aunque en pantalla
+          // se dibuje su línea punteada.
+          if (seccion?.bloques[i]?.tipo === 'salto') {
+            bloques[`${id}:${i}`] = 0;
+            return;
+          }
+          const arriba = el.getBoundingClientRect().top;
+          const abajo = i + 1 < items.length ? items[i + 1].getBoundingClientRect().top : marco.bottom;
+          bloques[`${id}:${i}`] = Math.max(0, abajo - arriba);
+        });
+      });
+
+      const nuevas: Partial<MedidasDoc> = {
+        bloques,
+        encabezados,
+        separacion: 24,
+        // La portadilla del título solo resta espacio en la primera hoja.
+        primeraHoja: portadillaRef.current ? portadillaRef.current.offsetHeight + 24 : 0,
+      };
+      setMedidas((prev) => (JSON.stringify(prev) === JSON.stringify(nuevas) ? prev : nuevas));
+
+      // Hueco disponible entre el membrete y el pie. Se calcula restándolos de
+      // la hoja y no midiendo el contenedor: ese crece con lo que se le mete y
+      // el reparto se realimentaría a sí mismo hoja tras hoja.
+      const membrete = membreteRef.current ? membreteRef.current.offsetHeight + 24 : 0;
+      const pie = pieRef.current?.offsetHeight ?? 0;
+      if (membrete > 0 && pie > 0) {
+        const hueco = ALTO_HOJA - MARGEN_HOJA * 2 - membrete - pie - 8;
+        if (hueco > 200) setAltoUtil((prev) => (Math.abs(prev - hueco) < 1 ? prev : hueco));
+      }
+    };
+
+    const t = setTimeout(() => {
+      // Medir antes de que carguen las tipografías da alturas de otra fuente.
+      if (typeof document !== 'undefined' && document.fonts && document.fonts.status !== 'loaded') {
+        document.fonts.ready.then(medir).catch(() => medir());
+      } else {
+        medir();
+      }
+    }, 120);
+
+    return () => {
+      cancelado = true;
+      clearTimeout(t);
+    };
+  }, [secciones, escribiendo]);
+
   const layout = useMemo<FragmentoLayout[][]>(
     () =>
-      paginarFragmentos(seccionesFiltradas).map((hoja) =>
+      paginarFragmentos(seccionesFiltradas, altoUtil, true, medidas ?? undefined).map((hoja) =>
         hoja.map((f) => ({
           seccionId: f.seccion.id,
           desde: f.desde,
@@ -873,7 +1242,7 @@ export default function DocumentoReglamentoApp({
           ultimo: f.ultimo,
         }))
       ),
-    [seccionesFiltradas]
+    [seccionesFiltradas, altoUtil, medidas]
   );
 
   // Mientras se escribe, el reparto en hojas se congela: si el texto crecido
@@ -897,13 +1266,22 @@ export default function DocumentoReglamentoApp({
     year: 'numeric',
   });
 
-  const marcarFoco = () => {
+  // Solo escribir congela el reparto en hojas. Antes bastaba con que cualquier
+  // cosa del documento tomara el foco —un botón, por ejemplo—: al quedarse
+  // enfocado tras el clic, el reparto no volvía a calcularse nunca y los bloques
+  // nuevos se amontonaban todos en la última hoja.
+  const esCampoDeTexto = (nodo: EventTarget | null) =>
+    !!(nodo as HTMLElement | null)?.isContentEditable;
+
+  const marcarFoco = (e: React.FocusEvent) => {
+    if (!esCampoDeTexto(e.target)) return;
     if (finEscrituraRef.current) clearTimeout(finEscrituraRef.current);
     finEscrituraRef.current = null;
     setEscribiendo(true);
   };
 
-  const marcarSalidaFoco = () => {
+  const marcarSalidaFoco = (e: React.FocusEvent) => {
+    if (!esCampoDeTexto(e.target)) return;
     if (finEscrituraRef.current) clearTimeout(finEscrituraRef.current);
     // Pasar de un campo a otro dispara blur y focus seguidos: se espera un
     // instante para no recalcular las hojas en ese hueco.
@@ -914,11 +1292,95 @@ export default function DocumentoReglamentoApp({
     if (finEscrituraRef.current) clearTimeout(finEscrituraRef.current);
   }, []);
 
-  /** Todos los cambios se aplican sobre la última versión del contenido, nunca
-   *  sobre la copia que tenía el render en el que se hizo clic. */
-  const mutarContenido = (fn: (c: ContenidoDoc) => ContenidoDoc) => {
-    setContenidoLocal((prev) => (prev ? fn(prev) : prev));
+  // ------------------------------------------------------------- deshacer
+  // El deshacer del navegador solo alcanza al texto de un campo suelto y se
+  // pierde en cuanto el bloque se repinta en otra hoja. El historial vive aquí,
+  // sobre el documento entero, así Ctrl+Z también revierte insertar, borrar o
+  // mover un bloque o un capítulo.
+  const historialRef = useRef<{ pasado: ContenidoDoc[]; futuro: ContenidoDoc[] }>({ pasado: [], futuro: [] });
+  const ultimoRegistroRef = useRef(0);
+  const [puedeDeshacer, setPuedeDeshacer] = useState(false);
+  const [puedeRehacer, setPuedeRehacer] = useState(false);
+  const LIMITE_HISTORIAL = 100;
+  /** Al escribir, las teclas seguidas se agrupan: deshacer no debe ir letra a letra. */
+  const AGRUPAR_MS = 700;
+
+  const sincronizarHistorial = () => {
+    setPuedeDeshacer(historialRef.current.pasado.length > 0);
+    setPuedeRehacer(historialRef.current.futuro.length > 0);
+  };
+
+  const reiniciarHistorial = () => {
+    historialRef.current = { pasado: [], futuro: [] };
+    ultimoRegistroRef.current = 0;
+    sincronizarHistorial();
+  };
+
+  /** Espejo sincrónico del documento. React aplica `setState` más tarde, así que
+   *  el historial y los cambios encadenados en un mismo clic necesitan leer aquí
+   *  la última versión, no la copia que tenía el render en curso. */
+  const contenidoRef = useRef<ContenidoDoc | null>(null);
+  useEffect(() => {
+    // Solo se copian versiones reales: vaciar el espejo es siempre una decisión
+    // explícita (cambiar de reglamento), nunca un efecto de la carga.
+    if (contenidoLocal) contenidoRef.current = contenidoLocal;
+  }, [contenidoLocal]);
+
+  const mutarContenido = (fn: (c: ContenidoDoc) => ContenidoDoc, agrupar = false) => {
+    const actual = contenidoRef.current;
+    if (!actual) return;
+
+    const h = historialRef.current;
+    const ahora = Date.now();
+    // Si el cursor está dentro de un campo, el cambio viene de teclear: esas
+    // pulsaciones se agrupan en un solo paso del historial.
+    const tecleando = agrupar || !!(document.activeElement as HTMLElement | null)?.isContentEditable;
+    const continuaLaMisma = tecleando && ahora - ultimoRegistroRef.current < AGRUPAR_MS && h.pasado.length > 0;
+    if (!continuaLaMisma) {
+      h.pasado.push(actual);
+      if (h.pasado.length > LIMITE_HISTORIAL) h.pasado.shift();
+      h.futuro = [];
+    }
+    ultimoRegistroRef.current = ahora;
+
+    const siguiente = fn(actual);
+    contenidoRef.current = siguiente;
+    setContenidoLocal(siguiente);
     setCambiosPendientes(true);
+    sincronizarHistorial();
+  };
+
+  /** El campo enfocado no se repinta mientras tiene el cursor, así que hay que
+   *  soltarlo antes de reemplazar el documento o el cambio no se vería. */
+  const soltarFoco = () => {
+    const activo = document.activeElement as HTMLElement | null;
+    if (activo?.isContentEditable) activo.blur();
+  };
+
+  const deshacer = () => {
+    const h = historialRef.current;
+    if (!h.pasado.length) return;
+    soltarFoco();
+    const anterior = h.pasado.pop()!;
+    if (contenidoRef.current) h.futuro.push(contenidoRef.current);
+    contenidoRef.current = anterior;
+    setContenidoLocal(anterior);
+    ultimoRegistroRef.current = 0;
+    setCambiosPendientes(true);
+    sincronizarHistorial();
+  };
+
+  const rehacer = () => {
+    const h = historialRef.current;
+    if (!h.futuro.length) return;
+    soltarFoco();
+    const siguiente = h.futuro.pop()!;
+    if (contenidoRef.current) h.pasado.push(contenidoRef.current);
+    contenidoRef.current = siguiente;
+    setContenidoLocal(siguiente);
+    ultimoRegistroRef.current = 0;
+    setCambiosPendientes(true);
+    sincronizarHistorial();
   };
 
   const actualizarSeccion = (id: string, fn: (s: SeccionDoc) => SeccionDoc) =>
@@ -926,8 +1388,20 @@ export default function DocumentoReglamentoApp({
 
   const eliminarSeccion = (id: string) => {
     const sec = secciones.find((s) => s.id === id);
-    if (sec && !window.confirm(`¿Eliminar "${sec.titulo}" y todo su contenido?`)) return;
-    mutarContenido((c) => ({ ...c, secciones: c.secciones.filter((s) => s.id !== id) }));
+    if (!sec) return;
+    const borrar = () => {
+      mutarContenido((c) => ({ ...c, secciones: c.secciones.filter((s) => s.id !== id) }));
+      toast.success('Capítulo eliminado · Ctrl+Z para revertir');
+    };
+    setConfirmacion({
+      titulo: 'Eliminar capítulo',
+      mensaje: `Se elimina «${sec.numero ? `${sec.numero}: ` : ''}${sec.titulo}» con todo lo que contiene.`,
+      detalle: [`${sec.bloques.length} ${sec.bloques.length === 1 ? 'bloque' : 'bloques'} de contenido`],
+      etiqueta: 'Eliminar capítulo',
+      nota: 'Se puede revertir con Ctrl+Z mientras no guardes.',
+      peligro: true,
+      onConfirmar: borrar,
+    });
   };
 
   const moverSeccion = (id: string, delta: number) =>
@@ -936,6 +1410,109 @@ export default function DocumentoReglamentoApp({
       if (i < 0) return c;
       return { ...c, secciones: mover(c.secciones, i, delta) };
     });
+
+  const insertarBloqueEn = (seccionId: string, pos: number, tipo: TipoBloque) =>
+    actualizarSeccion(seccionId, (s) => {
+      const bloques = [...s.bloques];
+      bloques.splice(Math.max(0, Math.min(pos, bloques.length)), 0, bloqueVacio(tipo));
+      return { ...s, bloques };
+    });
+
+  const duplicarBloque = (seccionId: string, idx: number) =>
+    actualizarSeccion(seccionId, (s) => {
+      const original = s.bloques[idx];
+      if (!original) return s;
+      const bloques = [...s.bloques];
+      bloques.splice(idx + 1, 0, JSON.parse(JSON.stringify(original)) as Bloque);
+      return { ...s, bloques };
+    });
+
+  const moverBloqueEn = (seccionId: string, idx: number, delta: number) =>
+    actualizarSeccion(seccionId, (s) => ({ ...s, bloques: mover(s.bloques, idx, delta) }));
+
+  const eliminarBloqueEn = (seccionId: string, idx: number) =>
+    actualizarSeccion(seccionId, (s) => ({ ...s, bloques: s.bloques.filter((_, i) => i !== idx) }));
+
+  /** Agrega una hoja: un salto de página y un párrafo vacío donde escribir. */
+  const agregarHojaTras = (frag: FragmentoLayout | undefined) => {
+    if (!frag) return;
+    actualizarSeccion(frag.seccionId, (s) => {
+      const bloques = [...s.bloques];
+      const pos = Math.min(frag.hasta, bloques.length);
+      bloques.splice(pos, 0, { tipo: 'salto' }, { tipo: 'parrafo', texto: '' });
+      return { ...s, bloques };
+    });
+    toast.success('Hoja nueva agregada después de esta');
+  };
+
+  /** Quita la hoja uniéndola con la anterior: borra el salto que la abría. */
+  const quitarHoja = (frag: FragmentoLayout | undefined) => {
+    if (!frag) return;
+    const anterior = frag.desde - 1;
+    if (anterior < 0) return;
+    actualizarSeccion(frag.seccionId, (s) =>
+      s.bloques[anterior]?.tipo === 'salto'
+        ? { ...s, bloques: s.bloques.filter((_, i) => i !== anterior) }
+        : s
+    );
+    toast.success('Hoja unida con la anterior');
+  };
+
+  /**
+   * Borra la hoja entera con lo que tenga dentro. Es decisión de quien redacta:
+   * se avisa qué se va y Ctrl+Z lo devuelve, pero no se le niega el borrado por
+   * el hecho de que la hoja tenga contenido.
+   */
+  const eliminarHoja = (idxHoja: number) => {
+    const fragmentos = hojas[idxHoja];
+    if (!fragmentos?.length) return;
+
+    // Se enumera lo que se va, capítulo por capítulo, para que la decisión sea
+    // informada y no un «¿continuar?» a ciegas.
+    const detalle = fragmentos.map((f) => {
+      const sec = secciones.find((x) => x.id === f.seccionId);
+      const cuantos = Math.max(0, Math.min(f.hasta, sec?.bloques.length ?? 0) - f.desde);
+      const nombre = sec ? `${sec.numero ? `${sec.numero}: ` : ''}${sec.titulo}` : 'Capítulo';
+      const completo = sec && f.desde === 0 && f.hasta >= sec.bloques.length;
+      return `${nombre} — ${cuantos} ${cuantos === 1 ? 'bloque' : 'bloques'}${completo ? ' (el capítulo entero)' : ''}`;
+    });
+
+    const tocadas = new Set(fragmentos.map((f) => f.seccionId));
+
+    const borrar = () => {
+      mutarContenido((c) => {
+        const secciones2 = c.secciones.map((sec) => {
+          const frag = fragmentos.find((f) => f.seccionId === sec.id);
+          if (!frag) return sec;
+          const hasta = Math.min(frag.hasta, sec.bloques.length);
+          // El salto que abría la hoja se va con ella; si no, quedaría una hoja
+          // vacía en su lugar.
+          const inicio = sec.bloques[frag.desde - 1]?.tipo === 'salto' ? frag.desde - 1 : frag.desde;
+          return { ...sec, bloques: [...sec.bloques.slice(0, Math.max(0, inicio)), ...sec.bloques.slice(hasta)] };
+        });
+        // Un capítulo que cabía entero en la hoja desaparece con ella.
+        return { ...c, secciones: secciones2.filter((sec) => !tocadas.has(sec.id) || sec.bloques.length > 0) };
+      });
+      toast.success('Hoja eliminada · Ctrl+Z para revertir');
+    };
+
+    setConfirmacion({
+      titulo: `Eliminar la hoja ${hojasPreliminares + idxHoja + 1}`,
+      mensaje: 'Se borra la hoja completa con todo lo que tiene dentro.',
+      detalle,
+      etiqueta: 'Eliminar hoja',
+      nota: 'Se puede revertir con Ctrl+Z mientras no guardes.',
+      peligro: true,
+      onConfirmar: borrar,
+    });
+  };
+
+  /** Solo se puede quitar la hoja que abrió un salto, no la que abre un capítulo. */
+  const hojaAbiertaPorSalto = (frag: FragmentoLayout | undefined) => {
+    if (!frag || frag.desde < 1) return false;
+    const seccion = secciones.find((x) => x.id === frag.seccionId);
+    return seccion?.bloques[frag.desde - 1]?.tipo === 'salto';
+  };
 
   const handleAgregarCapitulo = () => {
     const nueva = seccionVacia();
@@ -964,6 +1541,145 @@ export default function DocumentoReglamentoApp({
   const canEdit = isEditor || isAdmin;
   const editable = canEdit && modoEdicion;
 
+  // ------------------------------------------------------- menú del botón derecho
+  const [menuCtx, setMenuCtx] = useState<{ x: number; y: number; grupos: GrupoMenu[] } | null>(null);
+
+  const abrirMenuContextual = (e: React.MouseEvent) => {
+    // Sin Shift el menú es el del editor; con Shift, el del navegador (pegar,
+    // ortografía), que sigue haciendo falta.
+    if (!editable || e.shiftKey) return;
+
+    const objetivo = e.target as HTMLElement;
+    const nodoBloque = objetivo.closest('[data-bloque]') as HTMLElement | null;
+    const nodoSeccion = objetivo.closest('[data-seccion]') as HTMLElement | null;
+    const nodoHoja = objetivo.closest('[data-hoja]') as HTMLElement | null;
+
+    const seccionId = nodoSeccion?.dataset.seccion;
+    const seccion = seccionId ? secciones.find((x) => x.id === seccionId) : undefined;
+    const idxBloque = nodoBloque ? Number(nodoBloque.dataset.bloque) : -1;
+    const idxHoja = nodoHoja ? Number(nodoHoja.dataset.hoja) : -1;
+    const fragmentos = idxHoja >= 0 ? hojas[idxHoja] : undefined;
+
+    const grupos: GrupoMenu[] = [];
+
+    if (seccion && idxBloque >= 0 && seccion.bloques[idxBloque]) {
+      const tiposPara = (pos: number): OpcionMenu[] =>
+        TIPOS_BLOQUE.map((t) => ({
+          id: `tipo-${pos}-${t}`,
+          etiqueta: ETIQUETA_BLOQUE[t],
+          onClick: () => insertarBloqueEn(seccion.id, pos, t),
+        }));
+
+      grupos.push({
+        titulo: `${ETIQUETA_BLOQUE[seccion.bloques[idxBloque].tipo]} · bloque ${idxBloque + 1}`,
+        opciones: [
+          { id: 'ins-arriba', etiqueta: 'Insertar arriba', icono: Plus, submenu: tiposPara(idxBloque) },
+          { id: 'ins-abajo', etiqueta: 'Insertar abajo', icono: Plus, submenu: tiposPara(idxBloque + 1) },
+          { id: 'duplicar', etiqueta: 'Duplicar bloque', icono: Copy, onClick: () => duplicarBloque(seccion.id, idxBloque) },
+          {
+            id: 'subir-bloque',
+            etiqueta: 'Subir bloque',
+            icono: ArrowUp,
+            deshabilitado: idxBloque === 0,
+            onClick: () => moverBloqueEn(seccion.id, idxBloque, -1),
+          },
+          {
+            id: 'bajar-bloque',
+            etiqueta: 'Bajar bloque',
+            icono: ArrowDown,
+            deshabilitado: idxBloque >= seccion.bloques.length - 1,
+            onClick: () => moverBloqueEn(seccion.id, idxBloque, 1),
+          },
+          {
+            id: 'borrar-bloque',
+            etiqueta: 'Eliminar bloque',
+            icono: Trash2,
+            peligro: true,
+            onClick: () => eliminarBloqueEn(seccion.id, idxBloque),
+          },
+        ],
+      });
+    }
+
+    if (seccion) {
+      const posSeccion = secciones.findIndex((x) => x.id === seccion.id);
+      grupos.push({
+        titulo: `${seccion.numero || 'Capítulo'} · ${seccion.titulo}`,
+        opciones: [
+          {
+            id: 'subir-cap',
+            etiqueta: 'Subir capítulo',
+            icono: ArrowUp,
+            deshabilitado: posSeccion <= 0,
+            onClick: () => moverSeccion(seccion.id, -1),
+          },
+          {
+            id: 'bajar-cap',
+            etiqueta: 'Bajar capítulo',
+            icono: ArrowDown,
+            deshabilitado: posSeccion < 0 || posSeccion === secciones.length - 1,
+            onClick: () => moverSeccion(seccion.id, 1),
+          },
+          { id: 'nuevo-cap', etiqueta: 'Agregar capítulo al final', icono: Plus, onClick: handleAgregarCapitulo },
+          {
+            id: 'borrar-cap',
+            etiqueta: 'Eliminar capítulo',
+            icono: Trash2,
+            peligro: true,
+            onClick: () => eliminarSeccion(seccion.id),
+          },
+        ],
+      });
+    }
+
+    grupos.push({
+      titulo: idxHoja >= 0 ? `Hoja ${hojasPreliminares + idxHoja + 1} de ${totalHojas}` : 'Documento',
+      opciones: [
+        {
+          id: 'hoja-nueva',
+          etiqueta: 'Hoja nueva después de esta',
+          icono: FilePlus2,
+          deshabilitado: !fragmentos?.length,
+          onClick: () => agregarHojaTras(fragmentos?.[fragmentos.length - 1]),
+        },
+        {
+          id: 'hoja-unir',
+          etiqueta: 'Unir con la hoja anterior',
+          icono: Scissors,
+          deshabilitado: !hojaAbiertaPorSalto(fragmentos?.[0]),
+          onClick: () => quitarHoja(fragmentos?.[0]),
+        },
+        {
+          id: 'hoja-eliminar',
+          etiqueta: 'Eliminar esta hoja y su contenido',
+          icono: Trash2,
+          peligro: true,
+          deshabilitado: idxHoja < 0 || !fragmentos?.length,
+          onClick: () => eliminarHoja(idxHoja),
+        },
+      ],
+    });
+
+    grupos.push({
+      opciones: [
+        { id: 'deshacer', etiqueta: 'Deshacer', icono: Undo2, atajo: 'Ctrl+Z', deshabilitado: !puedeDeshacer, onClick: deshacer },
+        { id: 'rehacer', etiqueta: 'Rehacer', icono: Redo2, atajo: 'Ctrl+Y', deshabilitado: !puedeRehacer, onClick: rehacer },
+        {
+          id: 'guardar',
+          etiqueta: 'Guardar cambios',
+          icono: CheckCircle2,
+          atajo: 'Ctrl+S',
+          deshabilitado: !cambiosPendientes || updateMutation.isPending,
+          onClick: handleGuardar,
+        },
+        { id: 'imprimir', etiqueta: 'Imprimir / PDF', icono: Printer, atajo: 'Ctrl+P', onClick: handleImprimir },
+      ],
+    });
+
+    e.preventDefault();
+    setMenuCtx({ x: e.clientX, y: e.clientY, grupos });
+  };
+
   // Salir de la página con cambios sin guardar tenía que avisar: es fácil perder
   // media tarde de redacción con un clic en el menú lateral.
   useEffect(() => {
@@ -975,6 +1691,32 @@ export default function DocumentoReglamentoApp({
     window.addEventListener('beforeunload', aviso);
     return () => window.removeEventListener('beforeunload', aviso);
   }, [cambiosPendientes]);
+
+  // Atajos del editor. Van en captura y con preventDefault para ganarle al
+  // deshacer propio del navegador, que solo revierte texto de un campo suelto.
+  useEffect(() => {
+    if (!editable) return;
+    const alTeclado = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const tecla = e.key.toLowerCase();
+      if (tecla === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        deshacer();
+      } else if (tecla === 'y' || (tecla === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        rehacer();
+      } else if (tecla === 's') {
+        e.preventDefault();
+        if (cambiosPendientes && !updateMutation.isPending) handleGuardar();
+      } else if (tecla === 'p') {
+        e.preventDefault();
+        handleImprimir();
+      }
+    };
+    window.addEventListener('keydown', alTeclado, true);
+    return () => window.removeEventListener('keydown', alTeclado, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable, cambiosPendientes, updateMutation.isPending, contenidoLocal, registro]);
 
   if (isLoading) {
     return (
@@ -1034,12 +1776,17 @@ export default function DocumentoReglamentoApp({
             box-shadow: none !important;
             transform: none !important;
           }
+          /* Mismas medidas que en pantalla, en px, para que el texto corte el
+             renglón en el mismo punto y la vista previa sea el papel. */
           .hoja-carta {
-            width: 215.9mm !important;
-            height: 279.4mm !important;
-            min-height: 279.4mm !important;
-            max-height: 279.4mm !important;
-            padding: 16mm 18mm 14mm 18mm !important;
+            width: ${ANCHO_HOJA}px !important;
+            height: ${ALTO_HOJA}px !important;
+            min-height: ${ALTO_HOJA}px !important;
+            max-height: ${ALTO_HOJA}px !important;
+            padding: ${MARGEN_HOJA}px !important;
+            /* Red de seguridad: si algo se pasara de largo se recorta aquí en
+               vez de derramarse a una página extra con el pie descolgado. */
+            overflow: hidden !important;
             margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
@@ -1166,6 +1913,28 @@ export default function DocumentoReglamentoApp({
               <RotateCcw className="w-3 h-3" />
             </button>
           </div>
+
+          {/* Deshacer y rehacer sobre el documento completo (Ctrl+Z / Ctrl+Y) */}
+          {editable && (
+            <div className="flex items-center bg-muted/60 rounded-lg p-0.5 border border-border">
+              <button
+                onClick={deshacer}
+                disabled={!puedeDeshacer}
+                title="Deshacer (Ctrl+Z)"
+                className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={rehacer}
+                disabled={!puedeRehacer}
+                title="Rehacer (Ctrl+Y o Ctrl+Shift+Z)"
+                className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent border-l border-border"
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Edición o solo lectura */}
           {canEdit && (
@@ -1335,16 +2104,17 @@ export default function DocumentoReglamentoApp({
               id="documento-print"
               onFocusCapture={marcarFoco}
               onBlurCapture={marcarSalidaFoco}
+              onContextMenu={abrirMenuContextual}
               className="hoja-carta-canvas hoja-zoom transition-transform duration-150 origin-top flex flex-col items-center space-y-8 print:space-y-0"
               style={{ transform: `scale(${zoom})` }}
             >
               {/* HOJA 1: PORTADA EJECUTIVA MODERNA FORMAL */}
               <div
-                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-12 sm:p-14 flex flex-col justify-between shadow-xl shrink-0 box-border overflow-hidden"
-                style={{ width: '816px', height: '1056px', minHeight: '1056px', maxHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none flex flex-col justify-between shadow-xl shrink-0 box-border"
+                style={{ width: ANCHO_HOJA, minHeight: ALTO_HOJA, padding: MARGEN_HOJA, fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
               >
                 {/* Header Superior Corporativo */}
-                <div className="bg-[#0f172a] text-white -mx-12 -mt-12 sm:-mx-14 sm:-mt-14 px-8 py-5 flex items-center justify-between mb-8 shrink-0">
+                <div className="bg-[#0f172a] text-white -mx-14 -mt-14 px-8 py-5 flex items-center justify-between mb-8 shrink-0">
                   <div className="flex items-center gap-3">
                     <img src={COMPANY.logoPublicPath || '/logo_b.png'} alt="U3" className="w-10 h-10 object-contain bg-white p-1 rounded" />
                     <div>
@@ -1420,8 +2190,8 @@ export default function DocumentoReglamentoApp({
 
               {/* HOJA 2: ÍNDICE GENERAL (PARTE I) */}
               <div
-                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-12 sm:p-14 flex flex-col justify-between shadow-xl shrink-0 box-border overflow-hidden"
-                style={{ width: '816px', height: '1056px', minHeight: '1056px', maxHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none flex flex-col justify-between shadow-xl shrink-0 box-border"
+                style={{ width: ANCHO_HOJA, minHeight: ALTO_HOJA, padding: MARGEN_HOJA, fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
               >
                 <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase shrink-0">
                   <span className="font-extrabold text-[#0f172a]">{COMPANY.razonSocial}</span>
@@ -1472,8 +2242,8 @@ export default function DocumentoReglamentoApp({
               {/* HOJA 3: ÍNDICE GENERAL (PARTE II, solo en documentos extensos) */}
               {indicePartido && (
                 <div
-                  className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none p-12 sm:p-14 flex flex-col justify-between shadow-xl shrink-0 box-border overflow-hidden"
-                  style={{ width: '816px', height: '1056px', minHeight: '1056px', maxHeight: '1056px', maxWidth: '100%', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                  className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none flex flex-col justify-between shadow-xl shrink-0 box-border"
+                  style={{ width: ANCHO_HOJA, minHeight: ALTO_HOJA, padding: MARGEN_HOJA, fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
                 >
                   <div className="border-b-2 border-[#1e3a8a] pb-2.5 flex items-center justify-between text-[10px] text-slate-600 font-sans tracking-wider uppercase shrink-0">
                     <span className="font-extrabold text-[#0f172a]">{COMPANY.razonSocial}</span>
@@ -1526,13 +2296,20 @@ export default function DocumentoReglamentoApp({
               {hojas.map((hojaSecciones, hojaIdx) => (
                 <div
                   key={hojaIdx}
-                  className="hoja-carta w-[816px] h-[1056px] min-h-[1056px] max-h-[1056px] bg-white text-slate-900 shadow-xl rounded-none p-12 sm:p-14 relative flex flex-col justify-between border border-slate-200 shrink-0 box-border overflow-hidden"
+                  data-hoja={hojaIdx}
+                  className="hoja-carta bg-white text-slate-900 shadow-xl rounded-none relative flex flex-col justify-between border border-slate-200 shrink-0 box-border"
                   style={{
+                    width: ANCHO_HOJA,
+                    minHeight: ALTO_HOJA,
+                    padding: MARGEN_HOJA,
                     fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
                   }}
                 >
                   {/* Membrete Oficial Superior */}
-                  <header className="border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between shrink-0">
+                  <header
+                    ref={hojaIdx === 0 ? membreteRef : undefined}
+                    className="border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between shrink-0"
+                  >
                     <div className="flex items-center gap-3">
                       <img
                         src={COMPANY.logoPublicPath || '/logo_b.png'}
@@ -1559,9 +2336,9 @@ export default function DocumentoReglamentoApp({
                   </header>
 
                   {/* Contenido de la hoja */}
-                  <div className="flex-1 space-y-6 overflow-hidden">
+                  <div className="hoja-contenido flex-1 space-y-6">
                     {hojaIdx === 0 && (
-                      <div className="text-center pb-4 mb-4 border-b border-slate-200">
+                      <div ref={portadillaRef} className="text-center pb-4 mb-4 border-b border-slate-200">
                         <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight uppercase">
                           {registro.titulo}
                         </h2>
@@ -1582,9 +2359,17 @@ export default function DocumentoReglamentoApp({
                       if (!seccion) return null;
                       const idxSeccion = secciones.findIndex((s) => s.id === frag.seccionId);
                       // Al congelar el reparto mientras se escribe, el último
-                      // fragmento se estira hasta el final para que un bloque
-                      // recién insertado se vea de inmediato.
-                      const hasta = frag.ultimo ? seccion.bloques.length : Math.min(frag.hasta, seccion.bloques.length);
+                      // fragmento se estira para que un bloque recién insertado
+                      // se vea de inmediato, pero nunca más allá de un salto de
+                      // página: lo que va después es otra hoja.
+                      const siguienteSalto = frag.ultimo
+                        ? seccion.bloques.findIndex((b, i) => i >= frag.hasta && b.tipo === 'salto')
+                        : -1;
+                      const hasta = frag.ultimo
+                        ? siguienteSalto === -1
+                          ? seccion.bloques.length
+                          : siguienteSalto + 1
+                        : Math.min(frag.hasta, seccion.bloques.length);
                       return (
                         <SeccionVistaEditable
                           key={`${frag.seccionId}-${frag.desde}`}
@@ -1603,6 +2388,37 @@ export default function DocumentoReglamentoApp({
                       );
                     })}
 
+                    {editable && (
+                      <div className="pt-3 mt-2 border-t border-dashed border-slate-200 flex flex-wrap items-center justify-center gap-2 print:hidden">
+                        {hojaAbiertaPorSalto(hojaSecciones[0]) && (
+                          <button
+                            type="button"
+                            onClick={() => quitarHoja(hojaSecciones[0])}
+                            title="Quita el salto que abre esta hoja y devuelve el contenido a la hoja anterior"
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-slate-300 text-[10.5px] font-semibold text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-colors"
+                          >
+                            <Scissors className="w-3 h-3" /> Unir con la anterior
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => eliminarHoja(hojaIdx)}
+                          title="Borra esta hoja completa, con todo lo que tenga dentro"
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-slate-300 text-[10.5px] font-semibold text-slate-500 hover:border-red-400 hover:text-red-600 hover:bg-red-50/50 transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" /> Eliminar esta hoja
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => agregarHojaTras(hojaSecciones[hojaSecciones.length - 1])}
+                          title="Corta aquí el documento y abre una hoja nueva a continuación"
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-slate-300 text-[10.5px] font-semibold text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-colors"
+                        >
+                          <FilePlus2 className="w-3 h-3" /> Hoja nueva después de esta
+                        </button>
+                      </div>
+                    )}
+
                     {editable && hojaIdx === hojas.length - 1 && (
                       <div className="pt-4 print:hidden">
                         <button
@@ -1617,7 +2433,10 @@ export default function DocumentoReglamentoApp({
                   </div>
 
                   {/* Pie de Página Oficial con Foliado */}
-                  <footer className="hoja-footer border-t border-slate-200 pt-3 mt-auto flex items-center justify-between gap-6 text-[10px] text-slate-600 font-sans w-full shrink-0">
+                  <footer
+                    ref={hojaIdx === 0 ? pieRef : undefined}
+                    className="hoja-footer border-t border-slate-200 pt-3 mt-auto flex items-center justify-between gap-6 text-[10px] text-slate-600 font-sans w-full shrink-0"
+                  >
                     <div className="leading-snug min-w-0 flex-1 truncate">
                       <strong className="text-slate-800">{COMPANY.razonSocial}</strong> · {registro.titulo}
                     </div>
@@ -1630,6 +2449,69 @@ export default function DocumentoReglamentoApp({
             </div>
           </div>
         </main>
+      </div>
+
+      {confirmacion && (
+        <DialogoConfirmar datos={confirmacion} onCerrar={() => setConfirmacion(null)} />
+      )}
+
+      {menuCtx && (
+        <MenuContextual
+          x={menuCtx.x}
+          y={menuCtx.y}
+          grupos={menuCtx.grupos}
+          onCerrar={() => setMenuCtx(null)}
+        />
+      )}
+
+      {/* Copia oculta del documento: solo sirve para medir el alto real de cada
+          bloque con el ancho de columna de la hoja, tal como se imprime (sin
+          los controles de edición, que no salen en papel). Nunca se ve. */}
+      <div
+        ref={medidorRef}
+        aria-hidden
+        className="pointer-events-none print:hidden"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: -99999,
+          width: ANCHO_CONTENIDO,
+          visibility: 'hidden',
+          fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+        }}
+      >
+        {secciones.map((sec) => (
+          <div key={sec.id}>
+            <div data-medir-seccion={sec.id}>
+              <SeccionVistaEditable
+                seccion={sec}
+                readOnly
+                medicion
+                primeraSeccion
+                ultimaSeccion
+                onActualizar={() => {}}
+                onEliminar={() => {}}
+                onMoverSeccion={() => {}}
+              />
+            </div>
+            {/* El encabezado compacto de «continúa» mide distinto que el normal. */}
+            <div data-medir-seccion={sec.id} data-medir-continuacion="si">
+              <SeccionVistaEditable
+                seccion={sec}
+                readOnly
+                medicion
+                continuacion
+                desde={0}
+                hasta={Math.min(1, sec.bloques.length)}
+                primeraSeccion
+                ultimaSeccion
+                onActualizar={() => {}}
+                onEliminar={() => {}}
+                onMoverSeccion={() => {}}
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

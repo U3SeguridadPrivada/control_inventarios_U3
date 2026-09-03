@@ -235,8 +235,11 @@
   html, body { height: auto !important; overflow: visible !important; background-color: white !important; }
   [data-mobile-nav] { display: none !important; }
   /* Los contenedores de la app tienen alto fijo y scroll propio: en papel deben
-     fluir, o recortan el documento y encabalgan con la interfaz. */
-  main, .overflow-hidden, .overflow-y-auto, .overflow-x-auto {
+     fluir, o recortan el documento y encabalgan con la interfaz. La hoja queda
+     fuera: es la única que debe conservar su alto fijo, o su contenido se
+     derrama a una página extra en vez de quedarse dentro del pliego. */
+  main, .overflow-y-auto, .overflow-x-auto,
+  .overflow-hidden:not(.hoja-carta):not(.hoja-contenido) {
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
@@ -258,13 +261,19 @@
     background: white !important;
     overflow: visible !important;
   }
+  /* Hoja Carta a 96 ppp con las mismas cifras que usa el visor en pantalla
+     (816 x 1050 px, márgenes de 56 px). Los 6 px que faltan para las 11
+     pulgadas son la holgura que evita que el pliego se derrame a otra página
+     por redondeo. Si cambian aquí, cambian también en documentoProtocolo.ts. */
   .hoja-carta {
     position: relative !important;
-    width: 100% !important;
-    height: 278mm !important;
-    min-height: 278mm !important;
-    margin: 0 !important;
-    padding: 12mm 15mm !important;
+    width: 816px !important;
+    height: 1050px !important;
+    min-height: 1050px !important;
+    max-height: 1050px !important;
+    overflow: hidden !important;
+    margin: 0 auto !important;
+    padding: 56px !important;
     background: white !important;
     box-shadow: none !important;
     border: none !important;
