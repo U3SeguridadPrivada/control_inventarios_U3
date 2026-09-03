@@ -706,10 +706,7 @@ function SeccionVistaEditable({
       )}
 
       {/* Lista de bloques de contenido de este fragmento */}
-      <div className="space-y-1">
-        {!readOnly && desde === 0 && (
-          <BarraInsertar onInsertar={(tipo) => insertarBloque(0, tipo)} etiqueta="Insertar al inicio" />
-        )}
+      <div className="space-y-2">
         {seccion.bloques.slice(desde, hasta).map((b, i) => {
           const idx = desde + i;
           return (
@@ -723,17 +720,18 @@ function SeccionVistaEditable({
                 ultimo={idx === seccion.bloques.length - 1}
                 readOnly={readOnly}
               />
-              {!readOnly && (
-                <BarraInsertar
-                  onInsertar={(tipo) => insertarBloque(idx + 1, tipo)}
-                  etiqueta={idx === seccion.bloques.length - 1 ? 'Agregar al final' : 'Insertar aquí'}
-                />
-              )}
             </div>
           );
         })}
-        {!readOnly && ultimo && seccion.bloques.length === 0 && (
-          <BarraInsertar onInsertar={(tipo) => insertarBloque(0, tipo)} etiqueta="Agregar primer bloque" />
+
+        {/* Solo una única barra de inserción al final del capítulo */}
+        {!readOnly && ultimo && (
+          <div className="pt-2">
+            <BarraInsertar
+              onInsertar={(tipo) => insertarBloque(seccion.bloques.length, tipo)}
+              etiqueta="Agregar bloque al capítulo"
+            />
+          </div>
         )}
       </div>
     </div>
