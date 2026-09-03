@@ -1201,21 +1201,22 @@ export default function DocumentoReglamentoApp({
         </aside>
 
         {/* Visor de Páginas Tamaño Carta */}
-        <main className="flex-1 w-full flex flex-col items-center overflow-x-auto pb-12">
-          {/* Barra de Formato Flotante Adherente sobre las hojas del documento (NUNCA tapa el índice lateral) */}
+        <main className="flex-1 w-full flex flex-col items-center pb-12">
+          {/* Barra de Formato Fija/Adherente sobre las hojas del documento (siempre fija al hacer scroll) */}
           {editable && (
-            <div className="sticky top-2 z-20 mb-4 print:hidden animate-in slide-in-from-top-1 duration-150 w-full max-w-[816px]">
+            <div className="sticky top-2 z-30 mb-4 print:hidden animate-in slide-in-from-top-1 duration-150 w-full max-w-[816px]">
               <BarraFormatoFlotante visible={editable} />
             </div>
           )}
 
-          <div
-            id="documento-print"
-            onFocusCapture={marcarFoco}
-            onBlurCapture={marcarSalidaFoco}
-            className="hoja-carta-canvas hoja-zoom transition-transform duration-150 origin-top flex flex-col items-center space-y-8 print:space-y-0"
-            style={{ transform: `scale(${zoom})` }}
-          >
+          <div className="w-full overflow-x-auto flex flex-col items-center">
+            <div
+              id="documento-print"
+              onFocusCapture={marcarFoco}
+              onBlurCapture={marcarSalidaFoco}
+              className="hoja-carta-canvas hoja-zoom transition-transform duration-150 origin-top flex flex-col items-center space-y-8 print:space-y-0"
+              style={{ transform: `scale(${zoom})` }}
+            >
             {hojas.map((hojaSecciones, hojaIdx) => (
               <div
                 key={hojaIdx}
@@ -1322,6 +1323,7 @@ export default function DocumentoReglamentoApp({
                 </footer>
               </div>
             ))}
+            </div>
           </div>
         </main>
       </div>
