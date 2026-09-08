@@ -2,8 +2,9 @@
 import { useState } from 'react';
 import { Card } from '@/src/components/ui/card';
 import { Badge } from '@/src/components/ui/badge';
-import { FileStack, ClipboardList, Printer, type LucideIcon } from 'lucide-react';
+import { FileStack, ClipboardList, Printer, PackageCheck, type LucideIcon } from 'lucide-react';
 import MachoteControlAcceso from '@/src/components/machotes/MachoteControlAcceso';
+import MachotePaqueteria from '@/src/components/machotes/MachotePaqueteria';
 
 interface Machote {
   id: string;
@@ -19,6 +20,15 @@ interface Machote {
  * basta con crear su componente en src/components/machotes y sumarlo aqui.
  */
 const MACHOTES: Machote[] = [
+  {
+    id: 'paqueteria-mensajeria',
+    nombre: 'Recepción / Entrega de paquetería y mensajería',
+    descripcion:
+      'Bitácora oficial de paquetería para torre/servicio. Folios correlativos configurables, columnas de recepción y entrega, horas con separador, logos oficiales U3 e impresión en tamaño oficio a doble cara.',
+    icono: PackageCheck,
+    formato: 'Oficio horizontal (21.6 x 34.0 cm) · doble cara',
+    render: (onVolver) => <MachotePaqueteria onVolver={onVolver} />,
+  },
   {
     id: 'control-acceso',
     nombre: 'Control de registro de proveedores',

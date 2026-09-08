@@ -42,37 +42,64 @@ fs.promises.readlink = async (path, options) => {
   }
 };
 
-// Safeguard for Next.js file watcher on Windows/exFAT when encountering deleted or locked paths
+// Safeguard for Next.js file watcher on Windows/exFAT when encountering deleted or locked paths.
+// exFAT also fails scandir intermittently with UV_UNKNOWN (-4094) on directories that read back
+// fine moments later. Returning [] for those would silently hide real routes from Next, so we
+// retry briefly and only rethrow once the directory keeps refusing to be read.
+const TRANSIENT_RETRIES = 5;
+const TRANSIENT_DELAY_MS = 20;
+
+const isTransient = (e) => e && e.code === 'UNKNOWN';
+
+const sleepSync = (ms) => {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+};
+
 const _rd = fs.readdir.bind(fs);
 fs.readdir = (path, options, cb) => {
   if (typeof options === 'function') { cb = options; options = {}; }
-  _rd(path, options, (err, files) => {
-    if (err && (err.code === 'EPERM' || err.code === 'ENOENT')) {
-      if (!fs.existsSync(path)) return cb(null, []);
-    }
-    cb(err, files);
-  });
+  let retries = 0;
+  const attempt = () => {
+    _rd(path, options, (err, files) => {
+      if (err && (err.code === 'EPERM' || err.code === 'ENOENT')) {
+        if (!fs.existsSync(path)) return cb(null, []);
+      }
+      if (isTransient(err) && retries++ < TRANSIENT_RETRIES) {
+        return setTimeout(attempt, TRANSIENT_DELAY_MS);
+      }
+      cb(err, files);
+    });
+  };
+  attempt();
 };
 
 const _rds = fs.readdirSync.bind(fs);
 fs.readdirSync = (path, options) => {
-  try { return _rds(path, options); }
-  catch (e) {
-    if (e && (e.code === 'EPERM' || e.code === 'ENOENT')) {
-      if (!fs.existsSync(path)) return [];
+  for (let retries = 0; ; retries++) {
+    try { return _rds(path, options); }
+    catch (e) {
+      if (e && (e.code === 'EPERM' || e.code === 'ENOENT')) {
+        if (!fs.existsSync(path)) return [];
+      }
+      if (isTransient(e) && retries < TRANSIENT_RETRIES) { sleepSync(TRANSIENT_DELAY_MS); continue; }
+      throw e;
     }
-    throw e;
   }
 };
 
 const _rdp = fs.promises.readdir.bind(fs.promises);
 fs.promises.readdir = async (path, options) => {
-  try { return await _rdp(path, options); }
-  catch (e) {
-    if (e && (e.code === 'EPERM' || e.code === 'ENOENT')) {
-      if (!fs.existsSync(path)) return [];
+  for (let retries = 0; ; retries++) {
+    try { return await _rdp(path, options); }
+    catch (e) {
+      if (e && (e.code === 'EPERM' || e.code === 'ENOENT')) {
+        if (!fs.existsSync(path)) return [];
+      }
+      if (isTransient(e) && retries < TRANSIENT_RETRIES) {
+        await new Promise((r) => setTimeout(r, TRANSIENT_DELAY_MS));
+        continue;
+      }
+      throw e;
     }
-    throw e;
   }
 };
-
