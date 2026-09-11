@@ -39,7 +39,8 @@ import {
   FileCheck,
   Sparkles,
   Check,
-  Clock
+  Clock,
+  Pencil
 } from 'lucide-react';
 import { fmtDate } from '@/src/lib/utils';
 import { toast } from 'sonner';
@@ -839,6 +840,9 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {documentos.map((doc: any) => {
                   const isPdf = doc.tipo_mimetype === 'application/pdf';
+                  const isFicha =
+                    doc.nombre_documento?.toLowerCase().includes('ficha') ||
+                    doc.nombre_archivo?.toLowerCase().includes('ficha');
                   return (
                     <div
                       key={doc.id}
@@ -864,12 +868,26 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 px-2 text-xs font-semibold text-primary"
+                          className="h-7 w-7 p-0 text-primary hover:bg-primary/10"
                           onClick={() => abrirVisorDocumento(doc)}
                           title="Abrir en visualizador"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
+                        {isFicha && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              abrirEditorFicha();
+                            }}
+                            title="Editar ficha técnica"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                         {isEditor && (
                           <Button
                             variant="ghost"
