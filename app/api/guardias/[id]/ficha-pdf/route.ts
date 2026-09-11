@@ -89,7 +89,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const html = generateFichaTecnicaHtml(data);
   const pdfBuffer = await htmlToPdf(html, {
-    margin: { top: '8mm', bottom: '8mm', left: '10mm', right: '10mm' },
+    margin: { top: '6mm', bottom: '6mm', left: '10mm', right: '10mm' },
   });
 
   // Guardar en cache para próximas lecturas instantáneas

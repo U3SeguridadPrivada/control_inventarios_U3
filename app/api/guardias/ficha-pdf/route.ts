@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as FichaTecnicaData;
     const html = generateFichaTecnicaHtml(body);
     const pdfBuffer = await htmlToPdf(html, {
-      margin: { top: '8mm', bottom: '8mm', left: '10mm', right: '10mm' }
+      margin: { top: '6mm', bottom: '6mm', left: '10mm', right: '10mm' }
     });
 
     const filename = body.nombre ? `ficha_${body.nombre.replace(/[^a-zA-Z0-9]/g, '_')}.pdf` : 'ficha_tecnica.pdf';

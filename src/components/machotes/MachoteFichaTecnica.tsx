@@ -1436,7 +1436,7 @@ export default function MachoteFichaTecnica({
               </table>
 
               {/* Fecha al calce */}
-              <div className="text-right mt-3 mb-2 flex justify-end">
+              <div className="text-right mt-2 mb-1 flex justify-end">
                 <div style={{ maxWidth: '380px', width: '100%' }}>
                   <FichaCellInput
                     className="text-right font-bold"
@@ -1449,7 +1449,7 @@ export default function MachoteFichaTecnica({
 
               {/* Pie de página con web y logo institucional */}
               <div
-                className="flex items-end justify-between pt-2 mt-4"
+                className="flex items-end justify-between pt-1.5 mt-2 pb-1"
                 style={{ borderTop: '1px solid #94a3b8' }}
               >
                 <div
@@ -1462,11 +1462,11 @@ export default function MachoteFichaTecnica({
                 >
                   www.u3seguridadprivada.com · Uso Oficial y Confidencial
                 </div>
-                <div style={{ width: '24mm' }}>
+                <div style={{ width: '19mm' }}>
                   <img
                     src="/logos/u3-footer-logo.png"
                     alt="U3 Seguridad Privada"
-                    className="w-full h-auto block"
+                    className="w-full h-auto block pb-0.5"
                   />
                 </div>
               </div>

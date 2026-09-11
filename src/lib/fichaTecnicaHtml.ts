@@ -344,8 +344,8 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
       font-size: 7.5pt;
       font-weight: 700;
       letter-spacing: 0.3px;
-      margin-top: 3.5mm;
-      margin-bottom: 2.5mm;
+      margin-top: 2mm;
+      margin-bottom: 1.5mm;
       color: #334155;
     }
 
@@ -355,8 +355,9 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
       align-items: flex-end;
       justify-content: space-between;
       border-top: 1px solid #94a3b8;
-      margin-top: 1.5mm;
+      margin-top: 1mm;
       padding-top: 1.5mm;
+      padding-bottom: 2mm;
     }
     .footer-web {
       font-size: 7.5pt;
@@ -365,7 +366,8 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
       font-weight: 600;
     }
     .footer-logo {
-      width: 24mm;
+      width: 19mm;
+      padding-bottom: 1mm;
     }
     .footer-logo img {
       width: 100%;

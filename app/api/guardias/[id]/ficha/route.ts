@@ -97,7 +97,7 @@ export async function PUT(
     try {
       const html = generateFichaTecnicaHtml(ficha);
       const pdfBuffer = await htmlToPdf(html, {
-        margin: { top: '8mm', bottom: '8mm', left: '10mm', right: '10mm' }
+        margin: { top: '6mm', bottom: '6mm', left: '10mm', right: '10mm' }
       });
 
       const uploadsDir = path.join(process.cwd(), 'uploads', 'guardias');
