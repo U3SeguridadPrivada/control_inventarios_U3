@@ -410,6 +410,15 @@ export default function MachoteFichaTecnica({
     }
   };
 
+  const handleImprimir = () => {
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setTimeout(() => {
+      window.print();
+    }, 120);
+  };
+
   const selectedGuardiaNombre = guardias.find((g: any) => String(g.id) === String(selectedGuardiaId))?.nombre;
 
   return (
@@ -418,9 +427,23 @@ export default function MachoteFichaTecnica({
       <style>{`
         @page {
           size: letter portrait;
-          margin: 8mm 12mm 8mm 12mm;
+          margin: 4mm 6mm;
         }
         @media print {
+          html, body {
+            width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            background: #ffffff !important;
+          }
+          /* Quitar el overflow o position fixed de contenedores padre para no cortar páginas */
+          div, main, section {
+            overflow: visible !important;
+            position: static !important;
+          }
           body * {
             visibility: hidden;
           }
@@ -432,13 +455,33 @@ export default function MachoteFichaTecnica({
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
-            max-width: 190mm !important;
-            margin: 0 auto !important;
+            max-width: 100% !important;
+            margin: 0 !important;
             padding: 0 !important;
             background: #fff !important;
             box-shadow: none !important;
             border: none !important;
             transform: none !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+          .mch-ft-sheet {
+            position: static !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-height: auto !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 1mm 3mm !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+          table, tr, td, th {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
           .mch-ft-input, .mch-ft-textarea {
             border: none !important;
@@ -461,7 +504,7 @@ export default function MachoteFichaTecnica({
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          .print-hidden-btn {
+          .print-hidden-btn, header, nav, footer, .mch-top-bar {
             display: none !important;
           }
           * {
@@ -654,7 +697,7 @@ export default function MachoteFichaTecnica({
               variant="outline"
               size="sm"
               className="h-8 text-xs border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
-              onClick={() => window.print()}
+              onClick={handleImprimir}
             >
               <Printer className="w-3.5 h-3.5 mr-1.5" /> Imprimir
             </Button>
@@ -763,7 +806,7 @@ export default function MachoteFichaTecnica({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.print()}
+                onClick={handleImprimir}
                 title="Abre el cuadro de diálogo de impresión para imprimir o Guardar como PDF"
               >
                 <Printer className="w-4 h-4 mr-1.5" /> Imprimir / PDF

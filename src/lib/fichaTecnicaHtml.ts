@@ -104,7 +104,7 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
   <style>
     @page {
       size: letter portrait;
-      margin: 8mm 12mm 8mm 12mm;
+      margin: 0;
     }
     * {
       box-sizing: border-box;

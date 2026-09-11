@@ -65,17 +65,47 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     data = construirFichaInicial(guardia, fotoBase64);
   }
 
+  const isInline = req.nextUrl.searchParams.get('inline') === 'true';
+  const forceFresh = req.nextUrl.searchParams.get('fresh') === 'true';
+  const cachedFilePath = path.join(process.cwd(), 'uploads', 'guardias', `${guardiaId}-ficha-tecnica.pdf`);
+
+  if (!forceFresh && fs.existsSync(cachedFilePath)) {
+    try {
+      const stats = fs.statSync(cachedFilePath);
+      if (stats.size > 1000) {
+        const cachedBuf = fs.readFileSync(cachedFilePath);
+        return new Response(new Uint8Array(cachedBuf), {
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `${isInline ? 'inline' : 'attachment'}; filename="ficha_${guardia.numero_elemento}.pdf"`,
+            'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('No se pudo leer PDF cacheado, regenerando...', e);
+    }
+  }
+
   const html = generateFichaTecnicaHtml(data);
   const pdfBuffer = await htmlToPdf(html, {
     margin: { top: '8mm', bottom: '8mm', left: '10mm', right: '10mm' },
   });
 
-  const isInline = req.nextUrl.searchParams.get('inline') === 'true';
+  // Guardar en cache para próximas lecturas instantáneas
+  try {
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'guardias');
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    fs.writeFileSync(cachedFilePath, Buffer.from(pdfBuffer));
+  } catch (e) {
+    console.warn('No se pudo guardar PDF en caché:', e);
+  }
 
   return new Response(new Uint8Array(pdfBuffer), {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `${isInline ? 'inline' : 'attachment'}; filename="ficha_${guardia.numero_elemento}.pdf"`,
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
     },
   });
 }
