@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { verifyAuth, unauthorized } from '@/src/lib/auth';
 import { htmlToPdf } from '@/src/lib/pdf';
 import { generateFichaTecnicaHtml, FichaTecnicaData } from '@/src/lib/fichaTecnicaHtml';
+import { desglosarDireccion } from '@/src/lib/fichaTecnicaUtils';
 import fs from 'fs';
 import path from 'path';
 
@@ -49,6 +50,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (!data.numeroElemento) {
         data.numeroElemento = guardia.numero_elemento;
       }
+      if (!data.colonia && !data.delegacionMunicipio && data.calleNumero && (data.calleNumero.includes(';') || /,\s*col/i.test(data.calleNumero))) {
+        const desglose = desglosarDireccion(data.calleNumero);
+        data.calleNumero = desglose.calleNumero;
+        data.colonia = desglose.colonia;
+        data.delegacionMunicipio = desglose.delegacionMunicipio;
+        data.estado = desglose.estado;
+        data.cp = desglose.cp;
+      }
     } catch {
       data = construirFichaInicial(guardia, fotoBase64);
     }
@@ -73,6 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 function construirFichaInicial(guardia: any, fotoBase64: string | null): FichaTecnicaData {
   const cand = db.select().from(candidatos).where(eq(candidatos.guardia_id, guardia.id)).get();
+  const desglose = desglosarDireccion(guardia.direccion);
   return {
     numeroElemento: guardia.numero_elemento,
     nombre: guardia.nombre,
@@ -90,12 +100,12 @@ function construirFichaInicial(guardia: any, fotoBase64: string | null): FichaTe
     sexo: 'MASCULINO',
     estatura: '',
     peso: '',
-    calleNumero: guardia.direccion || '',
-    colonia: '',
+    calleNumero: desglose.calleNumero,
+    colonia: desglose.colonia,
     entreCalles: '',
-    cp: '',
-    delegacionMunicipio: '',
-    estado: 'ESTADO DE MÉXICO',
+    cp: desglose.cp,
+    delegacionMunicipio: desglose.delegacionMunicipio,
+    estado: desglose.estado,
     tiempoResidencia: '',
     tiempoRadicarEstado: '',
     telefonoEmergencia: '',

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { desglosarDireccion } from './fichaTecnicaUtils';
 
 export interface EmpleoAnterior {
   empresa: string;
@@ -67,6 +68,22 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
     { empresa: '', periodo: '', puesto: '' },
     { empresa: '', periodo: '', puesto: '' },
   ];
+
+  // Desglose inteligente de dirección si venía en un solo campo
+  let calleNumero = (data.calleNumero || '').toUpperCase().trim();
+  let colonia = (data.colonia || '').toUpperCase().trim();
+  let delegacionMunicipio = (data.delegacionMunicipio || '').toUpperCase().trim();
+  let estado = (data.estado || 'ESTADO DE MÉXICO').toUpperCase().trim();
+  let cp = (data.cp || '').toUpperCase().trim();
+
+  if (!colonia && !delegacionMunicipio && calleNumero && (calleNumero.includes(';') || /,\s*col/i.test(calleNumero))) {
+    const desglose = desglosarDireccion(calleNumero);
+    calleNumero = desglose.calleNumero;
+    colonia = desglose.colonia;
+    delegacionMunicipio = desglose.delegacionMunicipio;
+    estado = desglose.estado || estado;
+    cp = desglose.cp || cp;
+  }
 
   // Fecha por defecto si no viene
   let fechaDoc = data.fechaDocumento;
@@ -286,9 +303,12 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
       border: 1px solid #0f172a;
       padding: 2px 4.5px;
       font-size: 7.5pt;
-      line-height: 1.15;
+      line-height: 1.18;
       vertical-align: middle;
       word-wrap: break-word;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
     table.data-table td.lbl {
       background-color: #DEEAF6 !important;
@@ -449,30 +469,36 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
       <!-- II. DOMICILIO -->
       <div class="section-title">II. Domicilio Actual y Contacto</div>
       <table class="data-table">
+        <colgroup>
+          <col style="width: 25%;" />
+          <col style="width: 31%;" />
+          <col style="width: 16%;" />
+          <col style="width: 28%;" />
+        </colgroup>
         <tbody>
           <tr>
-            <td class="lbl" style="width: 25%;">CALLE Y NÚMERO</td>
-            <td class="val" style="width: 33%;">${(data.calleNumero || '').toUpperCase()}</td>
-            <td class="lbl" style="width: 14%;">COLONIA</td>
-            <td class="val" style="width: 28%;">${(data.colonia || '').toUpperCase()}</td>
+            <td class="lbl">CALLE Y NÚMERO</td>
+            <td class="val">${calleNumero}</td>
+            <td class="lbl">COLONIA</td>
+            <td class="val">${colonia}</td>
           </tr>
           <tr>
             <td class="lbl">ENTRE LAS CALLES</td>
             <td class="val">${(data.entreCalles || '').toUpperCase()}</td>
             <td class="lbl">C.P.</td>
-            <td class="val">${(data.cp || '').toUpperCase()}</td>
+            <td class="val">${cp}</td>
           </tr>
           <tr>
             <td class="lbl">DELEGACIÓN / MUNICIPIO</td>
-            <td class="val">${(data.delegacionMunicipio || '').toUpperCase()}</td>
+            <td class="val">${delegacionMunicipio}</td>
             <td class="lbl">ESTADO</td>
-            <td class="val">${(data.estado || '').toUpperCase()}</td>
+            <td class="val">${estado}</td>
           </tr>
           <tr>
             <td class="lbl">TIEMPO DE RESIDENCIA</td>
-            <td class="val" style="width: 15%;">${(data.tiempoResidencia || '').toUpperCase()}</td>
-            <td class="lbl" style="width: 34%;">TIEMPO DE RADICAR EN EL ESTADO DE MÉXICO</td>
-            <td class="val" style="width: 26%;">${(data.tiempoRadicarEstado || '').toUpperCase()}</td>
+            <td class="val">${(data.tiempoResidencia || '').toUpperCase()}</td>
+            <td class="lbl">TIEMPO DE RADICAR EN EL EDO. DE MÉXICO</td>
+            <td class="val">${(data.tiempoRadicarEstado || '').toUpperCase()}</td>
           </tr>
           <tr>
             <td class="lbl">TELÉFONO DE EMERGENCIA</td>

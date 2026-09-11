@@ -5,6 +5,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import { verifyAuth, unauthorized } from '@/src/lib/auth';
 import { htmlToPdf } from '@/src/lib/pdf';
 import { generateFichaTecnicaHtml } from '@/src/lib/fichaTecnicaHtml';
+import { desglosarDireccion, reconstruirDireccion } from '@/src/lib/fichaTecnicaUtils';
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -23,14 +24,25 @@ export async function GET(
   if (guardia.ficha_tecnica_json) {
     try {
       ficha = JSON.parse(guardia.ficha_tecnica_json);
+      if (!ficha.colonia && !ficha.delegacionMunicipio && ficha.calleNumero && (ficha.calleNumero.includes(';') || /,\s*col/i.test(ficha.calleNumero))) {
+        const desglose = desglosarDireccion(ficha.calleNumero);
+        ficha.calleNumero = desglose.calleNumero;
+        ficha.colonia = desglose.colonia;
+        ficha.delegacionMunicipio = desglose.delegacionMunicipio;
+        ficha.estado = desglose.estado;
+        ficha.cp = desglose.cp;
+      }
     } catch {
       ficha = null;
     }
   }
 
+  const direccionDesglosada = desglosarDireccion(guardia.direccion);
+
   return Response.json({
     guardia,
     ficha,
+    direccionDesglosada,
   });
 }
 
@@ -61,10 +73,13 @@ export async function PUT(
       updateFields.telefono = ficha.celular.trim();
     }
     if (ficha.calleNumero && typeof ficha.calleNumero === 'string' && ficha.calleNumero.trim()) {
-      let dirCompleta = ficha.calleNumero.trim();
-      if (ficha.colonia) dirCompleta += `, Col. ${ficha.colonia.trim()}`;
-      if (ficha.delegacionMunicipio) dirCompleta += `, ${ficha.delegacionMunicipio.trim()}`;
-      updateFields.direccion = dirCompleta;
+      updateFields.direccion = reconstruirDireccion({
+        calleNumero: ficha.calleNumero,
+        colonia: ficha.colonia,
+        delegacionMunicipio: ficha.delegacionMunicipio,
+        estado: ficha.estado,
+        cp: ficha.cp,
+      });
     }
 
     const updated = db

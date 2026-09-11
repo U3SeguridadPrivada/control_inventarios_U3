@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/src/components/ui/button';
 import {
   ArrowLeft,
@@ -15,12 +15,70 @@ import {
   Loader2,
   CheckCircle2,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/src/lib/api';
+import { desglosarDireccion, reconstruirDireccion } from '@/src/lib/fichaTecnicaUtils';
 
 const LLAVE_STORAGE = 'u3-machote-ficha-tecnica-draft';
+
+interface FichaCellInputProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  className?: string;
+  style?: React.CSSProperties;
+  uppercase?: boolean;
+  minHeight?: number;
+}
+
+/**
+ * Campo de texto multilínea autoajustable que garantiza que NINGÚN dato
+ * se recorte o desaparezca en la vista del editor ni en la impresión.
+ */
+function FichaCellInput({
+  value,
+  onChange,
+  placeholder = '',
+  className = '',
+  style,
+  uppercase = true,
+  minHeight = 18,
+}: FichaCellInputProps) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  const resize = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(el.scrollHeight, minHeight)}px`;
+  }, [minHeight]);
+
+  useEffect(() => {
+    resize();
+  }, [value, resize]);
+
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value || ''}
+      placeholder={placeholder}
+      onChange={(e) => {
+        const raw = e.target.value;
+        onChange(uppercase ? raw.toUpperCase() : raw);
+      }}
+      onInput={resize}
+      className={`mch-ft-textarea ${className}`}
+      style={{
+        ...style,
+        minHeight: `${minHeight}px`,
+      }}
+    />
+  );
+}
 
 export interface Empleo {
   empresa: string;
@@ -215,17 +273,35 @@ export default function MachoteFichaTecnica({
       );
 
       if (res.ficha) {
-        setFicha(res.ficha);
+        let f = res.ficha;
+        // Si no tiene colonia ni delegación pero calleNumero viene con desglose o semicolons, desglosar
+        if (!f.colonia && !f.delegacionMunicipio && f.calleNumero && (f.calleNumero.includes(';') || /,\s*col/i.test(f.calleNumero))) {
+          const d = desglosarDireccion(f.calleNumero);
+          f = {
+            ...f,
+            calleNumero: d.calleNumero,
+            colonia: d.colonia || f.colonia,
+            delegacionMunicipio: d.delegacionMunicipio || f.delegacionMunicipio,
+            estado: d.estado || f.estado,
+            cp: d.cp || f.cp,
+          };
+        }
+        setFicha(f);
         toast.success(`Ficha técnica cargada: ${res.guardia.nombre}`, { id: toastId });
       } else {
         // Inicializar con los datos básicos que ya tenga el guardia en la BD
         const g = res.guardia;
+        const d = desglosarDireccion(g.direccion);
         setFicha({
           ...ESTADO_VACIO,
           nombre: (g.nombre || '').toUpperCase(),
           numeroElemento: (g.numero_elemento || '').toUpperCase(),
           celular: g.telefono || '',
-          calleNumero: (g.direccion || '').toUpperCase(),
+          calleNumero: d.calleNumero,
+          colonia: d.colonia,
+          delegacionMunicipio: d.delegacionMunicipio,
+          estado: d.estado,
+          cp: d.cp,
           fechaDocumento: calcularFechaHoy(),
         });
         toast.success(`Guardia seleccionado: ${g.nombre} (plantilla en blanco lista para llenar)`, {
@@ -236,12 +312,17 @@ export default function MachoteFichaTecnica({
       // Fallback local si la llamada falla
       const g = guardias.find((item) => String(item.id) === String(guardiaId));
       if (g) {
+        const d = desglosarDireccion(g.direccion);
         setFicha({
           ...ESTADO_VACIO,
           nombre: (g.nombre || '').toUpperCase(),
           numeroElemento: (g.numero_elemento || '').toUpperCase(),
           celular: g.telefono || '',
-          calleNumero: (g.direccion || '').toUpperCase(),
+          calleNumero: d.calleNumero,
+          colonia: d.colonia,
+          delegacionMunicipio: d.delegacionMunicipio,
+          estado: d.estado,
+          cp: d.cp,
           fechaDocumento: calcularFechaHoy(),
         });
         toast.success(`Guardia seleccionado: ${g.nombre}`, { id: toastId });
@@ -359,13 +440,16 @@ export default function MachoteFichaTecnica({
             border: none !important;
             transform: none !important;
           }
-          .mch-ft-input {
+          .mch-ft-input, .mch-ft-textarea {
             border: none !important;
             outline: none !important;
             background: transparent !important;
             box-shadow: none !important;
             padding: 0 !important;
             color: #0f172a !important;
+            resize: none !important;
+            overflow: visible !important;
+            height: auto !important;
           }
           .mch-ft-input-name {
             color: #C00000 !important;
@@ -392,12 +476,48 @@ export default function MachoteFichaTecnica({
           min-height: 255mm;
           margin: 0 auto;
           background: #ffffff;
-          padding: 7mm 11mm;
+          padding: 6mm 10mm;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
           border: 1px solid #cbd5e1;
           border-radius: 4px;
           color: #0f172a;
           font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+        }
+
+        .mch-ft-textarea {
+          width: 100%;
+          min-height: 18px;
+          border: 1px solid transparent;
+          border-radius: 2px;
+          background: transparent;
+          padding: 1px 3px;
+          font-size: 7.5pt;
+          line-height: 1.25;
+          font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+          color: inherit;
+          text-transform: uppercase;
+          outline: none;
+          resize: none;
+          overflow: hidden;
+          display: block;
+          box-sizing: border-box;
+          white-space: pre-wrap;
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          transition: border-color 0.15s, background-color 0.15s;
+        }
+        .mch-ft-textarea:hover {
+          border-color: #94a3b8;
+          background-color: rgba(241, 245, 249, 0.7);
+        }
+        .mch-ft-textarea:focus {
+          border-color: #1d4ed8;
+          background-color: #ffffff;
+        }
+        .mch-ft-textarea::placeholder {
+          color: #94a3b8;
+          font-size: 7pt;
+          text-transform: none;
         }
 
         .mch-ft-input {
@@ -435,15 +555,17 @@ export default function MachoteFichaTecnica({
           width: 100%;
           border-collapse: collapse;
           table-layout: fixed;
-          margin-bottom: 2mm;
+          margin-bottom: 1.8mm;
           border: 1.5px solid #0f172a;
         }
         .mch-table td {
           border: 1px solid #0f172a;
-          padding: 2px 4.5px;
+          padding: 2px 3.5px;
           font-size: 7.5pt;
-          line-height: 1.2;
+          line-height: 1.22;
           vertical-align: middle;
+          word-break: break-word;
+          overflow-wrap: anywhere;
         }
         .mch-table td.lbl {
           background-color: #DEEAF6 !important;
@@ -880,22 +1002,24 @@ export default function MachoteFichaTecnica({
                   style={{
                     borderBottom: '2.5px solid #C00000',
                     maxWidth: '168mm',
-                    minWidth: '450px',
+                    minWidth: '400px',
+                    width: '100%',
                   }}
                 >
-                  <input
-                    className="mch-ft-input mch-ft-input-name text-center"
+                  <FichaCellInput
+                    className="mch-ft-input-name text-center font-black"
                     style={{
-                      fontSize: '13pt',
+                      fontSize: '12pt',
                       fontWeight: 900,
                       letterSpacing: '0.8px',
                       color: '#C00000',
                       width: '100%',
-                      minWidth: '440px',
+                      padding: '2px 0',
                     }}
                     value={ficha.nombre}
-                    onChange={(e) => actualizarCampo('nombre', e.target.value.toUpperCase())}
+                    onChange={(val) => actualizarCampo('nombre', val)}
                     placeholder="NOMBRE COMPLETO DEL GUARDIA"
+                    minHeight={26}
                   />
                 </div>
               </div>
@@ -929,12 +1053,13 @@ export default function MachoteFichaTecnica({
                         padding: '1.5px 4px',
                       }}
                     >
-                      <input
-                        className="mch-ft-input text-center font-extrabold"
-                        style={{ fontSize: '8.5pt' }}
+                      <FichaCellInput
+                        className="text-center font-extrabold"
+                        style={{ fontSize: '8.5pt', fontWeight: 800 }}
                         value={ficha.puesto}
-                        onChange={(e) => actualizarCampo('puesto', e.target.value.toUpperCase())}
+                        onChange={(val) => actualizarCampo('puesto', val)}
                         placeholder="GUARDIA DE SEGURIDAD"
+                        minHeight={18}
                       />
                     </td>
                   </tr>
@@ -960,120 +1085,108 @@ export default function MachoteFichaTecnica({
                   <tr>
                     <td className="lbl">FECHA DE NACIMIENTO:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.fechaNacimiento}
-                        onChange={(e) => actualizarCampo('fechaNacimiento', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('fechaNacimiento', val)}
+                        placeholder="DD/MM/AAAA"
                       />
                     </td>
                     <td className="lbl">EDAD:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.edad}
-                        onChange={(e) => actualizarCampo('edad', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('edad', val)}
+                        placeholder="EJ. 35 AÑOS"
                       />
                     </td>
                   </tr>
                   <tr>
                     <td className="lbl">LUGAR DE NACIMIENTO:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.lugarNacimiento}
-                        onChange={(e) => actualizarCampo('lugarNacimiento', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('lugarNacimiento', val)}
+                        placeholder="CIUDAD / ESTADO"
                       />
                     </td>
                     <td className="lbl">NACIONALIDAD:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.nacionalidad}
-                        onChange={(e) => actualizarCampo('nacionalidad', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('nacionalidad', val)}
+                        placeholder="MEXICANA"
                       />
                     </td>
                   </tr>
                   <tr>
                     <td className="lbl">ESTADO CIVIL:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.estadoCivil}
-                        onChange={(e) => actualizarCampo('estadoCivil', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('estadoCivil', val)}
+                        placeholder="SOLTERO / CASADO"
                       />
                     </td>
                     <td className="lbl">ESTUDIOS:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.estudios}
-                        onChange={(e) => actualizarCampo('estudios', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('estudios', val)}
+                        placeholder="NIVEL ACADÉMICO"
                       />
                     </td>
                   </tr>
                   <tr>
                     <td className="lbl">RFC:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.rfc}
-                        onChange={(e) => actualizarCampo('rfc', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('rfc', val)}
+                        placeholder="13 POSICIONES"
                       />
                     </td>
                     <td className="lbl">CURP:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.curp}
-                        onChange={(e) => actualizarCampo('curp', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('curp', val)}
+                        placeholder="18 POSICIONES"
                       />
                     </td>
                   </tr>
                   <tr>
                     <td className="lbl">AFILIACIÓN IMSS:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.imss}
-                        onChange={(e) => actualizarCampo('imss', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('imss', val)}
+                        placeholder="NSS 11 DÍGITOS"
                       />
                     </td>
                     <td className="lbl">SEXO:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.sexo}
-                        onChange={(e) => actualizarCampo('sexo', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('sexo', val)}
+                        placeholder="MASCULINO / FEMENINO"
                       />
                     </td>
                   </tr>
                   <tr>
                     <td className="lbl">ESTATURA:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.estatura}
-                        onChange={(e) => actualizarCampo('estatura', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('estatura', val)}
+                        placeholder="EJ. 1.75 M"
                       />
                     </td>
                     <td className="lbl">PESO APROXIMADO:</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.peso}
-                        onChange={(e) => actualizarCampo('peso', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('peso', val)}
+                        placeholder="EJ. 78 KG"
                       />
                     </td>
                   </tr>
@@ -1082,117 +1195,132 @@ export default function MachoteFichaTecnica({
 
               {/* II. DOMICILIO */}
               <div
-                className="font-bold text-[8.5pt] uppercase tracking-wide my-1 flex items-center gap-2"
+                className="font-bold text-[8.5pt] uppercase tracking-wide my-1 flex items-center justify-between gap-2"
                 style={{ color: '#0f172a' }}
               >
-                <span>II. Domicilio Actual y Contacto</span>
-                <span className="flex-1 h-px bg-slate-300" />
+                <div className="flex items-center gap-2 flex-1">
+                  <span>II. Domicilio Actual y Contacto</span>
+                  <span className="flex-1 h-px bg-slate-300" />
+                </div>
+                {ficha.calleNumero && (ficha.calleNumero.includes(';') || /,\s*col/i.test(ficha.calleNumero)) && !ficha.colonia && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-2 text-[7pt] text-primary hover:bg-primary/10 gap-1 print:hidden"
+                    onClick={() => {
+                      const d = desglosarDireccion(ficha.calleNumero);
+                      actualizarFicha((f) => ({
+                        ...f,
+                        calleNumero: d.calleNumero,
+                        colonia: d.colonia || f.colonia,
+                        delegacionMunicipio: d.delegacionMunicipio || f.delegacionMunicipio,
+                        estado: d.estado || f.estado,
+                        cp: d.cp || f.cp,
+                      }));
+                      toast.success('Dirección desglosada en casilleros');
+                    }}
+                    title="Separar automáticamente la calle, colonia, municipio y estado en sus casilleros"
+                  >
+                    <Sparkles className="w-3 h-3" /> Separar en casilleros
+                  </Button>
+                )}
               </div>
               <table className="mch-table">
+                <colgroup>
+                  <col style={{ width: '25%' }} />
+                  <col style={{ width: '31%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '28%' }} />
+                </colgroup>
                 <tbody>
                   <tr>
-                    <td className="lbl" style={{ width: '25%' }}>
-                      CALLE Y NÚMERO
-                    </td>
-                    <td className="val" style={{ width: '33%' }}>
-                      <input
-                        className="mch-ft-input"
+                    <td className="lbl">CALLE Y NÚMERO</td>
+                    <td className="val">
+                      <FichaCellInput
                         value={ficha.calleNumero}
-                        onChange={(e) => actualizarCampo('calleNumero', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('calleNumero', val)}
+                        placeholder="CALLE, NO. EXT. E INT."
                       />
                     </td>
-                    <td className="lbl" style={{ width: '14%' }}>
-                      COLONIA
-                    </td>
-                    <td className="val" style={{ width: '28%' }}>
-                      <input
-                        className="mch-ft-input"
+                    <td className="lbl">COLONIA</td>
+                    <td className="val">
+                      <FichaCellInput
                         value={ficha.colonia}
-                        onChange={(e) => actualizarCampo('colonia', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('colonia', val)}
+                        placeholder="COLONIA / FRACC."
                       />
                     </td>
                   </tr>
                   <tr>
                     <td className="lbl">ENTRE LAS CALLES</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.entreCalles}
-                        onChange={(e) => actualizarCampo('entreCalles', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('entreCalles', val)}
+                        placeholder="CALLES ALEDAÑAS"
                       />
                     </td>
                     <td className="lbl">C.P.</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.cp}
-                        onChange={(e) => actualizarCampo('cp', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('cp', val)}
+                        placeholder="CÓDIGO POSTAL"
                       />
                     </td>
                   </tr>
                   <tr>
                     <td className="lbl">DELEGACIÓN / MUNICIPIO</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.delegacionMunicipio}
-                        onChange={(e) => actualizarCampo('delegacionMunicipio', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('delegacionMunicipio', val)}
+                        placeholder="ALCALDÍA O MUNICIPIO"
                       />
                     </td>
                     <td className="lbl">ESTADO</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.estado}
-                        onChange={(e) => actualizarCampo('estado', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('estado', val)}
+                        placeholder="ESTADO DE MÉXICO / CDMX"
                       />
                     </td>
                   </tr>
                   <tr>
                     <td className="lbl">TIEMPO DE RESIDENCIA</td>
-                    <td className="val" style={{ width: '15%' }}>
-                      <input
-                        className="mch-ft-input"
+                    <td className="val">
+                      <FichaCellInput
                         value={ficha.tiempoResidencia}
-                        onChange={(e) => actualizarCampo('tiempoResidencia', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('tiempoResidencia', val)}
+                        placeholder="EJ. 5 AÑOS"
                       />
                     </td>
-                    <td className="lbl" style={{ width: '34%' }}>
-                      TIEMPO DE RADICAR EN EL ESTADO DE MÉXICO
-                    </td>
-                    <td className="val" style={{ width: '26%' }}>
-                      <input
-                        className="mch-ft-input"
+                    <td className="lbl">TIEMPO DE RADICAR EN EL EDO. DE MÉXICO</td>
+                    <td className="val">
+                      <FichaCellInput
                         value={ficha.tiempoRadicarEstado}
-                        onChange={(e) => actualizarCampo('tiempoRadicarEstado', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('tiempoRadicarEstado', val)}
+                        placeholder="EJ. 10 AÑOS"
                       />
                     </td>
                   </tr>
                   <tr>
                     <td className="lbl">TELÉFONO DE EMERGENCIA</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.telefonoEmergencia}
-                        onChange={(e) => actualizarCampo('telefonoEmergencia', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('telefonoEmergencia', val)}
+                        placeholder="TEL. DE CONTACTO FAMILIAR"
                       />
                     </td>
                     <td className="lbl">CELULAR</td>
                     <td className="val">
-                      <input
-                        className="mch-ft-input"
+                      <FichaCellInput
                         value={ficha.celular}
-                        onChange={(e) => actualizarCampo('celular', e.target.value.toUpperCase())}
-                        placeholder=""
+                        onChange={(val) => actualizarCampo('celular', val)}
+                        placeholder="10 DÍGITOS"
                       />
                     </td>
                   </tr>
@@ -1223,11 +1351,11 @@ export default function MachoteFichaTecnica({
                                 EMPRESA / RAZÓN SOCIAL:
                               </td>
                               <td className="val" style={{ width: '58%', border: '1px solid #0f172a' }}>
-                                <input
-                                  className="mch-ft-input font-medium"
+                                <FichaCellInput
+                                  className="font-medium"
                                   value={emp.empresa}
-                                  onChange={(e) => actualizarEmpleo(i, 'empresa', e.target.value.toUpperCase())}
-                                  placeholder=""
+                                  onChange={(val) => actualizarEmpleo(i, 'empresa', val)}
+                                  placeholder="EMPRESA ANTERIOR"
                                 />
                               </td>
                             </tr>
@@ -1236,11 +1364,10 @@ export default function MachoteFichaTecnica({
                                 PERÍODO:
                               </td>
                               <td className="val" style={{ border: '1px solid #0f172a' }}>
-                                <input
-                                  className="mch-ft-input"
+                                <FichaCellInput
                                   value={emp.periodo}
-                                  onChange={(e) => actualizarEmpleo(i, 'periodo', e.target.value.toUpperCase())}
-                                  placeholder=""
+                                  onChange={(val) => actualizarEmpleo(i, 'periodo', val)}
+                                  placeholder="EJ. 2021 - 2023"
                                 />
                               </td>
                             </tr>
@@ -1249,11 +1376,11 @@ export default function MachoteFichaTecnica({
                                 PUESTO DESEMPEÑADO:
                               </td>
                               <td className="val" style={{ border: '1px solid #0f172a' }}>
-                                <input
-                                  className="mch-ft-input font-medium"
+                                <FichaCellInput
+                                  className="font-medium"
                                   value={emp.puesto}
-                                  onChange={(e) => actualizarEmpleo(i, 'puesto', e.target.value.toUpperCase())}
-                                  placeholder=""
+                                  onChange={(val) => actualizarEmpleo(i, 'puesto', val)}
+                                  placeholder="EJ. GUARDIA DE SEGURIDAD"
                                 />
                               </td>
                             </tr>
@@ -1266,13 +1393,15 @@ export default function MachoteFichaTecnica({
               </table>
 
               {/* Fecha al calce */}
-              <div className="text-right mt-3 mb-2">
-                <input
-                  className="mch-ft-input text-right font-bold"
-                  style={{ fontSize: '8pt', width: 'auto', display: 'inline-block', minWidth: '320px', color: '#334155' }}
-                  value={ficha.fechaDocumento}
-                  onChange={(e) => actualizarCampo('fechaDocumento', e.target.value.toUpperCase())}
-                />
+              <div className="text-right mt-3 mb-2 flex justify-end">
+                <div style={{ maxWidth: '380px', width: '100%' }}>
+                  <FichaCellInput
+                    className="text-right font-bold"
+                    style={{ fontSize: '7.5pt', color: '#334155' }}
+                    value={ficha.fechaDocumento}
+                    onChange={(val) => actualizarCampo('fechaDocumento', val)}
+                  />
+                </div>
               </div>
 
               {/* Pie de página con web y logo institucional */}

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/src/db';
-import { salidas, entradas } from '@/src/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { salidas, entradas, guardias } from '@/src/db/schema';
+import { eq, desc, or } from 'drizzle-orm';
 import { verifyAuth, unauthorized } from '@/src/lib/auth';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
