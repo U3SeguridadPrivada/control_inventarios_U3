@@ -122,7 +122,7 @@ function LogoU3({
           <img
             src={customLogo}
             alt="Logotipo"
-            className="max-h-[17mm] max-w-[26mm] object-contain"
+            className="max-h-[15mm] max-w-[26mm] object-contain"
           />
           {onRemove && (
             <button
@@ -143,7 +143,7 @@ function LogoU3({
           <img
             src="/BANDERAS_Y_u3.png"
             alt="U3 Seguridad Privada"
-            className="h-[17mm] max-w-[26mm] object-contain"
+            className="h-[15mm] max-w-[26mm] object-contain"
           />
         </div>
       )}
@@ -152,6 +152,7 @@ function LogoU3({
 }
 
 interface HojaProps {
+  paginaIdx: number;
   numPagina: number;
   totalPaginas: number;
   etiquetaCara: string;
@@ -178,6 +179,7 @@ interface HojaProps {
 }
 
 function Hoja({
+  paginaIdx,
   numPagina,
   totalPaginas,
   etiquetaCara,
@@ -205,24 +207,33 @@ function Hoja({
   // Aseguramos exactamente 22 filas siempre
   const filasVisuales = Array.from({ length: FILAS_FIJAS }, (_, i) => folios[i] || '');
 
+  // Si la hoja está rotada 180° (volteo por borde largo), el margen de engargolado
+  // debe estar en el borde inferior del elemento para que al rotar quede físicamente
+  // en la parte superior donde van los aros del engargolado.
+  const paddingEstilos: React.CSSProperties = rotada180
+    ? {
+        paddingTop: '5mm',
+        paddingBottom: `${margenEngargolado}mm`,
+      }
+    : {
+        paddingTop: `${margenEngargolado}mm`,
+        paddingBottom: '5mm',
+      };
+
   return (
     <div
       className={`mch-hoja-oficio ${rotada180 ? 'mch-hoja-girada' : ''}`}
-      style={
-        {
-          '--mch-padding-top': `${margenEngargolado}mm`,
-        } as React.CSSProperties
-      }
+      style={paddingEstilos}
     >
-      {/* Guía visual de margen superior para perforación de engargolado (solo en pantalla, oculta al imprimir) */}
+      {/* Guía visual de margen para perforación de engargolado (solo en pantalla, oculta al imprimir) */}
       <div
-        className="mch-guia-engargolado print:hidden"
+        className={`mch-guia-engargolado print:hidden ${rotada180 ? 'mch-guia-engargolado-abajo' : ''}`}
         style={{ height: `${margenEngargolado}mm` }}
         title="Espacio en blanco de seguridad reservado para los orificios del engargolado"
       >
         <div className="mch-guia-engargolado-content">
           <Scissors className="w-3.5 h-3.5 mr-1.5 opacity-70" />
-          <span>Área libre para engargolado y perforación ({margenEngargolado} mm de margen superior seguro)</span>
+          <span>Área libre para engargolado ({margenEngargolado} mm de margen de perforación seguro)</span>
         </div>
       </div>
 
@@ -420,8 +431,8 @@ function Hoja({
                 <td className="mch-td-blanco">
                   <input
                     type="text"
-                    className="mch-input-celda"
-                    value={celdasValores[`${numPagina}-${idx}-col0`] || ''}
+                    className="mch-input-celda text-center"
+                    value={celdasValores[`${paginaIdx}-${idx}-col0`] || ''}
                     onChange={(e) => onCambiarCelda(idx, 'col0', e.target.value)}
                   />
                 </td>
@@ -429,15 +440,15 @@ function Hoja({
                   <input
                     type="text"
                     className="mch-input-celda text-left px-1"
-                    value={celdasValores[`${numPagina}-${idx}-col1`] || ''}
+                    value={celdasValores[`${paginaIdx}-${idx}-col1`] || ''}
                     onChange={(e) => onCambiarCelda(idx, 'col1', e.target.value)}
                   />
                 </td>
                 <td className="mch-td-blanco">
                   <input
                     type="text"
-                    className="mch-input-celda"
-                    value={celdasValores[`${numPagina}-${idx}-col2`] || ''}
+                    className="mch-input-celda text-center"
+                    value={celdasValores[`${paginaIdx}-${idx}-col2`] || ''}
                     onChange={(e) => onCambiarCelda(idx, 'col2', e.target.value)}
                   />
                 </td>
@@ -445,42 +456,48 @@ function Hoja({
                   <input
                     type="text"
                     className="mch-input-celda text-left px-1"
-                    value={celdasValores[`${numPagina}-${idx}-col3`] || ''}
+                    value={celdasValores[`${paginaIdx}-${idx}-col3`] || ''}
                     onChange={(e) => onCambiarCelda(idx, 'col3', e.target.value)}
                   />
                 </td>
                 <td className="mch-td-blanco">
                   <input
                     type="text"
-                    className="mch-input-celda"
-                    value={celdasValores[`${numPagina}-${idx}-col4`] || ''}
+                    className="mch-input-celda text-center"
+                    value={celdasValores[`${paginaIdx}-${idx}-col4`] || ''}
                     onChange={(e) => onCambiarCelda(idx, 'col4', e.target.value)}
                   />
                 </td>
                 <td className="mch-td-blanco">
                   <input
                     type="text"
-                    className="mch-input-celda"
-                    value={celdasValores[`${numPagina}-${idx}-col5`] || ''}
+                    className="mch-input-celda text-center"
+                    value={celdasValores[`${paginaIdx}-${idx}-col5`] || ''}
                     onChange={(e) => onCambiarCelda(idx, 'col5', e.target.value)}
                   />
                 </td>
-                {/* HORA con separador ":" tal como en el original */}
-                <td className="mch-td-hora">
-                  <input
-                    type="text"
-                    className="mch-input-celda text-center font-bold"
-                    placeholder=":"
-                    value={celdasValores[`${numPagina}-${idx}-col6`] || ''}
-                    onChange={(e) => onCambiarCelda(idx, 'col6', e.target.value)}
-                  />
+                {/* HORA con separador ":" oficial siempre visible e imprimible */}
+                <td className="mch-td-hora relative">
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    {!celdasValores[`${paginaIdx}-${idx}-col6`] && (
+                      <span className="absolute inset-0 flex items-center justify-center font-bold text-slate-400 select-none pointer-events-none text-[8pt] mch-hora-separador">
+                        :
+                      </span>
+                    )}
+                    <input
+                      type="text"
+                      className="mch-input-celda text-center font-bold relative z-10 bg-transparent"
+                      value={celdasValores[`${paginaIdx}-${idx}-col6`] || ''}
+                      onChange={(e) => onCambiarCelda(idx, 'col6', e.target.value)}
+                    />
+                  </div>
                 </td>
                 {/* Columnas de Entrega */}
                 <td className="mch-td-blanco">
                   <input
                     type="text"
-                    className="mch-input-celda"
-                    value={celdasValores[`${numPagina}-${idx}-col7`] || ''}
+                    className="mch-input-celda text-center"
+                    value={celdasValores[`${paginaIdx}-${idx}-col7`] || ''}
                     onChange={(e) => onCambiarCelda(idx, 'col7', e.target.value)}
                   />
                 </td>
@@ -488,25 +505,31 @@ function Hoja({
                   <input
                     type="text"
                     className="mch-input-celda text-left px-1"
-                    value={celdasValores[`${numPagina}-${idx}-col8`] || ''}
+                    value={celdasValores[`${paginaIdx}-${idx}-col8`] || ''}
                     onChange={(e) => onCambiarCelda(idx, 'col8', e.target.value)}
                   />
                 </td>
-                {/* HORA entrega con separador ":" */}
-                <td className="mch-td-hora">
-                  <input
-                    type="text"
-                    className="mch-input-celda text-center font-bold"
-                    placeholder=":"
-                    value={celdasValores[`${numPagina}-${idx}-col9`] || ''}
-                    onChange={(e) => onCambiarCelda(idx, 'col9', e.target.value)}
-                  />
+                {/* HORA entrega con separador ":" oficial */}
+                <td className="mch-td-hora relative">
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    {!celdasValores[`${paginaIdx}-${idx}-col9`] && (
+                      <span className="absolute inset-0 flex items-center justify-center font-bold text-slate-400 select-none pointer-events-none text-[8pt] mch-hora-separador">
+                        :
+                      </span>
+                    )}
+                    <input
+                      type="text"
+                      className="mch-input-celda text-center font-bold relative z-10 bg-transparent"
+                      value={celdasValores[`${paginaIdx}-${idx}-col9`] || ''}
+                      onChange={(e) => onCambiarCelda(idx, 'col9', e.target.value)}
+                    />
+                  </div>
                 </td>
                 <td className="mch-td-blanco">
                   <input
                     type="text"
                     className="mch-input-celda"
-                    value={celdasValores[`${numPagina}-${idx}-col10`] || ''}
+                    value={celdasValores[`${paginaIdx}-${idx}-col10`] || ''}
                     onChange={(e) => onCambiarCelda(idx, 'col10', e.target.value)}
                   />
                 </td>
@@ -606,12 +629,23 @@ export default function MachotePaqueteria({ onVolver }: { onVolver: () => void }
     const digitos = Math.max(5, String(fFin).length);
 
     // Cantidad de páginas calculadas (cada página tiene exactamente 22 filas)
-    let numPaginas = Math.max(1, Math.ceil(totalFoliosRequeridos / FILAS_FIJAS));
-
-    // Si está en doble cara y el número de páginas es impar, agregamos la cara trasera para completar la hoja
-    if (dobleCara && numPaginas % 2 !== 0) {
-      numPaginas += 1;
+    let numPaginas: number;
+    if (dobleCara) {
+      if (modoReverso === 'consecutivo') {
+        // En consecutivo, tanto frentes como reversos consumen folios (44 folios por hoja física)
+        const pags = Math.ceil(totalFoliosRequeridos / FILAS_FIJAS);
+        numPaginas = Math.max(2, pags % 2 === 0 ? pags : pags + 1);
+      } else {
+        // En modo 'vacio' o 'igual', los reversos no consumen folios,
+        // por lo que cada hoja física (2 páginas) cubre solo 22 folios correlativos en el frente
+        const hojasFisicas = Math.ceil(totalFoliosRequeridos / FILAS_FIJAS);
+        numPaginas = Math.max(2, hojasFisicas * 2);
+      }
+    } else {
+      numPaginas = Math.max(1, Math.ceil(totalFoliosRequeridos / FILAS_FIJAS));
     }
+    // Límite de seguridad
+    numPaginas = Math.min(numPaginas, MAX_PAGINAS);
 
     const paginas: string[][] = [];
     let folioCorrelativo = fIni;
@@ -897,9 +931,6 @@ export default function MachotePaqueteria({ onVolver }: { onVolver: () => void }
           color: #0f172a;
           box-sizing: border-box;
           overflow: hidden;
-          /* Margen superior dinámico para engargolado */
-          padding-top: var(--mch-padding-top, 20mm);
-          padding-bottom: 6mm;
           padding-left: 10mm;
           padding-right: 10mm;
           display: flex;
@@ -933,6 +964,12 @@ export default function MachotePaqueteria({ onVolver }: { onVolver: () => void }
           user-select: none;
           z-index: 10;
         }
+        .mch-guia-engargolado-abajo {
+          top: auto !important;
+          bottom: 0 !important;
+          border-bottom: none !important;
+          border-top: 1.5px dashed #94a3b8 !important;
+        }
         .mch-guia-engargolado-content {
           display: flex;
           align-items: center;
@@ -952,9 +989,9 @@ export default function MachotePaqueteria({ onVolver }: { onVolver: () => void }
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 2mm;
-          height: 18mm;
-          max-height: 18mm;
+          margin-bottom: 1.5mm;
+          height: 16mm;
+          max-height: 16mm;
           flex-shrink: 0;
         }
         .mch-header-lado {
@@ -1059,22 +1096,22 @@ export default function MachotePaqueteria({ onVolver }: { onVolver: () => void }
         .mch-tabla thead tr.mch-th-grupo th {
           background: #e2e5ea;
           color: #1e293b;
-          font-size: 8.5pt;
+          font-size: 8pt;
           font-weight: 700;
           padding: 0;
           text-align: center;
-          height: 5.2mm;
+          height: 4.6mm;
           line-height: 1;
         }
         .mch-tabla thead tr.mch-th-sub th {
           background: #e2e5ea;
           color: #1e293b;
-          font-size: 7pt;
+          font-size: 6.8pt;
           font-weight: 700;
           letter-spacing: 0.02em;
           padding: 0;
           text-align: center;
-          height: 5.2mm;
+          height: 4.6mm;
           line-height: 1;
         }
 
@@ -1123,11 +1160,18 @@ export default function MachotePaqueteria({ onVolver }: { onVolver: () => void }
           background: #cbd5e1;
         }
 
-        /* 22 Filas fijas: altura uniforme de 7.2mm */
+        /* 22 Filas fijas: altura calibrada de 6.6mm para garantizar que quepan perfectamente con cualquier margen */
         .mch-tabla tbody td {
-          height: 7.2mm;
+          height: 6.6mm;
+          max-height: 6.6mm;
           padding: 0;
           vertical-align: middle;
+        }
+
+        .mch-hora-separador {
+          color: #94a3b8 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
 
         .mch-td-folio {
@@ -1177,17 +1221,17 @@ export default function MachotePaqueteria({ onVolver }: { onVolver: () => void }
           background: #ffffff;
         }
 
-        /* Reglas de Impresión - TAMAÑO OFICIO EXACTO 21.6 x 34.0 cm */
+        /* Reglas de Impresión - TAMAÑO OFICIO HORIZONTAL (21.6 x 34.0 cm) */
         @media print {
           @page {
-            size: 340.4mm 215.9mm; /* Tamaño Oficio México horizontal exacto */
+            size: landscape; /* Orientación horizontal nativa: respeta el tamaño Oficio México configurado en la impresora y no lo regresa a Carta */
             margin: 0;
           }
           html, body {
             margin: 0 !important;
             padding: 0 !important;
             width: 340.4mm !important;
-            height: 215.9mm !important;
+            height: auto !important;
             background: #ffffff !important;
           }
           body * {
@@ -1518,10 +1562,13 @@ export default function MachotePaqueteria({ onVolver }: { onVolver: () => void }
           <Printer className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
           <div className="space-y-1">
             <div>
-              <strong>Configuración para impresión a Doble Cara perfecta:</strong> En el cuadro de impresión de tu navegador (Ctrl+P) selecciona tamaño de papel <strong>Oficio / Legal (21.6 x 34.0 cm)</strong>, orientación <strong>Horizontal</strong> y márgenes <strong>Ninguno</strong>.
+              <strong>Configuración de Impresión (Oficio México 21.6 x 34.0 cm):</strong> Al presionar <em>Imprimir / PDF</em>, en <strong>Más ajustes &gt; Tamaño de papel</strong> selecciona <strong>Oficio México</strong> (o <em>Mexico Oficio / 216 x 340 mm</em>) y márgenes en <strong>Ninguno</strong>.
             </div>
             <div>
-              • <strong>Ambas caras:</strong> selecciona <em>Voltear por el borde corto</em> para que ambas caras queden al derecho con el engargolado arriba. O si tu impresora por defecto voltea por el <em>borde largo</em>, activa la opción <strong>Orientación reverso: Girar 180°</strong> arriba.
+              • <strong>Atajo con tu configuración de impresora:</strong> También puedes presionar <kbd className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 border border-blue-300 dark:border-blue-700 font-mono text-[10.5px] font-semibold">Ctrl + Shift + P</kbd> para abrir la ventana nativa de tu impresora en Windows, donde se respeta al 100% el tamaño Oficio México que ya le habías configurado en sus preferencias.
+            </div>
+            <div>
+              • <strong>Doble cara:</strong> selecciona <em>Voltear por el borde corto</em> para que el engargolado coincida arriba en ambas caras. Si tu impresora voltea por el <em>borde largo</em>, activa arriba la opción <strong>Orientación reverso: Girar 180°</strong>.
             </div>
             <div className="text-blue-800 dark:text-blue-200">
               ✎ <strong>Todo es editable dentro de la hoja:</strong> haz clic directamente sobre cualquier texto, encabezado de columna (ej. cambiar TORRE por CASA) o celda para escribir sobre él.
@@ -1559,7 +1606,7 @@ export default function MachotePaqueteria({ onVolver }: { onVolver: () => void }
             className="mch-paq-pila"
             style={{
               transform: `scale(${zoomVista / 100})`,
-              marginBottom: `${((zoomVista - 100) / 100) * 216 * 3.7795}px`,
+              marginBottom: `${((zoomVista - 100) / 100) * (totalPaginas * 216 + Math.max(0, totalPaginas - 1) * 8.5) * 3.7795}px`,
             }}
           >
             {paginasFolios.map((foliosPagina, pIdx) => {
@@ -1595,6 +1642,7 @@ export default function MachotePaqueteria({ onVolver }: { onVolver: () => void }
                   </div>
 
                   <Hoja
+                    paginaIdx={pIdx}
                     numPagina={numPag}
                     totalPaginas={totalPaginas}
                     etiquetaCara={etiqueta}

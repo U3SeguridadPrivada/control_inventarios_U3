@@ -1,0 +1,1307 @@
+'use client';
+import { useEffect, useRef, useState } from 'react';
+import { Button } from '@/src/components/ui/button';
+import {
+  ArrowLeft,
+  Printer,
+  Download,
+  RotateCcw,
+  ZoomIn,
+  ZoomOut,
+  ImageUp,
+  Trash2,
+  Users,
+  Save,
+  Loader2,
+  CheckCircle2,
+  X,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '@/src/lib/api';
+
+const LLAVE_STORAGE = 'u3-machote-ficha-tecnica-draft';
+
+export interface Empleo {
+  empresa: string;
+  periodo: string;
+  puesto: string;
+}
+
+export interface FichaState {
+  numeroElemento: string;
+  nombre: string;
+  fotoUrl: string | null;
+  puesto: string;
+  // Datos Personales
+  fechaNacimiento: string;
+  edad: string;
+  lugarNacimiento: string;
+  nacionalidad: string;
+  estadoCivil: string;
+  estudios: string;
+  rfc: string;
+  curp: string;
+  imss: string;
+  sexo: string;
+  estatura: string;
+  peso: string;
+  // Domicilio
+  calleNumero: string;
+  colonia: string;
+  entreCalles: string;
+  cp: string;
+  delegacionMunicipio: string;
+  estado: string;
+  tiempoResidencia: string;
+  tiempoRadicarEstado: string;
+  telefonoEmergencia: string;
+  celular: string;
+  // Antecedentes
+  empleos: Empleo[];
+  // Fecha al calce
+  fechaDocumento: string;
+}
+
+function calcularFechaHoy(): string {
+  const d = new Date();
+  const meses = [
+    'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+    'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+  ];
+  const dia = String(d.getDate()).padStart(2, '0');
+  const mes = meses[d.getMonth()];
+  const anio = d.getFullYear();
+  return `CIUDAD DE MÉXICO, A ${dia} DE ${mes} DEL ${anio}.`;
+}
+
+// Por defecto todo completamente VACÍO como solicitó el usuario
+export const ESTADO_VACIO: FichaState = {
+  numeroElemento: '',
+  nombre: '',
+  fotoUrl: null,
+  puesto: 'GUARDIA DE SEGURIDAD',
+  fechaNacimiento: '',
+  edad: '',
+  lugarNacimiento: 'MÉXICO',
+  nacionalidad: 'MEXICANA',
+  estadoCivil: '',
+  estudios: '',
+  rfc: '',
+  curp: '',
+  imss: '',
+  sexo: '',
+  estatura: '',
+  peso: '',
+  calleNumero: '',
+  colonia: '',
+  entreCalles: '',
+  cp: '',
+  delegacionMunicipio: '',
+  estado: '',
+  tiempoResidencia: '',
+  tiempoRadicarEstado: '',
+  telefonoEmergencia: '',
+  celular: '',
+  empleos: [
+    { empresa: '', periodo: '', puesto: '' },
+    { empresa: '', periodo: '', puesto: '' },
+  ],
+  fechaDocumento: calcularFechaHoy(),
+};
+
+interface Props {
+  onVolver?: () => void;
+  initialGuardiaId?: number | string;
+  embedded?: boolean;
+  fullScreen?: boolean;
+  onGuardadoExitoso?: () => void;
+  onClose?: () => void;
+}
+
+export default function MachoteFichaTecnica({
+  onVolver,
+  initialGuardiaId,
+  embedded = false,
+  fullScreen = false,
+  onGuardadoExitoso,
+  onClose,
+}: Props) {
+  const queryClient = useQueryClient();
+  const [ficha, setFicha] = useState<FichaState>(ESTADO_VACIO);
+  const [selectedGuardiaId, setSelectedGuardiaId] = useState<string>(
+    initialGuardiaId ? String(initialGuardiaId) : ''
+  );
+  const [zoomVista, setZoomVista] = useState<number>(100);
+  const [descargandoPdf, setDescargandoPdf] = useState(false);
+  const [guardandoDb, setGuardandoDb] = useState(false);
+  const [arrastrandoFoto, setArrastrandoFoto] = useState(false);
+  const inputFotoRef = useRef<HTMLInputElement>(null);
+
+  // Consulta de guardias registrados en la base de datos
+  const { data: guardias = [] } = useQuery({
+    queryKey: ['guardias'],
+    queryFn: () => apiFetch<any[]>('/api/guardias'),
+  });
+
+  // Si se pasa initialGuardiaId o cambia selectedGuardiaId, cargar datos
+  useEffect(() => {
+    if (initialGuardiaId) {
+      cargarDatosGuardia(String(initialGuardiaId));
+    }
+  }, [initialGuardiaId]);
+
+  // Tecla Escape para salir del editor a pantalla completa y regresar al perfil
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (onClose) onClose();
+        else if (onVolver) onVolver();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, onVolver]);
+
+  const actualizarFicha = (actualizador: (prev: FichaState) => FichaState) => {
+    setFicha((prev) => {
+      const nuevo = actualizador(prev);
+      try {
+        if (!embedded) {
+          window.localStorage.setItem(LLAVE_STORAGE, JSON.stringify(nuevo));
+        }
+      } catch {
+        /* sin persistencia */
+      }
+      return nuevo;
+    });
+  };
+
+  const actualizarCampo = (campo: keyof FichaState, valor: any) => {
+    actualizarFicha((f) => ({ ...f, [campo]: valor }));
+  };
+
+  const actualizarEmpleo = (idx: number, campo: keyof Empleo, valor: string) => {
+    actualizarFicha((f) => {
+      const nuevos = [...f.empleos];
+      nuevos[idx] = { ...nuevos[idx], [campo]: valor };
+      return { ...f, empleos: nuevos };
+    });
+  };
+
+  const procesarArchivoFoto = (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor selecciona una imagen válida (JPG o PNG)');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const url = e.target?.result as string;
+      actualizarCampo('fotoUrl', url);
+      toast.success('Fotografía cargada');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const cargarDatosGuardia = async (guardiaId: string) => {
+    if (!guardiaId) return;
+    setSelectedGuardiaId(guardiaId);
+    const toastId = toast.loading('Cargando expediente del guardia...');
+
+    try {
+      const res = await apiFetch<{ guardia: any; ficha: FichaState | null }>(
+        `/api/guardias/${guardiaId}/ficha`
+      );
+
+      if (res.ficha) {
+        setFicha(res.ficha);
+        toast.success(`Ficha técnica cargada: ${res.guardia.nombre}`, { id: toastId });
+      } else {
+        // Inicializar con los datos básicos que ya tenga el guardia en la BD
+        const g = res.guardia;
+        setFicha({
+          ...ESTADO_VACIO,
+          nombre: (g.nombre || '').toUpperCase(),
+          numeroElemento: (g.numero_elemento || '').toUpperCase(),
+          celular: g.telefono || '',
+          calleNumero: (g.direccion || '').toUpperCase(),
+          fechaDocumento: calcularFechaHoy(),
+        });
+        toast.success(`Guardia seleccionado: ${g.nombre} (plantilla en blanco lista para llenar)`, {
+          id: toastId,
+        });
+      }
+    } catch {
+      // Fallback local si la llamada falla
+      const g = guardias.find((item) => String(item.id) === String(guardiaId));
+      if (g) {
+        setFicha({
+          ...ESTADO_VACIO,
+          nombre: (g.nombre || '').toUpperCase(),
+          numeroElemento: (g.numero_elemento || '').toUpperCase(),
+          celular: g.telefono || '',
+          calleNumero: (g.direccion || '').toUpperCase(),
+          fechaDocumento: calcularFechaHoy(),
+        });
+        toast.success(`Guardia seleccionado: ${g.nombre}`, { id: toastId });
+      } else {
+        toast.error('No se pudo cargar la información del guardia', { id: toastId });
+      }
+    }
+  };
+
+  // Guardar en la base de datos (expediente del guardia)
+  const guardarEnExpediente = async () => {
+    if (!selectedGuardiaId) {
+      toast.error('Por favor selecciona primero un guardia para guardar su ficha en su expediente');
+      return;
+    }
+
+    setGuardandoDb(true);
+    const toastId = toast.loading('Guardando ficha técnica en el expediente...');
+    try {
+      const res = await apiFetch<{ ok: boolean; guardia: any }>(
+        `/api/guardias/${selectedGuardiaId}/ficha`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ ficha }),
+        }
+      );
+
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: ['guardias'] });
+        queryClient.invalidateQueries({ queryKey: ['guardia-ficha', selectedGuardiaId] });
+        queryClient.invalidateQueries({ queryKey: ['guardia-documentos'] });
+        toast.success(`Ficha técnica guardada exitosamente en el expediente de ${res.guardia?.nombre}`, {
+          id: toastId,
+        });
+        if (onGuardadoExitoso) {
+          onGuardadoExitoso();
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Error al guardar en el expediente', { id: toastId });
+    } finally {
+      setGuardandoDb(false);
+    }
+  };
+
+  const descargarPdfServidor = async () => {
+    setDescargandoPdf(true);
+    const toastId = toast.loading('Generando documento PDF oficial...');
+    try {
+      const token = localStorage.getItem('inv_token');
+      const res = await fetch('/api/guardias/ficha-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(ficha),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al generar el PDF en el servidor');
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeName = ficha.numeroElemento || (ficha.nombre ? ficha.nombre.replace(/[^a-zA-Z0-9]/g, '_') : 'guardia');
+      link.href = url;
+      link.download = `ficha_tecnica_${safeName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 1000);
+
+      toast.success('Ficha técnica PDF descargada con éxito', { id: toastId });
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || 'Error al generar el PDF', { id: toastId });
+    } finally {
+      setDescargandoPdf(false);
+    }
+  };
+
+  const selectedGuardiaNombre = guardias.find((g: any) => String(g.id) === String(selectedGuardiaId))?.nombre;
+
+  return (
+    <div className={fullScreen ? "fixed inset-0 z-[250] bg-slate-900 flex flex-col overflow-hidden text-foreground animate-in fade-in duration-200" : "space-y-4"}>
+      {/* Estilos para impresión exacta en 1 hoja Carta vertical */}
+      <style>{`
+        @page {
+          size: letter portrait;
+          margin: 8mm 12mm 8mm 12mm;
+        }
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #ficha-print-area, #ficha-print-area * {
+            visibility: visible !important;
+          }
+          #ficha-print-area {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 190mm !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            background: #fff !important;
+            box-shadow: none !important;
+            border: none !important;
+            transform: none !important;
+          }
+          .mch-ft-input {
+            border: none !important;
+            outline: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            color: #0f172a !important;
+          }
+          .mch-ft-input-name {
+            color: #C00000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .mch-watermark {
+            opacity: 0.12 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .print-hidden-btn {
+            display: none !important;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+
+        .mch-ft-sheet {
+          position: relative;
+          width: 190mm;
+          min-height: 255mm;
+          margin: 0 auto;
+          background: #ffffff;
+          padding: 7mm 11mm;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+          border: 1px solid #cbd5e1;
+          border-radius: 4px;
+          color: #0f172a;
+          font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+        }
+
+        .mch-ft-input {
+          width: 100%;
+          border: 1px solid transparent;
+          border-radius: 2px;
+          background: transparent;
+          padding: 1px 3px;
+          font-size: 8pt;
+          font-family: inherit;
+          color: inherit;
+          text-transform: uppercase;
+          outline: none;
+          transition: border-color 0.15s, background-color 0.15s;
+        }
+        .mch-ft-input:hover {
+          border-color: #94a3b8;
+          background-color: rgba(241, 245, 249, 0.6);
+        }
+        .mch-ft-input:focus {
+          border-color: #1d4ed8;
+          background-color: #fff;
+        }
+
+        .mch-ft-input-name {
+          color: #C00000 !important;
+          font-weight: 900 !important;
+        }
+        .mch-ft-input-name::placeholder {
+          color: rgba(192, 0, 0, 0.45) !important;
+          font-weight: 800 !important;
+        }
+
+        .mch-table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+          margin-bottom: 2mm;
+          border: 1.5px solid #0f172a;
+        }
+        .mch-table td {
+          border: 1px solid #0f172a;
+          padding: 2px 4.5px;
+          font-size: 7.5pt;
+          line-height: 1.2;
+          vertical-align: middle;
+        }
+        .mch-table td.lbl {
+          background-color: #DEEAF6 !important;
+          font-weight: 800;
+          color: #0f172a;
+          letter-spacing: 0.2px;
+        }
+        .mch-table td.val {
+          background-color: transparent !important;
+        }
+      `}</style>
+
+      {/* Barra de herramientas superior (oculta en impresión) */}
+      {fullScreen ? (
+        <header className="h-14 bg-slate-950/95 border-b border-slate-800 text-white px-4 sm:px-6 flex items-center justify-between flex-shrink-0 z-20 shadow-md print:hidden">
+          <div className="flex items-center gap-3 min-w-0">
+            {(onClose || onVolver) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onClose || onVolver}
+                className="bg-slate-900 border-slate-700 text-slate-100 hover:text-white hover:bg-slate-800 text-xs font-bold gap-2 px-3 py-1.5 shadow-sm transition-all"
+                title="Regresar al perfil del guardia"
+              >
+                <ArrowLeft className="w-4 h-4 text-primary" />
+                {selectedGuardiaNombre || ficha.nombre
+                  ? `Volver al Perfil`
+                  : 'Volver al Perfil del Guardia'}
+              </Button>
+            )}
+            <div className="h-4 w-px bg-slate-800 hidden sm:block" />
+            <span className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" />
+              Ficha Técnica — {selectedGuardiaNombre || ficha.nombre || 'Guardia'}
+            </span>
+            <span className="hidden md:inline-flex items-center text-[10px] font-semibold bg-primary/20 text-primary-foreground border border-primary/30 px-2 py-0.5 rounded-full">
+              Modo Pantalla Completa
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Control de Zoom */}
+            <div className="hidden sm:flex items-center gap-1 border border-slate-700 rounded-lg p-0.5 bg-slate-900">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800"
+                onClick={() => setZoomVista((z) => Math.max(60, z - 10))}
+                title="Reducir zoom"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </Button>
+              <span className="text-xs font-mono px-1.5 text-slate-300 min-w-[38px] text-center">
+                {zoomVista}%
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-slate-300 hover:text-white hover:bg-slate-800"
+                onClick={() => setZoomVista((z) => Math.min(130, z + 10))}
+                title="Aumentar zoom"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+
+            {/* Input Foto */}
+            <input
+              type="file"
+              ref={inputFotoRef}
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => procesarArchivoFoto(e.target.files?.[0])}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
+              onClick={() => inputFotoRef.current?.click()}
+            >
+              <ImageUp className="w-3.5 h-3.5 mr-1.5" />
+              {ficha.fotoUrl ? 'Cambiar Foto' : 'Subir Foto'}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
+              onClick={() => window.print()}
+            >
+              <Printer className="w-3.5 h-3.5 mr-1.5" /> Imprimir
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
+              disabled={descargandoPdf}
+              onClick={descargarPdfServidor}
+            >
+              {descargandoPdf ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1.5" />}
+              PDF
+            </Button>
+
+            <Button
+              size="sm"
+              className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md gap-1.5"
+              disabled={guardandoDb || !selectedGuardiaId}
+              onClick={guardarEnExpediente}
+            >
+              {guardandoDb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              Guardar en Expediente
+            </Button>
+
+            {(onClose || onVolver) && (
+              <button
+                onClick={onClose || onVolver}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors ml-1"
+                title="Cerrar editor y volver al perfil"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </header>
+      ) : (
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3 print:hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {(onClose || onVolver) && (
+                <>
+                  <Button variant="ghost" size="sm" onClick={onClose || onVolver} className="font-semibold text-xs gap-1.5">
+                    <ArrowLeft className="w-4 h-4 mr-1 text-primary" />
+                    {selectedGuardiaNombre || ficha.nombre
+                      ? `Volver al Perfil`
+                      : 'Volver'}
+                  </Button>
+                  <div className="h-5 w-px bg-border mx-1" />
+                </>
+              )}
+              <span className="text-sm font-semibold tracking-tight flex items-center gap-1.5">
+                Ficha Técnica Oficial de Guardia
+              </span>
+              {selectedGuardiaNombre && (
+                <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">
+                  {selectedGuardiaNombre}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Control de Zoom */}
+              <div className="flex items-center gap-1 border border-border rounded-lg p-0.5 bg-muted/30">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setZoomVista((z) => Math.max(70, z - 10))}
+                  title="Reducir zoom"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </Button>
+                <span className="text-xs font-mono px-1.5 text-muted-foreground min-w-[42px] text-center">
+                  {zoomVista}%
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setZoomVista((z) => Math.min(130, z + 10))}
+                  title="Aumentar zoom"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+
+              {/* Guardar en el Expediente */}
+              <Button
+                size="sm"
+                variant="default"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow"
+                disabled={guardandoDb || !selectedGuardiaId}
+                onClick={guardarEnExpediente}
+                title={selectedGuardiaId ? 'Guarda los datos permanentemente en el expediente del guardia' : 'Selecciona un guardia para guardar'}
+              >
+                {guardandoDb ? (
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-1.5" />
+                )}
+                Guardar en Expediente
+              </Button>
+
+              {/* Imprimir / Guardar como PDF */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+                title="Abre el cuadro de diálogo de impresión para imprimir o Guardar como PDF"
+              >
+                <Printer className="w-4 h-4 mr-1.5" /> Imprimir / PDF
+              </Button>
+
+              {/* Descargar PDF generado por el servidor */}
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={descargandoPdf}
+                onClick={descargarPdfServidor}
+                title="Genera y descarga el archivo PDF oficial listo para archivar"
+              >
+                {descargandoPdf ? (
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-1.5" />
+                )}
+                Descargar PDF
+              </Button>
+            </div>
+          </div>
+
+          {/* Fila secundaria: selectores rápidos */}
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-border text-xs">
+            {/* Cargar guardia existente */}
+            <div className="flex items-center gap-1.5 min-w-[240px]">
+              <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <select
+                className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                value={selectedGuardiaId}
+                onChange={(e) => cargarDatosGuardia(e.target.value)}
+              >
+                <option value="">
+                  {selectedGuardiaId ? '-- Cambiar de guardia --' : 'Seleccionar guardia para su expediente...'}
+                </option>
+                {guardias.map((g: any) => (
+                  <option key={g.id} value={g.id}>
+                    {g.nombre} · {g.numero_elemento}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-muted-foreground"
+                onClick={() => {
+                  setSelectedGuardiaId('');
+                  setFicha(ESTADO_VACIO);
+                  toast.info('Formato restablecido en blanco');
+                }}
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1" /> Limpiar todo
+              </Button>
+            </div>
+
+            {/* Selector de Fotografía */}
+            <div className="ml-auto flex items-center gap-2">
+              <input
+                type="file"
+                ref={inputFotoRef}
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => procesarArchivoFoto(e.target.files?.[0])}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => inputFotoRef.current?.click()}
+              >
+                <ImageUp className="w-3.5 h-3.5 mr-1.5" />
+                {ficha.fotoUrl ? 'Cambiar Fotografía' : 'Subir Fotografía'}
+              </Button>
+              {ficha.fotoUrl && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    actualizarCampo('fotoUrl', null);
+                    toast.info('Fotografía removida');
+                  }}
+                  title="Eliminar fotografía"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contenedor del lienzo con zoom */}
+      <div className={fullScreen ? "flex-1 overflow-auto bg-slate-200/90 dark:bg-slate-950 p-6 sm:p-10 flex justify-center items-start" : "overflow-auto py-4 bg-muted/20 rounded-xl flex justify-center border border-border/50"}>
+        <div
+          id="ficha-print-area"
+          style={{
+            transform: zoomVista !== 100 ? `scale(${zoomVista / 100})` : undefined,
+            transformOrigin: 'top center',
+            transition: 'transform 0.15s ease',
+          }}
+        >
+          <div className="mch-ft-sheet">
+            {/* Marca de agua institucional centrada detrás del documento */}
+            <div
+              className="mch-watermark"
+              style={{
+                position: 'absolute',
+                top: '52%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '145mm',
+                opacity: 0.12,
+                pointerEvents: 'none',
+                zIndex: 0,
+              }}
+            >
+              <img
+                src="/logos/u3-watermark.png"
+                alt="Marca de agua U3"
+                className="w-full h-auto block select-none"
+              />
+            </div>
+
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              {/* Encabezado Institucional Formal */}
+              <div
+                className="flex items-center justify-between pb-2 mb-2"
+                style={{ borderBottom: '2px solid #0f172a' }}
+              >
+                <div style={{ width: '22mm', flexShrink: 0 }}>
+                  <img
+                    src="/logos/u3-logo-ficha.png"
+                    alt="Logo U3"
+                    className="w-full h-auto block"
+                  />
+                </div>
+                <div className="text-center flex-1 px-3">
+                  <div
+                    style={{
+                      fontSize: '11pt',
+                      fontWeight: 900,
+                      letterSpacing: '0.8px',
+                      color: '#0f172a',
+                    }}
+                  >
+                    U3 SEGURIDAD PRIVADA S.A. DE C.V.
+                  </div>
+                  <h1
+                    style={{
+                      fontSize: '17pt',
+                      fontWeight: 800,
+                      letterSpacing: '1.5px',
+                      color: '#0f172a',
+                      margin: '1px 0',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    FICHA TÉCNICA
+                  </h1>
+                  <div
+                    style={{
+                      fontSize: '7.5pt',
+                      fontWeight: 600,
+                      color: '#475569',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    CÉDULA OFICIAL DE IDENTIFICACIÓN Y REGISTRO DEL PERSONAL OPERATIVO
+                  </div>
+                </div>
+                {/* Espacio para balancear el logotipo de la izquierda */}
+                <div style={{ width: '22mm', flexShrink: 0 }} />
+              </div>
+
+              {/* Fotografía centrada */}
+              <div className="flex justify-center my-1.5">
+                <div
+                  className={`relative group cursor-pointer transition-all ${
+                    arrastrandoFoto ? 'ring-2 ring-primary ring-offset-2' : ''
+                  }`}
+                  style={{
+                    width: '32mm',
+                    height: '40mm',
+                    border: '1.5px solid #0f172a',
+                    boxShadow: '2px 3px 6px rgba(0, 0, 0, 0.15)',
+                    background: '#f8fafc',
+                    overflow: 'hidden',
+                  }}
+                  title="Clic para subir o arrastra una imagen aquí"
+                  onClick={() => inputFotoRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setArrastrandoFoto(true);
+                  }}
+                  onDragLeave={() => setArrastrandoFoto(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setArrastrandoFoto(false);
+                    procesarArchivoFoto(e.dataTransfer.files?.[0]);
+                  }}
+                >
+                  {ficha.fotoUrl ? (
+                    <>
+                      <img
+                        src={ficha.fotoUrl}
+                        alt="Fotografía del Guardia"
+                        className="w-full h-full object-cover block"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-medium print-hidden-btn">
+                        Cambiar foto
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 p-2 text-center select-none">
+                      <ImageUp className="w-5 h-5 mb-1 text-gray-400" />
+                      <span className="text-[8.5px] font-bold uppercase tracking-wider text-gray-500">
+                        Fotografía Oficial
+                      </span>
+                      <span className="text-[7.5px] text-gray-400 mt-0.5 print:hidden">
+                        Clic o arrastra
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Nombre del elemento en rojo corporativo que se visualiza completo */}
+              <div className="flex justify-center mb-2 px-1">
+                <div
+                  className="inline-block text-center"
+                  style={{
+                    borderBottom: '2.5px solid #C00000',
+                    maxWidth: '168mm',
+                    minWidth: '450px',
+                  }}
+                >
+                  <input
+                    className="mch-ft-input mch-ft-input-name text-center"
+                    style={{
+                      fontSize: '13pt',
+                      fontWeight: 900,
+                      letterSpacing: '0.8px',
+                      color: '#C00000',
+                      width: '100%',
+                      minWidth: '440px',
+                    }}
+                    value={ficha.nombre}
+                    onChange={(e) => actualizarCampo('nombre', e.target.value.toUpperCase())}
+                    placeholder="NOMBRE COMPLETO DEL GUARDIA"
+                  />
+                </div>
+              </div>
+
+              {/* Recuadro Puesto */}
+              <table
+                className="mch-table"
+                style={{
+                  width: '60mm',
+                  margin: '0 auto 2.5mm auto',
+                }}
+              >
+                <tbody>
+                  <tr>
+                    <td
+                      className="lbl text-center"
+                      style={{
+                        fontSize: '7.5pt',
+                        padding: '1.5px 0',
+                        letterSpacing: '0.5px',
+                        fontWeight: 800,
+                      }}
+                    >
+                      PUESTO / CATEGORÍA
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      className="val text-center"
+                      style={{
+                        padding: '1.5px 4px',
+                      }}
+                    >
+                      <input
+                        className="mch-ft-input text-center font-extrabold"
+                        style={{ fontSize: '8.5pt' }}
+                        value={ficha.puesto}
+                        onChange={(e) => actualizarCampo('puesto', e.target.value.toUpperCase())}
+                        placeholder="GUARDIA DE SEGURIDAD"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* I. DATOS PERSONALES */}
+              <div
+                className="font-bold text-[8.5pt] uppercase tracking-wide my-1 flex items-center gap-2"
+                style={{ color: '#0f172a' }}
+              >
+                <span>I. Datos Personales y Filiación</span>
+                <span className="flex-1 h-px bg-slate-300" />
+              </div>
+              <table className="mch-table">
+                <colgroup>
+                  <col style={{ width: '25%' }} />
+                  <col style={{ width: '25%' }} />
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '28%' }} />
+                </colgroup>
+                <tbody>
+                  <tr>
+                    <td className="lbl">FECHA DE NACIMIENTO:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.fechaNacimiento}
+                        onChange={(e) => actualizarCampo('fechaNacimiento', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl">EDAD:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.edad}
+                        onChange={(e) => actualizarCampo('edad', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="lbl">LUGAR DE NACIMIENTO:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.lugarNacimiento}
+                        onChange={(e) => actualizarCampo('lugarNacimiento', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl">NACIONALIDAD:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.nacionalidad}
+                        onChange={(e) => actualizarCampo('nacionalidad', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="lbl">ESTADO CIVIL:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.estadoCivil}
+                        onChange={(e) => actualizarCampo('estadoCivil', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl">ESTUDIOS:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.estudios}
+                        onChange={(e) => actualizarCampo('estudios', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="lbl">RFC:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.rfc}
+                        onChange={(e) => actualizarCampo('rfc', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl">CURP:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.curp}
+                        onChange={(e) => actualizarCampo('curp', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="lbl">AFILIACIÓN IMSS:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.imss}
+                        onChange={(e) => actualizarCampo('imss', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl">SEXO:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.sexo}
+                        onChange={(e) => actualizarCampo('sexo', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="lbl">ESTATURA:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.estatura}
+                        onChange={(e) => actualizarCampo('estatura', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl">PESO APROXIMADO:</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.peso}
+                        onChange={(e) => actualizarCampo('peso', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* II. DOMICILIO */}
+              <div
+                className="font-bold text-[8.5pt] uppercase tracking-wide my-1 flex items-center gap-2"
+                style={{ color: '#0f172a' }}
+              >
+                <span>II. Domicilio Actual y Contacto</span>
+                <span className="flex-1 h-px bg-slate-300" />
+              </div>
+              <table className="mch-table">
+                <tbody>
+                  <tr>
+                    <td className="lbl" style={{ width: '25%' }}>
+                      CALLE Y NÚMERO
+                    </td>
+                    <td className="val" style={{ width: '33%' }}>
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.calleNumero}
+                        onChange={(e) => actualizarCampo('calleNumero', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl" style={{ width: '14%' }}>
+                      COLONIA
+                    </td>
+                    <td className="val" style={{ width: '28%' }}>
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.colonia}
+                        onChange={(e) => actualizarCampo('colonia', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="lbl">ENTRE LAS CALLES</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.entreCalles}
+                        onChange={(e) => actualizarCampo('entreCalles', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl">C.P.</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.cp}
+                        onChange={(e) => actualizarCampo('cp', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="lbl">DELEGACIÓN / MUNICIPIO</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.delegacionMunicipio}
+                        onChange={(e) => actualizarCampo('delegacionMunicipio', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl">ESTADO</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.estado}
+                        onChange={(e) => actualizarCampo('estado', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="lbl">TIEMPO DE RESIDENCIA</td>
+                    <td className="val" style={{ width: '15%' }}>
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.tiempoResidencia}
+                        onChange={(e) => actualizarCampo('tiempoResidencia', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl" style={{ width: '34%' }}>
+                      TIEMPO DE RADICAR EN EL ESTADO DE MÉXICO
+                    </td>
+                    <td className="val" style={{ width: '26%' }}>
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.tiempoRadicarEstado}
+                        onChange={(e) => actualizarCampo('tiempoRadicarEstado', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="lbl">TELÉFONO DE EMERGENCIA</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.telefonoEmergencia}
+                        onChange={(e) => actualizarCampo('telefonoEmergencia', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                    <td className="lbl">CELULAR</td>
+                    <td className="val">
+                      <input
+                        className="mch-ft-input"
+                        value={ficha.celular}
+                        onChange={(e) => actualizarCampo('celular', e.target.value.toUpperCase())}
+                        placeholder=""
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* III. ANTECEDENTES LABORALES */}
+              <div
+                className="font-bold text-[8.5pt] uppercase tracking-wide my-1 flex items-center gap-2"
+                style={{ color: '#0f172a' }}
+              >
+                <span>III. Historial y Antecedentes Laborales</span>
+                <span className="flex-1 h-px bg-slate-300" />
+              </div>
+              <table className="mch-table">
+                <colgroup>
+                  <col style={{ width: '42%' }} />
+                  <col style={{ width: '58%' }} />
+                </colgroup>
+                <tbody>
+                  {ficha.empleos.map((emp, i) => (
+                    <tr key={`emp-${i}-grupo`}>
+                      <td colSpan={2} style={{ padding: 0, border: 'none' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <tbody>
+                            <tr>
+                              <td className="lbl" style={{ width: '42%', border: '1px solid #0f172a' }}>
+                                EMPRESA / RAZÓN SOCIAL:
+                              </td>
+                              <td className="val" style={{ width: '58%', border: '1px solid #0f172a' }}>
+                                <input
+                                  className="mch-ft-input font-medium"
+                                  value={emp.empresa}
+                                  onChange={(e) => actualizarEmpleo(i, 'empresa', e.target.value.toUpperCase())}
+                                  placeholder=""
+                                />
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="lbl" style={{ border: '1px solid #0f172a' }}>
+                                PERÍODO:
+                              </td>
+                              <td className="val" style={{ border: '1px solid #0f172a' }}>
+                                <input
+                                  className="mch-ft-input"
+                                  value={emp.periodo}
+                                  onChange={(e) => actualizarEmpleo(i, 'periodo', e.target.value.toUpperCase())}
+                                  placeholder=""
+                                />
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="lbl" style={{ border: '1px solid #0f172a' }}>
+                                PUESTO DESEMPEÑADO:
+                              </td>
+                              <td className="val" style={{ border: '1px solid #0f172a' }}>
+                                <input
+                                  className="mch-ft-input font-medium"
+                                  value={emp.puesto}
+                                  onChange={(e) => actualizarEmpleo(i, 'puesto', e.target.value.toUpperCase())}
+                                  placeholder=""
+                                />
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Fecha al calce */}
+              <div className="text-right mt-3 mb-2">
+                <input
+                  className="mch-ft-input text-right font-bold"
+                  style={{ fontSize: '8pt', width: 'auto', display: 'inline-block', minWidth: '320px', color: '#334155' }}
+                  value={ficha.fechaDocumento}
+                  onChange={(e) => actualizarCampo('fechaDocumento', e.target.value.toUpperCase())}
+                />
+              </div>
+
+              {/* Pie de página con web y logo institucional */}
+              <div
+                className="flex items-end justify-between pt-2 mt-4"
+                style={{ borderTop: '1px solid #94a3b8' }}
+              >
+                <div
+                  style={{
+                    fontSize: '7.5pt',
+                    color: '#475569',
+                    letterSpacing: '0.3px',
+                    fontWeight: 600,
+                  }}
+                >
+                  www.u3seguridadprivada.com · Uso Oficial y Confidencial
+                </div>
+                <div style={{ width: '24mm' }}>
+                  <img
+                    src="/logos/u3-footer-logo.png"
+                    alt="U3 Seguridad Privada"
+                    className="w-full h-auto block"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

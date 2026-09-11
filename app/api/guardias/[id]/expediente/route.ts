@@ -8,7 +8,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!verifyAuth(req)) return unauthorized();
   const { id } = await params;
   const guardiaId = Number(id);
-  const expedienteSalidas = db.select().from(salidas).where(eq(salidas.guardia_id, guardiaId)).orderBy(desc(salidas.fecha)).all();
+
+  // Obtener nombre del guardia para recuperar movimientos históricos con nombre
+  const guardia = db.select().from(guardias).where(eq(guardias.id, guardiaId)).get();
+  const nombre = guardia?.nombre;
+
+  const whereSalidas = nombre
+    ? or(eq(salidas.guardia_id, guardiaId), eq(salidas.nombre_guardia, nombre))
+    : eq(salidas.guardia_id, guardiaId);
+
+  const expedienteSalidas = db.select().from(salidas).where(whereSalidas).orderBy(desc(salidas.fecha)).all();
   const expedienteEntradas = db.select().from(entradas).where(eq(entradas.guardia_id, guardiaId)).orderBy(desc(entradas.fecha)).all();
   return Response.json({ salidas: expedienteSalidas, entradas: expedienteEntradas });
 }

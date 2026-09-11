@@ -12,6 +12,7 @@ next-env.d.ts
 
 # SQLite database (persists via Railway Volume)
 db/*.db
+!db/app.db
 db/*.db-shm
 db/*.db-wal
 db/*.db.backup*

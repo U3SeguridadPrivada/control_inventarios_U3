@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS guardias (
   fecha_alta TEXT NOT NULL,
   fecha_baja TEXT,
   telefono TEXT,
-  direccion TEXT
+  direccion TEXT,
+  ficha_tecnica_json TEXT
 );
 CREATE TABLE IF NOT EXISTS guardia_documentos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,6 +47,15 @@ CREATE TABLE IF NOT EXISTS guardia_documentos (
   nombre_archivo TEXT NOT NULL,
   tipo_mimetype TEXT NOT NULL,
   fecha_subida TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS guardia_bitacora (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  guardia_id INTEGER NOT NULL REFERENCES guardias(id),
+  tipo TEXT NOT NULL DEFAULT 'nota',
+  asunto TEXT,
+  mensaje TEXT NOT NULL,
+  usuario TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS entradas (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -410,6 +420,11 @@ function initDb(): DrizzleDB {
   }
   try {
     sqlite.exec(`ALTER TABLE guardias ADD COLUMN direccion TEXT;`);
+  } catch (e) {
+    // Column might already exist
+  }
+  try {
+    sqlite.exec(`ALTER TABLE guardias ADD COLUMN ficha_tecnica_json TEXT;`);
   } catch (e) {
     // Column might already exist
   }

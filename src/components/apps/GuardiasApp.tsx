@@ -1,5 +1,6 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/src/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
@@ -7,10 +8,43 @@ import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Badge } from '@/src/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
-import { Search, UserPlus, LogOut, Printer, Edit, Trash2, Download, Eye, Phone, MapPin, FileText, Upload } from 'lucide-react';
+import {
+  Search,
+  UserPlus,
+  LogOut,
+  Printer,
+  Edit,
+  Trash2,
+  Download,
+  Eye,
+  Phone,
+  MapPin,
+  FileText,
+  Upload,
+  IdCard,
+  Edit3,
+  CheckCircle2,
+  AlertCircle,
+  Calendar,
+  LayoutGrid,
+  List,
+  Shield,
+  User,
+  ExternalLink,
+  RefreshCw,
+  Briefcase,
+  FileCheck,
+  Building2,
+  Clock,
+  Sparkles,
+  ChevronRight,
+  Maximize2
+} from 'lucide-react';
 import { fmtDate } from '@/src/lib/utils';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
+import MachoteFichaTecnica from '@/src/components/machotes/MachoteFichaTecnica';
+import GuardiaPerfil from './GuardiaPerfil';
 
 function imprimirExpediente(guardia: any, salidas: any[], entradas: any[]) {
   const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -84,29 +118,49 @@ function imprimirExpediente(guardia: any, salidas: any[], entradas: any[]) {
 }
 
 async function descargarFichaPdf(guardiaId: number, numeroElemento: string) {
+  const toastId = toast.loading('Generando ficha técnica oficial...');
   try {
-    const token = localStorage.getItem('inv_token');
-    const res = await fetch(`/api/guardias/${guardiaId}/ficha-pdf`, { headers: { Authorization: `Bearer ${token}` } });
+    const token = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : null;
+    const res = await fetch(`/api/guardias/${guardiaId}/ficha-pdf?download=true`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
     if (!res.ok) throw new Error('Error al generar la ficha');
     const blob = new Blob([await res.arrayBuffer()], { type: 'application/pdf' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url; link.download = `ficha_${numeroElemento}.pdf`; link.style.display = 'none';
-    document.body.appendChild(link); link.click();
-    setTimeout(() => { document.body.removeChild(link); window.URL.revokeObjectURL(url); }, 1000);
+    link.href = url;
+    link.download = `ficha_tecnica_${numeroElemento}.pdf`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    }, 1000);
+    toast.success('Ficha técnica PDF descargada con éxito', { id: toastId });
   } catch {
-    alert('No se pudo generar la ficha PDF.');
+    toast.error('No se pudo generar la ficha técnica en PDF', { id: toastId });
   }
 }
 
-export default function GuardiasApp() {
+function abrirPdfEnNuevaVentana(guardiaId: number) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : '';
+  const url = `/api/guardias/${guardiaId}/ficha-pdf?inline=true${token ? `&token=${token}` : ''}`;
+  window.open(url, '_blank');
+}
+
+export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: number } = {}) {
   const { isEditor } = useAuth();
   const queryClient = useQueryClient();
+  const [selectedGuardiaId, setSelectedGuardiaId] = useState<number | null>(initialGuardiaId || null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterEstado, setFilterEstado] = useState<'Todos' | 'Activo' | 'Baja Pendiente' | 'En Baja'>('Todos');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+
+  // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBajaModalOpen, setIsBajaModalOpen] = useState(false);
-  const [isExpedienteModalOpen, setIsExpedienteModalOpen] = useState(false);
-  
+
   // Registration States
   const [numeroElemento, setNumeroElemento] = useState('');
   const [nombre, setNombre] = useState('');
@@ -127,37 +181,22 @@ export default function GuardiasApp() {
   const [editDireccion, setEditDireccion] = useState('');
   const [editEstado, setEditEstado] = useState('Activo');
 
-  // Expediente Tabs and Documents States
-  const [activeTab, setActiveTab] = useState<'movimientos' | 'documentos'>('movimientos');
-  const [documentoNombre, setDocumentoNombre] = useState('');
-  const [documentoArchivo, setDocumentoArchivo] = useState<File | null>(null);
-
   // Queries
-  const { data: guardias = [], isLoading } = useQuery({ queryKey: ['guardias'], queryFn: () => apiFetch<any[]>('/api/guardias') });
-  const { data: expedienteRes, isLoading: isLoadingExpediente } = useQuery({
-    queryKey: ['expediente', selectedGuardia?.id],
-    queryFn: () => apiFetch<{ salidas: any[], entradas: any[] }>(`/api/guardias/${selectedGuardia.id}/expediente`),
-    enabled: !!selectedGuardia && isExpedienteModalOpen,
-  });
-  const expedienteSalidas = expedienteRes?.salidas || [];
-  const expedienteEntradas = expedienteRes?.entradas || [];
-
-  const { data: documentos = [], isLoading: isLoadingDocumentos } = useQuery({
-    queryKey: ['guardia-documentos', selectedGuardia?.id],
-    queryFn: () => apiFetch<any[]>(`/api/guardias/${selectedGuardia.id}/documentos`),
-    enabled: !!selectedGuardia && isExpedienteModalOpen && activeTab === 'documentos',
+  const { data: guardias = [], isLoading } = useQuery({
+    queryKey: ['guardias'],
+    queryFn: () => apiFetch<any[]>('/api/guardias'),
   });
 
   // Mutations
   const createMutation = useMutation({
     mutationFn: (payload: any) => apiFetch('/api/guardias', { method: 'POST', body: JSON.stringify(payload) }),
-    onSuccess: () => { 
-      queryClient.invalidateQueries({ queryKey: ['guardias'] }); 
-      queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] }); 
-      toast.success('Guardia registrado'); 
-      setIsModalOpen(false); 
-      setNumeroElemento(''); 
-      setNombre(''); 
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['guardias'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] });
+      toast.success('Guardia registrado con éxito');
+      setIsModalOpen(false);
+      setNumeroElemento('');
+      setNombre('');
       setTelefono('');
       setDireccion('');
     },
@@ -166,57 +205,31 @@ export default function GuardiasApp() {
 
   const editMutation = useMutation({
     mutationFn: (payload: any) => apiFetch(`/api/guardias/${payload.id}`, { method: 'PUT', body: JSON.stringify(payload) }),
-    onSuccess: () => { 
-      queryClient.invalidateQueries({ queryKey: ['guardias'] }); 
-      queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] }); 
-      toast.success('Guardia actualizado'); 
-      setIsEditModalOpen(false); 
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['guardias'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] });
+      toast.success('Datos del guardia actualizados');
+      setIsEditModalOpen(false);
     },
     onError: (err: any) => toast.error(err.message || 'Error al actualizar guardia'),
   });
 
   const bajaMutation = useMutation({
-    mutationFn: (payload: { id: number, fecha: string }) => apiFetch(`/api/guardias/${payload.id}/baja`, { method: 'POST', body: JSON.stringify({ fecha: payload.fecha }) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['guardias'] }); queryClient.invalidateQueries({ queryKey: ['bajas'] }); toast.success('Proceso de Baja iniciado'); setIsBajaModalOpen(false); setSelectedGuardia(null); },
+    mutationFn: (payload: { id: number, fecha: string }) =>
+      apiFetch(`/api/guardias/${payload.id}/baja`, { method: 'POST', body: JSON.stringify({ fecha: payload.fecha }) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['guardias'] });
+      queryClient.invalidateQueries({ queryKey: ['bajas'] });
+      toast.success('Proceso de baja iniciado');
+      setIsBajaModalOpen(false);
+    },
     onError: () => toast.error('Error al procesar la baja'),
   });
 
-  const uploadDocMutation = useMutation({
-    mutationFn: (payload: { formData: FormData }) => apiFetch(`/api/guardias/${selectedGuardia.id}/documentos`, {
-      method: 'POST',
-      body: payload.formData
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['guardia-documentos', selectedGuardia?.id] });
-      toast.success('Documento guardado en expediente');
-      setDocumentoNombre('');
-      setDocumentoArchivo(null);
-      const fileInput = document.getElementById('doc-file-input') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-    },
-    onError: (err: any) => {
-      toast.error(err.message || 'Error al subir documento');
-    }
-  });
-
-  const deleteDocMutation = useMutation({
-    mutationFn: (docId: number) => apiFetch(`/api/guardias/${selectedGuardia.id}/documentos/${docId}`, {
-      method: 'DELETE'
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['guardia-documentos', selectedGuardia?.id] });
-      toast.success('Documento eliminado');
-    },
-    onError: (err: any) => {
-      toast.error(err.message || 'Error al eliminar documento');
-    }
-  });
-
-  // Helpers
   const startEdit = (guardia: any) => {
     setEditNombre(guardia.nombre);
     setEditNumeroElemento(guardia.numero_elemento);
-    setEditFechaAlta(guardia.fecha_alta.split('T')[0]);
+    setEditFechaAlta(guardia.fecha_alta ? guardia.fecha_alta.split('T')[0] : '');
     setEditTelefono(guardia.telefono || '');
     setEditDireccion(guardia.direccion || '');
     setEditEstado(guardia.estado || 'Activo');
@@ -224,352 +237,711 @@ export default function GuardiasApp() {
     setIsEditModalOpen(true);
   };
 
-  const filteredData = useMemo(() => guardias.filter((g: any) => { const term = searchTerm.toLowerCase(); return (g.nombre || '').toLowerCase().includes(term) || (g.numero_elemento || '').toLowerCase().includes(term); }), [guardias, searchTerm]);
+  const router = useRouter();
+
+  const openPerfil = (guardia: any, action?: 'datos' | 'ficha' | 'editFicha') => {
+    if (action === 'editFicha') {
+      router.push(`/guardias/${guardia.id}?editFicha=1`);
+    } else if (action === 'ficha') {
+      router.push(`/guardias/${guardia.id}?tab=ficha`);
+    } else {
+      router.push(`/guardias/${guardia.id}`);
+    }
+  };
+
+  const filteredData = useMemo(() => {
+    return guardias.filter((g: any) => {
+      const term = searchTerm.toLowerCase();
+      const matchSearch =
+        (g.nombre || '').toLowerCase().includes(term) ||
+        (g.numero_elemento || '').toLowerCase().includes(term) ||
+        (g.telefono || '').toLowerCase().includes(term);
+
+      const matchEstado =
+        filterEstado === 'Todos' || g.estado === filterEstado;
+
+      return matchSearch && matchEstado;
+    });
+  }, [guardias, searchTerm, filterEstado]);
+
+  // Si hay un guardia seleccionado, desplegar la vista de perfil completo estilo CRM
+  if (selectedGuardiaId) {
+    return <GuardiaPerfil id={selectedGuardiaId} onVolver={() => setSelectedGuardiaId(null)} />;
+  }
+
+  // Auth token for inline PDF preview
+  const authToken = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : '';
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div><h1 className="text-2xl font-bold tracking-tight">Personal de Guardias</h1><p className="text-muted-foreground mt-0.5 text-sm">Directorio de elementos operativos y gestión de estados.</p></div>
-        {isEditor && <Button onClick={() => setIsModalOpen(true)}><UserPlus className="w-4 h-4 mr-2" /> Nuevo Guardia</Button>}
+    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+      {/* Top Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card/60 backdrop-blur-sm p-5 rounded-2xl border border-border shadow-sm">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
+              <Shield className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-foreground">
+                Personal de Guardias
+              </h1>
+              <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
+                Directorio operativo, perfiles completos, expedientes con documentos y fichas técnicas editables en PDF.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Toggle View Mode */}
+          <div className="inline-flex items-center rounded-xl bg-muted/60 p-1 border border-border">
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'cards'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title="Vista en Tarjetas de Perfil"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" /> Tarjetas
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'table'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title="Vista en Tabla Compacta"
+            >
+              <List className="w-3.5 h-3.5" /> Tabla
+            </button>
+          </div>
+
+          {isEditor && (
+            <Button
+              onClick={() => setIsModalOpen(true)}
+              className="shadow-sm font-semibold rounded-xl"
+            >
+              <UserPlus className="w-4 h-4 mr-2" /> Nuevo Guardia
+            </Button>
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-2 max-w-sm relative">
-        <Search className="w-4 h-4 absolute left-3 text-muted-foreground" />
-        <Input placeholder="Buscar por nombre o número..." className="pl-9" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 max-w-md w-full relative">
+          <Search className="w-4 h-4 absolute left-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Buscar por nombre, número de elemento o teléfono..."
+            className="pl-10 h-10 rounded-xl bg-card"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        {/* Status Pill Filters */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scroll-touch">
+          {(['Todos', 'Activo', 'Baja Pendiente', 'En Baja'] as const).map(est => {
+            const count = est === 'Todos' ? guardias.length : guardias.filter((g: any) => g.estado === est).length;
+            const isSelected = filterEstado === est;
+            return (
+              <button
+                key={est}
+                type="button"
+                onClick={() => setFilterEstado(est)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border ${
+                  isSelected
+                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                    : 'bg-card text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground'
+                }`}
+              >
+                <span>{est}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isSelected ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Número de Elemento</TableHead>
-              <TableHead>Nombre del Guardia</TableHead>
-              <TableHead>Fecha Alta</TableHead>
-              <TableHead>Estado Actual</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">Cargando...</TableCell></TableRow>
-              : filteredData.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No hay guardias registrados.</TableCell></TableRow>
-              : filteredData.map((item: any) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-bold">{item.numero_elemento}</TableCell>
-                  <TableCell>
-                    <div className="font-medium text-foreground">{item.nombre}</div>
-                    {item.telefono && (
-                      <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5" title="Teléfono de contacto">
-                        <Phone className="w-3.5 h-3.5 text-primary/70 inline-block mr-1" /> {item.telefono}
+
+      {/* Main Content: Cards or Table */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+          <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+          <p className="text-sm font-medium text-muted-foreground">Cargando catálogo de guardias...</p>
+        </div>
+      ) : filteredData.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 bg-card border border-border border-dashed rounded-2xl text-center p-6">
+          <User className="w-12 h-12 text-muted-foreground/40 mb-3" />
+          <h3 className="text-base font-bold text-foreground">No se encontraron guardias</h3>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-sm">
+            {searchTerm
+              ? 'No hay resultados que coincidan con la búsqueda. Intenta con otro nombre o número.'
+              : 'Aún no hay guardias registrados con este filtro.'}
+          </p>
+          {isEditor && (
+            <Button onClick={() => setIsModalOpen(true)} size="sm" className="mt-4">
+              <UserPlus className="w-4 h-4 mr-1.5" /> Registrar Primer Guardia
+            </Button>
+          )}
+        </div>
+      ) : viewMode === 'cards' ? (
+        /* ================= CARDS VIEW (Tarjetas del perfil del guardia) ================= */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          {filteredData.map((item: any) => {
+            let hasFicha = false;
+            let fotoUrl: string | null = null;
+            if (item.ficha_tecnica_json) {
+              try {
+                const parsed = JSON.parse(item.ficha_tecnica_json);
+                hasFicha = true;
+                fotoUrl = parsed.fotoUrl || null;
+              } catch {}
+            }
+
+            const initials = item.nombre
+              ? item.nombre
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((w: string) => w[0])
+                  .join('')
+                  .toUpperCase()
+              : 'G';
+
+            const isActivo = item.estado === 'Activo';
+            const isBajaPendiente = item.estado === 'Baja Pendiente';
+            const isEnBaja = item.estado === 'En Baja';
+
+            return (
+              <div
+                key={item.id}
+                className="group relative bg-card hover:bg-card/90 border border-border/80 hover:border-primary/50 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+              >
+                <div>
+                  {/* Card Top: Photo/Initials + Badges */}
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3">
+                      {/* Avatar / Photo */}
+                      <div className="relative flex-shrink-0">
+                        {fotoUrl ? (
+                          <img
+                            src={fotoUrl}
+                            alt={item.nombre}
+                            className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl object-cover border-2 border-primary/20 shadow-sm group-hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-muted border-2 border-primary/20 flex items-center justify-center text-primary font-black text-lg tracking-wider shadow-sm group-hover:scale-105 transition-transform">
+                            {initials}
+                          </div>
+                        )}
+                        <span
+                          className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-card ${
+                            isActivo ? 'bg-emerald-500 ring-2 ring-emerald-500/20' : isBajaPendiente ? 'bg-amber-500' : 'bg-red-500'
+                          }`}
+                          title={`Estado: ${item.estado}`}
+                        />
+                      </div>
+
+                      {/* Header Info */}
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                            {item.numero_elemento}
+                          </span>
+                        </div>
+                        <h2
+                          onClick={() => openPerfil(item, 'datos')}
+                          className="font-bold text-foreground text-base mt-1 line-clamp-1 group-hover:text-primary cursor-pointer transition-colors"
+                          title={item.nombre}
+                        >
+                          {item.nombre}
+                        </h2>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <div>
+                      <Badge
+                        variant={isActivo ? 'success' : isBajaPendiente ? 'destructive' : 'secondary'}
+                        className="text-[11px] font-semibold tracking-wide"
+                      >
+                        {item.estado}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Contact & General Details */}
+                  <div className="space-y-2 py-2 border-t border-border/60 text-xs text-muted-foreground">
+                    {item.telefono ? (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 text-primary/80 flex-shrink-0" />
+                        <a
+                          href={`tel:${item.telefono}`}
+                          className="hover:text-primary transition-colors truncate"
+                          title="Llamar al guardia"
+                        >
+                          {item.telefono}
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-muted-foreground/60 italic">
+                        <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>Sin teléfono registrado</span>
                       </div>
                     )}
-                  </TableCell>
-                  <TableCell>{fmtDate(item.fecha_alta)}</TableCell>
-                  <TableCell><Badge variant={item.estado === 'Activo' ? 'success' : item.estado === 'En Baja' || item.estado === 'Baja Pendiente' ? 'destructive' : 'secondary'}>{item.estado}</Badge></TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end items-center gap-1.5">
-                      <Button variant="ghost" size="sm" className="h-8" onClick={() => { setSelectedGuardia(item); setActiveTab('movimientos'); setIsExpedienteModalOpen(true); }}><Eye className="w-3.5 h-3.5 mr-1" /> Expediente</Button>
-                      <Button variant="ghost" size="sm" className="h-8" title="Ficha PDF" onClick={() => descargarFichaPdf(item.id, item.numero_elemento)}><Download className="w-3.5 h-3.5" /></Button>
-                      {isEditor && (
-                        <>
-                          <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-foreground" onClick={() => startEdit(item)} title="Editar Datos"><Edit className="w-3.5 h-3.5" /></Button>
-                          {item.estado === 'Activo' && (
-                            <Button variant="outline" size="sm" className="h-8 text-destructive hover:bg-destructive/10" onClick={() => { setSelectedGuardia(item); setIsBajaModalOpen(true); }} title="Dar de Baja"><LogOut className="w-3.5 h-3.5" /></Button>
-                          )}
-                        </>
-                      )}
+
+                    {item.direccion ? (
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-3.5 h-3.5 text-primary/80 flex-shrink-0 mt-0.5" />
+                        <span className="line-clamp-1" title={item.direccion}>
+                          {item.direccion}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-muted-foreground/60 italic">
+                        <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>Sin dirección registrada</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 text-primary/80 flex-shrink-0" />
+                      <span>Alta: {fmtDate(item.fecha_alta)}</span>
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
-      
-      {/* Create Guard Modal */}
+                  </div>
+
+                  {/* Ficha Técnica Status Pill */}
+                  <div className="mt-2.5">
+                    {hasFicha ? (
+                      <div
+                        onClick={() => openPerfil(item, 'ficha')}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-medium cursor-pointer hover:bg-emerald-500/20 transition-colors w-full"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                        <span className="truncate">Ficha Técnica en PDF Guardada</span>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => openPerfil(item, 'editFicha')}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 text-[11px] font-medium cursor-pointer hover:bg-amber-500/20 transition-colors w-full"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                        <span className="truncate">Ficha Técnica pendiente de llenar</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card Footer Actions */}
+                <div className="pt-4 mt-3 border-t border-border/60 flex items-center justify-between gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="flex-1 h-9 rounded-xl font-semibold text-xs shadow-sm"
+                    onClick={() => openPerfil(item, 'datos')}
+                  >
+                    <User className="w-3.5 h-3.5 mr-1.5" /> Ver Perfil
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-2.5 rounded-xl text-xs"
+                    onClick={() => openPerfil(item, 'ficha')}
+                    title="Ver Ficha Técnica en PDF"
+                  >
+                    <IdCard className="w-4 h-4 text-primary" />
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-2.5 rounded-xl text-xs"
+                    onClick={() => descargarFichaPdf(item.id, item.numero_elemento)}
+                    title="Descargar Ficha Técnica en PDF"
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+
+                  {isEditor && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 px-2.5 rounded-xl text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => startEdit(item)}
+                      title="Editar Datos Generales"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* ================= TABLE VIEW ================= */
+        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Número</TableHead>
+                <TableHead>Nombre del Guardia</TableHead>
+                <TableHead>Contacto</TableHead>
+                <TableHead>Fecha Alta</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Ficha Técnica</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredData.map((item: any) => {
+                const hasFicha = !!item.ficha_tecnica_json;
+                return (
+                  <TableRow key={item.id} className="hover:bg-muted/30">
+                    <TableCell className="font-mono font-bold text-primary">
+                      {item.numero_elemento}
+                    </TableCell>
+                    <TableCell>
+                      <div
+                        onClick={() => openPerfil(item, 'datos')}
+                        className="font-medium text-foreground hover:text-primary cursor-pointer transition-colors"
+                      >
+                        {item.nombre}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs text-muted-foreground flex flex-col gap-0.5">
+                        {item.telefono && <span>📞 {item.telefono}</span>}
+                        {item.direccion && <span className="truncate max-w-[200px]" title={item.direccion}>📍 {item.direccion}</span>}
+                        {!item.telefono && !item.direccion && <span className="italic">—</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs">{fmtDate(item.fecha_alta)}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={item.estado === 'Activo' ? 'success' : item.estado === 'En Baja' || item.estado === 'Baja Pendiente' ? 'destructive' : 'secondary'}
+                        className="text-xs"
+                      >
+                        {item.estado}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {hasFicha ? (
+                        <span className="inline-flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> PDF Listo
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-xs text-amber-600 dark:text-amber-400">
+                          <AlertCircle className="w-3.5 h-3.5 mr-1" /> Pendiente
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end items-center gap-1.5">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 rounded-lg text-xs"
+                          onClick={() => openPerfil(item, 'datos')}
+                        >
+                          <Eye className="w-3.5 h-3.5 mr-1" /> Perfil
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 rounded-lg text-xs text-primary font-medium"
+                          onClick={() => openPerfil(item, 'ficha')}
+                          title="Ficha Técnica en PDF"
+                        >
+                          <IdCard className="w-3.5 h-3.5 mr-1" /> Ficha
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 rounded-lg text-muted-foreground"
+                          onClick={() => descargarFichaPdf(item.id, item.numero_elemento)}
+                          title="Descargar PDF"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </Button>
+                        {isEditor && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 rounded-lg text-muted-foreground"
+                            onClick={() => startEdit(item)}
+                            title="Editar Datos"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+
+
+      {/* ================= MODAL REGISTRAR NUEVO GUARDIA ================= */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent>
-          <form onSubmit={e => { e.preventDefault(); createMutation.mutate({ numero_elemento: numeroElemento, nombre, fecha_alta: fechaAlta, telefono, direccion }); }}>
-            <DialogHeader><DialogTitle>Registrar Nuevo Guardia</DialogTitle><DialogDescription>Añade los datos generales e información de contacto del elemento operativo.</DialogDescription></DialogHeader>
+        <DialogContent className="rounded-2xl max-w-lg">
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              createMutation.mutate({
+                numero_elemento: numeroElemento,
+                nombre,
+                fecha_alta: fechaAlta,
+                telefono,
+                direccion,
+              });
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-primary" /> Registrar Nuevo Guardia
+              </DialogTitle>
+              <DialogDescription>
+                Añade los datos iniciales del elemento para habilitar su expediente, dotaciones y ficha técnica.
+              </DialogDescription>
+            </DialogHeader>
+
             <div className="grid gap-4 py-4">
-              <div className="space-y-2"><label className="text-sm font-medium">Número de Elemento</label><Input value={numeroElemento} onChange={e => setNumeroElemento(e.target.value)} placeholder="Ej. ELEM-001" required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Nombre Completo</label><Input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre del guardia" required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Fecha de Alta</label><Input type="date" value={fechaAlta} onChange={e => setFechaAlta(e.target.value)} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Teléfono de Contacto</label><Input value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="Ej. 5512345678" /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Dirección de Domicilio</label><Input value={direccion} onChange={e => setDireccion(e.target.value)} placeholder="Calle, Número, Colonia, Alcaldía" /></div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Número de Elemento</label>
+                <Input
+                  value={numeroElemento}
+                  onChange={e => setNumeroElemento(e.target.value)}
+                  placeholder="Ej. ELEM-001"
+                  required
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Nombre Completo</label>
+                <Input
+                  value={nombre}
+                  onChange={e => setNombre(e.target.value)}
+                  placeholder="Nombre y apellidos del guardia"
+                  required
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
+                <Input
+                  type="date"
+                  value={fechaAlta}
+                  onChange={e => setFechaAlta(e.target.value)}
+                  required
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Teléfono de Contacto</label>
+                <Input
+                  value={telefono}
+                  onChange={e => setTelefono(e.target.value)}
+                  placeholder="Ej. 5512345678"
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Dirección de Domicilio</label>
+                <Input
+                  value={direccion}
+                  onChange={e => setDireccion(e.target.value)}
+                  placeholder="Calle, Número, Colonia, Alcaldía o Municipio"
+                  className="rounded-xl"
+                />
+              </div>
             </div>
-            <DialogFooter><Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button><Button type="submit" disabled={createMutation.isPending}>Guardar Registro</Button></DialogFooter>
+
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending} className="rounded-xl font-bold">
+                {createMutation.isPending ? 'Guardando...' : 'Guardar Guardia'}
+              </Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Guard Modal */}
+      {/* ================= MODAL EDITAR DATOS DEL GUARDIA ================= */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent>
-          <form onSubmit={e => { e.preventDefault(); if (selectedGuardia) editMutation.mutate({ id: selectedGuardia.id, numero_elemento: editNumeroElemento, nombre: editNombre, fecha_alta: editFechaAlta, telefono: editTelefono, direccion: editDireccion, estado: editEstado }); }}>
-            <DialogHeader><DialogTitle>Editar Datos del Guardia</DialogTitle><DialogDescription>Modifica los datos del elemento operativo y su contacto.</DialogDescription></DialogHeader>
+        <DialogContent className="rounded-2xl max-w-lg">
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              if (selectedGuardia) {
+                editMutation.mutate({
+                  id: selectedGuardia.id,
+                  numero_elemento: editNumeroElemento,
+                  nombre: editNombre,
+                  fecha_alta: editFechaAlta,
+                  telefono: editTelefono,
+                  direccion: editDireccion,
+                  estado: editEstado,
+                });
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit className="w-5 h-5 text-primary" /> Editar Datos del Guardia
+              </DialogTitle>
+              <DialogDescription>
+                Modifica los datos operativos y de contacto directo de <b>{selectedGuardia?.nombre}</b>.
+              </DialogDescription>
+            </DialogHeader>
+
             <div className="grid gap-4 py-4">
-              <div className="space-y-2"><label className="text-sm font-medium">Número de Elemento</label><Input value={editNumeroElemento} onChange={e => setEditNumeroElemento(e.target.value)} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Nombre Completo</label><Input value={editNombre} onChange={e => setEditNombre(e.target.value)} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Fecha de Alta</label><Input type="date" value={editFechaAlta} onChange={e => setEditFechaAlta(e.target.value)} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Teléfono de Contacto</label><Input value={editTelefono} onChange={e => setEditTelefono(e.target.value)} placeholder="Ej. 5512345678" /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Dirección de Domicilio</label><Input value={editDireccion} onChange={e => setEditDireccion(e.target.value)} placeholder="Calle, Número, Colonia, Alcaldía" /></div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Estado</label>
-                <select value={editEstado} onChange={e => setEditEstado(e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Número de Elemento</label>
+                <Input
+                  value={editNumeroElemento}
+                  onChange={e => setEditNumeroElemento(e.target.value)}
+                  required
+                  className="rounded-xl font-mono font-bold"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Nombre Completo</label>
+                <Input
+                  value={editNombre}
+                  onChange={e => setEditNombre(e.target.value)}
+                  required
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
+                <Input
+                  type="date"
+                  value={editFechaAlta}
+                  onChange={e => setEditFechaAlta(e.target.value)}
+                  required
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Teléfono de Contacto</label>
+                <Input
+                  value={editTelefono}
+                  onChange={e => setEditTelefono(e.target.value)}
+                  placeholder="Ej. 5512345678"
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Dirección de Domicilio</label>
+                <Input
+                  value={editDireccion}
+                  onChange={e => setEditDireccion(e.target.value)}
+                  placeholder="Calle, Número, Colonia, Alcaldía o Municipio"
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Estado Operativo</label>
+                <select
+                  value={editEstado}
+                  onChange={e => setEditEstado(e.target.value)}
+                  className="flex h-10 w-full rounded-xl border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-medium"
+                >
                   <option value="Activo">Activo</option>
                   <option value="Baja Pendiente">Baja Pendiente</option>
                   <option value="En Baja">En Baja</option>
                 </select>
               </div>
             </div>
-            <DialogFooter><Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancelar</Button><Button type="submit" disabled={editMutation.isPending}>Guardar Cambios</Button></DialogFooter>
+
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={editMutation.isPending} className="rounded-xl font-bold">
+                {editMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Process Baja Modal */}
+      {/* ================= MODAL PROCESAR BAJA ================= */}
       <Dialog open={isBajaModalOpen} onOpenChange={setIsBajaModalOpen}>
-        <DialogContent>
-          <form onSubmit={e => { e.preventDefault(); if (selectedGuardia) bajaMutation.mutate({ id: selectedGuardia.id, fecha: fechaBaja }); }}>
-            <DialogHeader><DialogTitle>Iniciar Proceso de Baja</DialogTitle><DialogDescription>Para <b>{selectedGuardia?.nombre}</b>.</DialogDescription></DialogHeader>
+        <DialogContent className="rounded-2xl max-w-md">
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              if (selectedGuardia) {
+                bajaMutation.mutate({ id: selectedGuardia.id, fecha: fechaBaja });
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <LogOut className="w-5 h-5" /> Iniciar Proceso de Baja
+              </DialogTitle>
+              <DialogDescription>
+                Para el elemento <b>{selectedGuardia?.nombre}</b> (#{selectedGuardia?.numero_elemento}).
+              </DialogDescription>
+            </DialogHeader>
+
             <div className="py-4 space-y-4">
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">Se recopilará el equipo en campo y se generará el checklist de devolución.</div>
-              <div className="space-y-2"><label className="text-sm font-medium">Fecha de Baja Efectiva</label><Input type="date" value={fechaBaja} onChange={e => setFechaBaja(e.target.value)} required /></div>
+              <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-xl text-xs leading-relaxed">
+                El guardia cambiará a estado <b>Baja Pendiente</b> para permitir la devolución del equipo y uniformes en posesión en el módulo de Bajas.
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Fecha Efectiva de Baja</label>
+                <Input
+                  type="date"
+                  value={fechaBaja}
+                  onChange={e => setFechaBaja(e.target.value)}
+                  required
+                  className="rounded-xl"
+                />
+              </div>
             </div>
-            <DialogFooter><Button type="button" variant="outline" onClick={() => setIsBajaModalOpen(false)}>Cancelar</Button><Button type="submit" variant="destructive" disabled={bajaMutation.isPending}>Confirmar Baja</Button></DialogFooter>
+
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsBajaModalOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={bajaMutation.isPending}
+                className="rounded-xl font-bold"
+              >
+                {bajaMutation.isPending ? 'Procesando...' : 'Confirmar Baja'}
+              </Button>
+            </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Expediente Modal */}
-      <Dialog open={isExpedienteModalOpen} onOpenChange={setIsExpedienteModalOpen} className="max-w-4xl">
-        <DialogContent className="max-h-[90vh] flex flex-col p-4 sm:p-6">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Expediente: {selectedGuardia?.nombre}</DialogTitle>
-            <DialogDescription>Elemento: {selectedGuardia?.numero_elemento} · Estado: {selectedGuardia?.estado}</DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-y-auto pr-2 space-y-4 my-2">
-            {/* Guard Profile Summary */}
-            <div className="p-4 bg-muted/40 rounded-xl border border-border">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                <div><span className="text-muted-foreground">Nombre:</span><span className="font-semibold ml-2">{selectedGuardia?.nombre}</span></div>
-                <div><span className="text-muted-foreground">Nº Elemento:</span><span className="font-semibold ml-2">{selectedGuardia?.numero_elemento}</span></div>
-                <div><span className="text-muted-foreground">Fecha Alta:</span><span className="font-semibold ml-2">{fmtDate(selectedGuardia?.fecha_alta)}</span></div>
-                <div><span className="text-muted-foreground">Estado:</span><span className="font-semibold ml-2">{selectedGuardia?.estado}</span></div>
-                {selectedGuardia?.telefono && (
-                  <div><span className="text-muted-foreground">Teléfono:</span><span className="font-semibold ml-2 inline-flex items-center gap-1"><Phone className="w-3.5 h-3.5 text-primary/70 mr-1" />{selectedGuardia?.telefono}</span></div>
-                )}
-                {selectedGuardia?.direccion && (
-                  <div className="col-span-1 md:col-span-2"><span className="text-muted-foreground">Dirección:</span><span className="font-semibold ml-2 inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-primary/70 mr-1" />{selectedGuardia?.direccion}</span></div>
-                )}
-              </div>
-            </div>
-
-            {/* Tabs Selector */}
-            <div className="flex border-b border-border mb-4 overflow-x-auto scroll-touch no-scrollbar [&>button]:flex-shrink-0 [&>button]:whitespace-nowrap">
-              <button
-                type="button"
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'movimientos'
-                    ? 'border-primary text-primary font-semibold'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => setActiveTab('movimientos')}
-              >
-                Inventario y Movimientos
-              </button>
-              <button
-                type="button"
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'documentos'
-                    ? 'border-primary text-primary font-semibold'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => setActiveTab('documentos')}
-              >
-                Expediente Digital ({documentos.length || 0})
-              </button>
-            </div>
-
-            {/* Tab 1: Movimientos */}
-            {activeTab === 'movimientos' && (
-              <div className="space-y-4">
-                {isLoadingExpediente ? <p className="text-center text-muted-foreground py-6">Cargando expediente...</p>
-                  : expedienteSalidas.length === 0 ? <p className="text-center text-muted-foreground py-6">No hay salidas registradas.</p>
-                  : (
-                    <div className="rounded-xl border border-border bg-card overflow-hidden">
-                      <Table>
-                        <TableHeader><TableRow><TableHead className="text-xs w-8">No.</TableHead><TableHead className="text-xs">Fecha</TableHead><TableHead className="text-xs">Artículo</TableHead><TableHead className="text-xs">Talla</TableHead><TableHead className="text-xs text-right">Cant.</TableHead><TableHead className="text-xs">Movimiento</TableHead><TableHead className="text-xs">Estado</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                          {expedienteSalidas.map((item: any, idx: number) => {
-                            const est = item.estado_asignacion;
-                            const conceptoLabel = item.concepto === 'Uniforme en Campo' || item.concepto === 'Asignación' ? 'Dotación Inicial' : item.concepto === 'Reposición' ? 'Reposición' : item.concepto === 'Extravío' ? 'Extravío / Pérdida' : item.concepto === 'Inutilizable' ? 'Baja / Inutilizable' : (item.concepto || '—');
-                            const estadoLabel = est === 'N/A' ? (item.concepto === 'Inutilizable' ? 'Dado de Baja' : 'Evento') : est === 'Extraviado' ? 'Extraviado' : (est || '—');
-                            const cfg: Record<string, string> = { 'Uniforme en Campo': 'bg-blue-100 text-blue-700 border-blue-200', 'Uniforme en Bajas': 'bg-amber-100 text-amber-700 border-amber-200', 'Entregado Definitivo': 'bg-emerald-100 text-emerald-700 border-emerald-200', 'Devuelto': 'bg-emerald-50 text-emerald-600 border-emerald-200', 'Extraviado': 'bg-orange-100 text-orange-700 border-orange-200', 'N/A': 'bg-red-100 text-red-700 border-red-200' };
-                            const cls = cfg[est] ?? 'bg-secondary text-secondary-foreground border-border';
-                            return (
-                              <TableRow key={item.id}>
-                                <TableCell className="text-muted-foreground tabular-nums text-xs">{idx + 1}</TableCell>
-                                <TableCell className="tabular-nums text-sm">{fmtDate(item.fecha)}</TableCell>
-                                <TableCell className="font-medium text-sm">{item.articulo}</TableCell>
-                                <TableCell className="text-muted-foreground text-sm">{item.talla || '—'}</TableCell>
-                                <TableCell className="text-right tabular-nums text-sm">{item.cantidad}</TableCell>
-                                <TableCell className="text-xs text-muted-foreground">{conceptoLabel}</TableCell>
-                                <TableCell><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>{estadoLabel}</span></TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-
-                {expedienteEntradas.filter((e: any) => e.motivo === 'Recuperado').length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Equipo recuperado del guardia</p>
-                    <div className="rounded-xl border border-border bg-card overflow-hidden">
-                      <Table>
-                        <TableHeader><TableRow><TableHead className="text-xs">Fecha</TableHead><TableHead className="text-xs">Artículo</TableHead><TableHead className="text-xs">Talla</TableHead><TableHead className="text-xs text-right">Cant.</TableHead><TableHead className="text-xs">Estado al recuperar</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                          {expedienteEntradas.filter((e: any) => e.motivo === 'Recuperado').map((item: any) => (
-                            <TableRow key={item.id}>
-                              <TableCell className="tabular-nums text-sm">{fmtDate(item.fecha)}</TableCell>
-                              <TableCell className="font-medium text-sm">{item.articulo}</TableCell>
-                              <TableCell className="text-muted-foreground text-sm">{item.talla || '—'}</TableCell>
-                              <TableCell className="text-right tabular-nums text-sm">{item.cantidad}</TableCell>
-                              <TableCell><span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700 border-amber-200">{item.estado || '—'}</span></TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tab 2: Documentos */}
-            {activeTab === 'documentos' && (
-              <div className="space-y-6">
-                {/* Upload Form */}
-                {isEditor && (
-                  <div className="p-4 bg-muted/20 border border-border border-dashed rounded-xl space-y-4">
-                    <h3 className="text-sm font-semibold flex items-center gap-1.5"><Upload className="w-4 h-4 text-primary" /> Digitalizar Nuevo Documento</h3>
-                    <form
-                      onSubmit={e => {
-                        e.preventDefault();
-                        if (!documentoArchivo || !documentoNombre) return;
-                        const formData = new FormData();
-                        formData.append('file', documentoArchivo);
-                        formData.append('nombre_documento', documentoNombre);
-                        uploadDocMutation.mutate({ formData });
-                      }}
-                      className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end"
-                    >
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Tipo de Documento</label>
-                        <select
-                          value={documentoNombre}
-                          onChange={e => setDocumentoNombre(e.target.value)}
-                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                          required
-                        >
-                          <option value="">Selecciona tipo...</option>
-                          <option value="Identificación Oficial (INE/Pasaporte)">Identificación Oficial (INE/Pasaporte)</option>
-                          <option value="Comprobante de Domicilio">Comprobante de Domicilio</option>
-                          <option value="Acta de Nacimiento">Acta de Nacimiento</option>
-                          <option value="Clave Única de Registro de Población (CURP)">Clave Única de Registro de Población (CURP)</option>
-                          <option value="Contrato de Trabajo">Contrato de Trabajo</option>
-                          <option value="Certificado de Antecedentes No Penales">Certificado de Antecedentes No Penales</option>
-                          <option value="Examen Médico">Examen Médico</option>
-                          <option value="Cartilla Militar">Cartilla Militar</option>
-                          <option value="Otro Documento">Otro Documento</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Archivo Escaneado (PDF/Imagen)</label>
-                        <input
-                          id="doc-file-input"
-                          type="file"
-                          accept=".pdf,image/*"
-                          onChange={e => {
-                            const file = e.target.files?.[0];
-                            if (file) setDocumentoArchivo(file);
-                          }}
-                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm file:border-0 file:bg-transparent file:text-xs file:font-semibold placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
-                          required
-                        />
-                      </div>
-                      <Button type="submit" disabled={uploadDocMutation.isPending || !documentoNombre || !documentoArchivo}>
-                        {uploadDocMutation.isPending ? 'Subiendo...' : 'Subir Archivo'}
-                      </Button>
-                    </form>
-                  </div>
-                )}
-
-                {/* Documents List */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold">Documentos Registrados en Expediente</h3>
-                  {isLoadingDocumentos ? (
-                    <p className="text-center text-muted-foreground text-sm py-4 animate-pulse">Cargando documentos escaneados...</p>
-                  ) : documentos.length === 0 ? (
-                    <div className="text-center border border-border border-dashed rounded-xl py-8 text-muted-foreground">
-                      <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground/60" />
-                      <p className="text-sm font-medium">No hay documentos digitalizados.</p>
-                      <p className="text-xs mt-0.5">Sube identificaciones, comprobantes o contratos de este guardia.</p>
-                    </div>
-                  ) : (
-                    <div className="grid gap-2">
-                      {documentos.map((doc: any) => (
-                        <div key={doc.id} className="flex items-center justify-between p-3 border border-border rounded-xl bg-card hover:bg-muted/10 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary/10 text-primary rounded-lg">
-                              <FileText className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold">{doc.nombre_documento}</p>
-                              <p className="text-xs text-muted-foreground">Subido el {fmtDate(doc.fecha_subida)}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <a
-                              href={`/api/guardias/${selectedGuardia.id}/documentos/${doc.id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 px-3"
-                            >
-                              <Download className="w-4 h-4 mr-1.5" /> Ver / Descargar
-                            </a>
-                            {isEditor && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 text-destructive hover:bg-destructive/10"
-                                onClick={() => {
-                                  if (confirm(`¿Estás seguro de eliminar el documento "${doc.nombre_documento}"?`)) {
-                                    deleteDocMutation.mutate(doc.id);
-                                  }
-                                }}
-                                disabled={deleteDocMutation.isPending}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="flex-shrink-0 pt-2 border-t border-border mt-2">
-            <Button variant="outline" onClick={() => setIsExpedienteModalOpen(false)}>Cerrar</Button>
-            {activeTab === 'movimientos' && (
-              <Button variant="secondary" onClick={() => imprimirExpediente(selectedGuardia, expedienteSalidas, expedienteEntradas)} disabled={isLoadingExpediente || expedienteSalidas.length === 0}><Printer className="w-4 h-4 mr-2" /> Imprimir / PDF</Button>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

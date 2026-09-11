@@ -33,10 +33,12 @@ export async function GET(
 
   try {
     const fileBuffer = await fs.readFile(filePath);
+    const ext = doc.tipo_mimetype === 'application/pdf' && !doc.nombre_documento.toLowerCase().endsWith('.pdf') ? '.pdf' : '';
+    const downloadName = `${doc.nombre_documento}${ext}`;
     return new Response(fileBuffer, {
       headers: {
         'Content-Type': doc.tipo_mimetype || 'application/octet-stream',
-        'Content-Disposition': `inline; filename="${encodeURIComponent(doc.nombre_documento)}"`
+        'Content-Disposition': `inline; filename="${encodeURIComponent(downloadName)}"`
       }
     });
   } catch (err) {

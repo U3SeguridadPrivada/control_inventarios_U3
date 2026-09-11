@@ -42,6 +42,7 @@ export const guardias = sqliteTable('guardias', {
   fecha_baja: text('fecha_baja'),
   telefono: text('telefono'),
   direccion: text('direccion'),
+  ficha_tecnica_json: text('ficha_tecnica_json'),
 });
 
 export const guardia_documentos = sqliteTable('guardia_documentos', {
@@ -51,6 +52,16 @@ export const guardia_documentos = sqliteTable('guardia_documentos', {
   nombre_archivo: text('nombre_archivo').notNull(),
   tipo_mimetype: text('tipo_mimetype').notNull(),
   fecha_subida: text('fecha_subida').default(sql`(datetime('now'))`),
+});
+
+export const guardia_bitacora = sqliteTable('guardia_bitacora', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  guardia_id: integer('guardia_id').notNull().references(() => guardias.id),
+  tipo: text('tipo').notNull().default('nota'), // 'nota' | 'llamada' | 'incidencia' | 'sistema'
+  asunto: text('asunto'),
+  mensaje: text('mensaje').notNull(),
+  usuario: text('usuario'),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
 });
 
 export const entradas = sqliteTable('entradas', {

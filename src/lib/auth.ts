@@ -14,7 +14,7 @@ export function verifyAuth(req: NextRequest): AuthUser | null {
   if (auth?.startsWith('Bearer ')) {
     token = auth.slice(7);
   } else {
-    token = req.cookies.get('auth_token')?.value;
+    token = req.cookies.get('auth_token')?.value || req.nextUrl.searchParams.get('token') || undefined;
   }
 
   if (!token) return null;

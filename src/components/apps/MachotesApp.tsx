@@ -2,9 +2,10 @@
 import { useState } from 'react';
 import { Card } from '@/src/components/ui/card';
 import { Badge } from '@/src/components/ui/badge';
-import { FileStack, ClipboardList, Printer, PackageCheck, type LucideIcon } from 'lucide-react';
+import { FileStack, ClipboardList, Printer, PackageCheck, IdCard, type LucideIcon } from 'lucide-react';
 import MachoteControlAcceso from '@/src/components/machotes/MachoteControlAcceso';
 import MachotePaqueteria from '@/src/components/machotes/MachotePaqueteria';
+import MachoteFichaTecnica from '@/src/components/machotes/MachoteFichaTecnica';
 
 interface Machote {
   id: string;
@@ -20,6 +21,15 @@ interface Machote {
  * basta con crear su componente en src/components/machotes y sumarlo aqui.
  */
 const MACHOTES: Machote[] = [
+  {
+    id: 'ficha-tecnica-guardia',
+    nombre: 'Ficha técnica de guardia',
+    descripcion:
+      'Formato institucional oficial del elemento operativo: fotografía, datos personales, CURP/RFC/IMSS, domicilio, antecedentes laborales, sello y logotipos de U3 Seguridad Privada. Permite cargar guardias existentes o llenar a mano.',
+    icono: IdCard,
+    formato: 'Carta vertical (21.6 x 27.9 cm) · 1 cara',
+    render: (onVolver) => <MachoteFichaTecnica onVolver={onVolver} />,
+  },
   {
     id: 'paqueteria-mensajeria',
     nombre: 'Recepción / Entrega de paquetería y mensajería',

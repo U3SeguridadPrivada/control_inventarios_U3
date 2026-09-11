@@ -46,7 +46,11 @@ export default function DocumentViewerModal({ title, url, downloadName = 'docume
             <button onClick={handlePrint} disabled={loading} className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 disabled:opacity-40 border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors">
               <Printer className="w-3.5 h-3.5" /> Imprimir
             </button>
-            <a href={url} download={downloadName} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-white bg-primary/10 hover:bg-primary px-3 py-1.5 rounded-lg transition-colors border border-primary/20">
+            <a
+              href={url.includes('inline=true') ? url.replace('inline=true', 'download=true') : url}
+              download={downloadName}
+              className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-white bg-primary/10 hover:bg-primary px-3 py-1.5 rounded-lg transition-colors border border-primary/20"
+            >
               <Download className="w-3.5 h-3.5" /> Descargar
             </a>
             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors">
