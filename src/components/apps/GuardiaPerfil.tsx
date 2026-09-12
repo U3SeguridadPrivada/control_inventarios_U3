@@ -1,6 +1,7 @@
 'use client';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { apiFetch } from '@/src/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/src/components/ui/button';
@@ -134,6 +135,15 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
   // Estados de Modales y Visualizadores
   const [modalEditar, setModalEditar] = useState(false);
   const [modalSubirPapel, setModalSubirPapel] = useState(false);
+  // Confirmación de borrado con un diálogo propio en vez de window.confirm():
+  // los navegadores (y sobre todo la app instalada como PWA) pueden bloquear
+  // los cuadros nativos sin avisar tras usarlos varias veces en la misma
+  // pestaña, y entonces el clic en "Eliminar" no hacía absolutamente nada.
+  const [confirmarEliminar, setConfirmarEliminar] = useState<
+    | { tipo: 'ficha' }
+    | { tipo: 'documento'; doc: any }
+    | null
+  >(null);
   const [editingFicha, setEditingFicha] = useState(false);
   const [viewerDoc, setViewerDoc] = useState<{ title: string; url: string; downloadName: string } | null>(null);
   const [pdfVersion, setPdfVersion] = useState(Date.now());
@@ -251,8 +261,22 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['guardia-documentos', id] });
       toast.success('Documento eliminado');
+      setConfirmarEliminar(null);
     },
     onError: (err: any) => toast.error(err.message || 'Error al eliminar documento'),
+  });
+
+  // Elimina por completo los datos de la ficha técnica (no solo el PDF
+  // cacheado en la lista de papeles, que es lo único que borraba antes).
+  const deleteFichaMutation = useMutation({
+    mutationFn: () => apiFetch(`/api/guardias/${id}/ficha`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['guardia', id] });
+      queryClient.invalidateQueries({ queryKey: ['guardia-documentos', id] });
+      toast.success('Ficha técnica eliminada');
+      setConfirmarEliminar(null);
+    },
+    onError: (err: any) => toast.error(err.message || 'Error al eliminar la ficha técnica'),
   });
 
   const addBitacoraMutation = useMutation({
@@ -291,12 +315,12 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('editFicha') === '1' || initialEditFicha) {
-        setEditingFicha(true);
+        router.push(`/guardias/${id}/ficha`);
       } else if (params.get('tab') === 'ficha' || initialTab === 'ficha') {
         abrirVisorFichaPdf();
       }
     }
-  }, [initialEditFicha, initialTab]);
+  }, [initialEditFicha, initialTab, id, router]);
 
   // Soporte para botón "Atrás" del navegador / mouse cuando hay visor o editor abierto
   useEffect(() => {
@@ -312,18 +336,12 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
     return () => window.removeEventListener('popstate', handlePopState);
   }, [editingFicha, viewerDoc]);
 
-  // Abrir y Cerrar Editor de Ficha Técnica con sincronización de historial
+  // Abrir Editor de Ficha Técnica con la nueva interfaz de expediente
   const abrirEditorFicha = () => {
-    if (typeof window !== 'undefined') {
-      window.history.pushState({ modal: 'ficha' }, '', `${window.location.pathname}#ficha`);
-    }
-    setEditingFicha(true);
+    router.push(`/guardias/${guardia?.id || id}/ficha`);
   };
 
   const cerrarEditorFicha = () => {
-    if (typeof window !== 'undefined' && window.location.hash === '#ficha') {
-      window.history.back();
-    }
     setEditingFicha(false);
   };
 
@@ -428,13 +446,25 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
               <Edit2 className="w-3.5 h-3.5 mr-1.5" /> Editar datos
             </Button>
           )}
-          <Button
-            size="sm"
-            onClick={abrirEditorFicha}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold"
-          >
-            <IdCard className="w-3.5 h-3.5 mr-1.5" /> Ficha Técnica
-          </Button>
+          <Link href={`/guardias/${guardia.id}/contrato`}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs font-semibold border-amber-300 bg-amber-50/70 text-amber-900 hover:bg-amber-100 hover:text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950 shadow-xs"
+              title="Abrir y editar contrato laboral en hojas oficiales"
+            >
+              <FileCheck className="w-3.5 h-3.5 mr-1.5 text-amber-600" /> Contrato Laboral
+            </Button>
+          </Link>
+          <Link href={`/guardias/${guardia.id}/ficha`}>
+            <Button
+              size="sm"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-xs"
+              title="Abrir y editar ficha técnica oficial con la interfaz de expediente"
+            >
+              <IdCard className="w-3.5 h-3.5 mr-1.5" /> Ficha Técnica
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -641,9 +671,11 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                   Aún no se han capturado los datos de filiación oficial (CURP, RFC, IMSS, medidas).
                 </p>
                 {isEditor && (
-                  <Button size="sm" onClick={abrirEditorFicha} className="text-xs font-semibold rounded-lg">
-                    <Sparkles className="w-3.5 h-3.5 mr-1" /> Llenar Ficha Técnica Ahora
-                  </Button>
+                  <Link href={`/guardias/${guardia.id}/ficha`}>
+                    <Button size="sm" className="text-xs font-semibold rounded-lg">
+                      <Sparkles className="w-3.5 h-3.5 mr-1" /> Llenar Ficha Técnica Ahora
+                    </Button>
+                  </Link>
                 )}
               </div>
             )}
@@ -683,13 +715,14 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
               )}
 
               {isEditor && (
-                <Button
-                  size="sm"
-                  onClick={abrirEditorFicha}
-                  className="bg-primary text-primary-foreground text-xs font-bold shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Editar Ficha Técnica
-                </Button>
+                <Link href={`/guardias/${guardia.id}/ficha`}>
+                  <Button
+                    size="sm"
+                    className="bg-primary text-primary-foreground text-xs font-bold shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Editar Ficha Técnica
+                  </Button>
+                </Link>
               )}
 
               <Button
@@ -763,14 +796,26 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                   <Download className="w-3.5 h-3.5" />
                 </Button>
                 {isEditor && (
+                  <Link href={`/guardias/${guardia.id}/ficha`}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs font-semibold"
+                      title="Editar datos de la ficha y regenerar PDF"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </Button>
+                  </Link>
+                )}
+                {isEditor && guardia.ficha_tecnica_json && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={abrirEditorFicha}
-                    className="h-8 text-xs font-semibold"
-                    title="Editar datos de la ficha y regenerar PDF"
+                    onClick={() => setConfirmarEliminar({ tipo: 'ficha' })}
+                    className="h-8 text-xs font-semibold text-destructive hover:bg-destructive/10"
+                    title="Eliminar por completo la ficha técnica de este guardia"
                   >
-                    <Edit3 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 )}
               </div>
@@ -809,17 +854,27 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                 const subido = documentos.some((d: any) =>
                   d.nombre_documento.toLowerCase().includes(docTipo.toLowerCase().slice(0, 8))
                 );
+                const esContrato = docTipo === 'Contrato de Trabajo';
                 return (
                   <div
                     key={docTipo}
+                    onClick={() => {
+                      if (esContrato) {
+                        router.push(`/guardias/${guardia.id}/contrato`);
+                      }
+                    }}
                     className={`p-2 rounded-lg border text-[11px] font-medium flex items-center gap-1.5 ${
+                      esContrato ? 'cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-all ' : ''
+                    } ${
                       subido
                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
                         : 'bg-muted/20 border-border text-muted-foreground'
                     }`}
+                    title={esContrato ? 'Haga clic para ver o editar el Contrato Laboral oficial' : undefined}
                   >
                     {subido ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Clock className="w-3.5 h-3.5 text-muted-foreground/60" />}
                     <span className="truncate">{docTipo}</span>
+                    {esContrato && <ExternalLink className="w-3 h-3 ml-auto opacity-70" />}
                   </div>
                 );
               })}
@@ -843,17 +898,26 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                   const isFicha =
                     doc.nombre_documento?.toLowerCase().includes('ficha') ||
                     doc.nombre_archivo?.toLowerCase().includes('ficha');
+                  const isContrato =
+                    doc.nombre_documento?.toLowerCase().includes('contrato') ||
+                    doc.nombre_archivo?.toLowerCase().includes('contrato');
                   return (
                     <div
                       key={doc.id}
                       className="flex items-center justify-between p-3 border border-border rounded-xl bg-muted/15 hover:bg-muted/30 transition-colors shadow-sm"
                     >
                       <div
-                        onClick={() => abrirVisorDocumento(doc)}
+                        onClick={() => {
+                          if (isContrato) {
+                            router.push(`/guardias/${guardia.id}/contrato`);
+                          } else {
+                            abrirVisorDocumento(doc);
+                          }
+                        }}
                         className="flex items-center gap-2.5 overflow-hidden cursor-pointer flex-1"
-                        title="Haga clic para ver este papel en el visualizador"
+                        title={isContrato ? 'Haga clic para ver o editar el contrato en hojas oficiales' : 'Haga clic para ver este papel en el visualizador'}
                       >
-                        <div className={`p-2 rounded-lg ${isPdf ? 'bg-red-500/10 text-red-600' : 'bg-blue-500/10 text-blue-600'}`}>
+                        <div className={`p-2 rounded-lg ${isContrato ? 'bg-amber-500/10 text-amber-600' : isPdf ? 'bg-red-500/10 text-red-600' : 'bg-blue-500/10 text-blue-600'}`}>
                           <FileText className="w-4 h-4" />
                         </div>
                         <div className="truncate">
@@ -865,15 +929,30 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0 ml-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-primary hover:bg-primary/10"
-                          onClick={() => abrirVisorDocumento(doc)}
-                          title="Abrir en visualizador"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </Button>
+                        {isContrato ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/guardias/${guardia.id}/contrato`);
+                            }}
+                            title="Editar contrato laboral en hojas oficiales"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-primary hover:bg-primary/10"
+                            onClick={() => abrirVisorDocumento(doc)}
+                            title="Abrir en visualizador"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                         {isFicha && (
                           <Button
                             variant="ghost"
@@ -893,11 +972,7 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                             variant="ghost"
                             size="sm"
                             className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              if (confirm(`¿Eliminar documento "${doc.nombre_documento}"?`)) {
-                                deleteDocMutation.mutate(doc.id);
-                              }
-                            }}
+                            onClick={() => setConfirmarEliminar({ tipo: 'documento', doc })}
                             title="Eliminar papel"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1275,6 +1350,57 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmación de borrado (ficha técnica o documento del expediente).
+          Diálogo propio en vez de window.confirm(): el navegador puede
+          bloquear los cuadros nativos sin avisar, y entonces el botón
+          "Eliminar" parecía no hacer nada. */}
+      <Dialog open={!!confirmarEliminar} onOpenChange={(open) => !open && setConfirmarEliminar(null)}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" /> Confirmar eliminación
+            </DialogTitle>
+            <DialogDescription>
+              {confirmarEliminar?.tipo === 'ficha' && (
+                <>
+                  ¿Eliminar por completo la ficha técnica de <b>{guardia.nombre}</b>? Se
+                  borrarán los datos capturados y el PDF generado. Esta acción no se puede
+                  deshacer.
+                </>
+              )}
+              {confirmarEliminar?.tipo === 'documento' && (
+                <>
+                  ¿Eliminar el documento <b>&quot;{confirmarEliminar.doc.nombre_documento}&quot;</b>?
+                  Esta acción no se puede deshacer.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmarEliminar(null)}
+              disabled={deleteFichaMutation.isPending || deleteDocMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteFichaMutation.isPending || deleteDocMutation.isPending}
+              onClick={() => {
+                if (confirmarEliminar?.tipo === 'ficha') deleteFichaMutation.mutate();
+                if (confirmarEliminar?.tipo === 'documento') deleteDocMutation.mutate(confirmarEliminar.doc.id);
+              }}
+              className="font-bold"
+            >
+              {(deleteFichaMutation.isPending || deleteDocMutation.isPending) ? 'Eliminando...' : 'Eliminar'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -17,6 +17,7 @@ db/*.db-shm
 db/*.db-wal
 db/*.db.backup*
 db/backups/
+inventory.db
 
 # Exportaciones de Kapso e informes: llevan nombres y teléfonos de candidatos.
 # Datos personales — nunca al repositorio.

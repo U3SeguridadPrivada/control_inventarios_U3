@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo, useRef, useLayoutEffect } from 'react';
+import { useEffect, useState, useMemo, useRef, useLayoutEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/src/lib/api';
@@ -26,6 +26,16 @@ import { useAuth } from '@/src/context/AuthContext';
 import BarraFormatoFlotante from '@/src/components/reglamento/BarraFormatoFlotante';
 
 const TIPOS_BLOQUE: TipoBloque[] = ['parrafo', 'subtitulo', 'lista', 'nota', 'tabla', 'campos', 'firma', 'salto'];
+
+/**
+ * Márgenes reales del CONTRATO_LABORAL.docx oficial (sectPr: top 567, right 1134,
+ * bottom 851, left 1134 twips), en vez del margen uniforme genérico del editor de
+ * reglamentos. Sin esto, la columna de texto queda más ancha que la del Word y el
+ * contenido se redistribuye distinto (menos saltos de línea de los que corresponden).
+ */
+const MARGEN_CONTRATO = { top: 38, right: 76, bottom: 57, left: 76 };
+const PADDING_CONTRATO_CSS = `${MARGEN_CONTRATO.top}px ${MARGEN_CONTRATO.right}px ${MARGEN_CONTRATO.bottom}px ${MARGEN_CONTRATO.left}px`;
+const ANCHO_CONTENIDO_CONTRATO = ANCHO_HOJA - MARGEN_CONTRATO.left - MARGEN_CONTRATO.right;
 
 const ESTILOS_LISTA: { id: EstiloLista; etiqueta: string }[] = [
   { id: 'decimal', etiqueta: '1. 2. 3.' },
@@ -70,11 +80,26 @@ function EditableText({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (document.activeElement === el) return;
+    if (el === document.activeElement || el.contains(document.activeElement)) return;
     if (el.innerHTML !== value) {
       el.innerHTML = value || '';
     }
   }, [value]);
+
+  const confirmar = useCallback(() => {
+    // Normalizamos el contenido HTML quitando <br> huérfano al final
+    const rawHtml = ref.current?.innerHTML ?? '';
+    const limpio = rawHtml.replace(/<br\s*\/?>$/i, '').trim();
+    if (limpio !== value) onChange(limpio);
+  }, [value, onChange]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const handleInput = () => confirmar();
+    el.addEventListener('input', handleInput);
+    return () => el.removeEventListener('input', handleInput);
+  }, [confirmar]);
 
   if (readOnly) {
     return (
@@ -85,13 +110,6 @@ function EditableText({
       />
     );
   }
-
-  const confirmar = () => {
-    // Normalizamos el contenido HTML quitando <br> huérfano al final
-    const rawHtml = ref.current?.innerHTML ?? '';
-    const limpio = rawHtml.replace(/<br\s*\/?>$/i, '').trim();
-    if (limpio !== value) onChange(limpio);
-  };
 
   const estaVacio = (value || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() === '';
 
@@ -401,6 +419,7 @@ function BloqueVistaEditable({
   primero,
   ultimo,
   readOnly,
+  compacto = false,
 }: {
   bloque: Bloque;
   onChange: (b: Bloque) => void;
@@ -409,11 +428,13 @@ function BloqueVistaEditable({
   primero: boolean;
   ultimo: boolean;
   readOnly?: boolean;
+  compacto?: boolean;
 }) {
   return (
     <div
       className={cn(
-        'group/bloque relative my-2 first:mt-0 font-sans',
+        'group/bloque relative first:mt-0 font-sans',
+        compacto ? 'my-1' : 'my-2',
         // El salto solo marca dónde corta la hoja; en papel no existe.
         bloque.tipo === 'salto' && 'print:hidden'
       )}
@@ -441,7 +462,10 @@ function BloqueVistaEditable({
           onChange={(texto) => onChange({ ...bloque, texto })}
           readOnly={readOnly}
           placeholder="Escribe el párrafo del artículo..."
-          className="text-[12px] leading-relaxed text-justify text-slate-700 font-sans"
+          className={cn(
+            'leading-relaxed text-justify text-slate-800 font-sans',
+            compacto ? 'text-[11.2px] leading-[1.38]' : 'text-[12px]'
+          )}
         />
       )}
 
@@ -863,6 +887,7 @@ function SeccionVistaEditable({
   continuacion = false,
   ultimo = true,
   medicion = false,
+  compacto = false,
 }: {
   seccion: SeccionDoc;
   /** Recibe una función para que el cambio se aplique siempre sobre la última versión. */
@@ -879,6 +904,7 @@ function SeccionVistaEditable({
   ultimo?: boolean;
   /** Copia oculta que el visor usa para medir el alto real de cada bloque. */
   medicion?: boolean;
+  compacto?: boolean;
 }) {
   const setBloque = (idx: number, b: Bloque) =>
     onActualizar((s) => ({ ...s, bloques: s.bloques.map((item, i) => (i === idx ? b : item)) }));
@@ -902,70 +928,72 @@ function SeccionVistaEditable({
       data-seccion={seccion.id}
       className="mb-6 last:mb-0 font-sans"
     >
-      {/* Encabezado de la sección; en la continuación va en versión compacta. */}
-      {continuacion ? (
-        <div data-medir-encabezado={medicion ? 'si' : undefined} className="border-b border-slate-300 pb-1 mb-3 flex items-baseline gap-2 text-slate-500">
-          {seccion.numero && (
-            <span className="text-[10px] font-bold tracking-widest text-blue-800 uppercase">{seccion.numero}</span>
-          )}
-          <span className="text-[11px] font-semibold uppercase tracking-tight truncate">{seccion.titulo}</span>
-          <span className="text-[10px] italic shrink-0 ml-auto">continúa</span>
-        </div>
-      ) : (
-        <div data-medir-encabezado={medicion ? 'si' : undefined} className="border-b-2 border-slate-900 pb-1 mb-3 flex items-end justify-between gap-2">
-          <div className="flex-1">
-            <EditableText
-              value={seccion.numero ?? ''}
-              onChange={(numero) => onActualizar((s) => ({ ...s, numero }))}
-              readOnly={readOnly}
-              placeholder="Capítulo N"
-              className="text-[11px] font-bold tracking-widest text-blue-800 uppercase"
-              isTitle
-            />
-            <EditableText
-              value={seccion.titulo}
-              onChange={(titulo) => onActualizar((s) => ({ ...s, titulo }))}
-              readOnly={readOnly}
-              placeholder="Título del capítulo"
-              className="text-[15px] font-extrabold text-[#0f172a] uppercase tracking-tight"
-              isTitle
-            />
+      {/* Encabezado de la sección; en la continuación va en versión compacta (omitido si no hay número ni título) */}
+      {(seccion.numero?.trim() || seccion.titulo?.trim()) ? (
+        continuacion ? (
+          <div data-medir-encabezado={medicion ? 'si' : undefined} className="border-b border-slate-300 pb-1 mb-3 flex items-baseline gap-2 text-slate-500">
+            {seccion.numero && (
+              <span className="text-[10px] font-bold tracking-widest text-blue-800 uppercase">{seccion.numero}</span>
+            )}
+            <span className="text-[11px] font-semibold uppercase tracking-tight truncate">{seccion.titulo}</span>
+            <span className="text-[10px] italic shrink-0 ml-auto">continúa</span>
           </div>
-          {!readOnly && (
-            <div className="flex items-center gap-0.5 print:hidden opacity-40 hover:opacity-100 transition-opacity">
-              <button
-                type="button"
-                onClick={() => onMoverSeccion(-1)}
-                disabled={primeraSeccion}
-                title="Subir capítulo"
-                className="text-slate-400 hover:text-slate-700 p-1 disabled:opacity-25"
-              >
-                <ArrowUp className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onMoverSeccion(1)}
-                disabled={ultimaSeccion}
-                title="Bajar capítulo"
-                className="text-slate-400 hover:text-slate-700 p-1 disabled:opacity-25"
-              >
-                <ArrowDown className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={onEliminar}
-                title="Eliminar capítulo"
-                className="text-red-400 hover:text-red-600 p-1"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+        ) : (
+          <div data-medir-encabezado={medicion ? 'si' : undefined} className="border-b-2 border-slate-900 pb-1 mb-3 flex items-end justify-between gap-2">
+            <div className="flex-1">
+              <EditableText
+                value={seccion.numero ?? ''}
+                onChange={(numero) => onActualizar((s) => ({ ...s, numero }))}
+                readOnly={readOnly}
+                placeholder="Capítulo N"
+                className="text-[11px] font-bold tracking-widest text-blue-800 uppercase"
+                isTitle
+              />
+              <EditableText
+                value={seccion.titulo}
+                onChange={(titulo) => onActualizar((s) => ({ ...s, titulo }))}
+                readOnly={readOnly}
+                placeholder="Título del capítulo"
+                className="text-[15px] font-extrabold text-[#0f172a] uppercase tracking-tight"
+                isTitle
+              />
             </div>
-          )}
-        </div>
-      )}
+            {!readOnly && (
+              <div className="flex items-center gap-0.5 print:hidden opacity-40 hover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={() => onMoverSeccion(-1)}
+                  disabled={primeraSeccion}
+                  title="Subir capítulo"
+                  className="text-slate-400 hover:text-slate-700 p-1 disabled:opacity-25"
+                >
+                  <ArrowUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onMoverSeccion(1)}
+                  disabled={ultimaSeccion}
+                  title="Bajar capítulo"
+                  className="text-slate-400 hover:text-slate-700 p-1 disabled:opacity-25"
+                >
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onEliminar}
+                  title="Eliminar capítulo"
+                  className="text-red-400 hover:text-red-600 p-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      ) : null}
 
       {/* Lista de bloques de contenido de este fragmento */}
-      <div className="space-y-2">
+      <div className={compacto ? "space-y-1" : "space-y-2"}>
         {seccion.bloques.slice(desde, hasta).map((b, i) => {
           const idx = desde + i;
           return (
@@ -978,6 +1006,7 @@ function SeccionVistaEditable({
                 primero={idx === 0}
                 ultimo={idx === seccion.bloques.length - 1}
                 readOnly={readOnly}
+                compacto={compacto}
               />
             </div>
           );
@@ -1009,9 +1038,13 @@ interface FragmentoLayout {
 export default function DocumentoReglamentoApp({
   ambitoInicial = 'oficinas',
   protocoloId,
+  guardiaId,
+  volverUrl,
 }: {
   ambitoInicial?: AmbitoReglamento;
   protocoloId?: number;
+  guardiaId?: number;
+  volverUrl?: string;
 } = {}) {
   const { isEditor, isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -1026,10 +1059,21 @@ export default function DocumentoReglamentoApp({
   const [escribiendo, setEscribiendo] = useState(false);
   const finEscrituraRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const queryKey = guardiaId
+    ? ['guardia-contrato', guardiaId]
+    : protocoloId
+    ? ['protocolo-documento', protocoloId]
+    : ['reglamento-documento', ambito];
+
+  const queryFn = () => {
+    if (guardiaId) return apiFetch<ProtocoloRegistro>(`/api/guardias/${guardiaId}/contrato`);
+    if (protocoloId) return apiFetch<ProtocoloRegistro>(`/api/protocolos/${protocoloId}`);
+    return apiFetch<ProtocoloRegistro>(`/api/reglamento?ambito=${ambito}`);
+  };
+
   const { data: registro, isLoading, error } = useQuery({
-    queryKey: protocoloId ? ['protocolo-documento', protocoloId] : ['reglamento-documento', ambito],
-    queryFn: () =>
-      apiFetch<ProtocoloRegistro>(protocoloId ? `/api/protocolos/${protocoloId}` : `/api/reglamento?ambito=${ambito}`),
+    queryKey,
+    queryFn,
   });
 
   // El documento del servidor solo se adopta cuando es una versión distinta de la
@@ -1038,7 +1082,7 @@ export default function DocumentoReglamentoApp({
   const versionCargada = useRef<string | null>(null);
   useEffect(() => {
     if (!registro?.contenido) return;
-    const version = `${protocoloId ?? ambito}:${registro.id}:${registro.actualizado_en ?? ''}`;
+    const version = `${guardiaId ? `guardia-${guardiaId}` : protocoloId ?? ambito}:${registro.id}:${registro.actualizado_en ?? ''}`;
     if (versionCargada.current === version) return;
     if (cambiosPendientes) return;
     versionCargada.current = version;
@@ -1049,7 +1093,7 @@ export default function DocumentoReglamentoApp({
     ultimoRegistroRef.current = 0;
     setPuedeDeshacer(false);
     setPuedeRehacer(false);
-  }, [registro, ambito, protocoloId, cambiosPendientes]);
+  }, [registro, ambito, protocoloId, guardiaId, cambiosPendientes]);
 
   // Cambiar de reglamento descarta el borrador en pantalla, nunca lo mezcla con el otro documento.
   const cambiarAmbito = (nuevo: AmbitoReglamento) => {
@@ -1079,31 +1123,45 @@ export default function DocumentoReglamentoApp({
   };
 
   const updateMutation = useMutation({
-    mutationFn: (payload: any) =>
-      protocoloId
-        ? apiFetch(`/api/protocolos/${protocoloId}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-              titulo: registro?.titulo,
-              categoria: registro?.categoria,
-              descripcion: registro?.descripcion,
-              prioridad: registro?.prioridad,
-              activo: registro?.activo,
-              tipo: 'documento',
-              pasos: [],
-              contenido: payload.contenido,
-            }),
-          })
-        : apiFetch(`/api/reglamento?ambito=${ambito}`, {
-            method: 'PUT',
-            body: JSON.stringify({ ...payload, ambito }),
+    mutationFn: (payload: any) => {
+      if (guardiaId) {
+        return apiFetch(`/api/guardias/${guardiaId}/contrato`, {
+          method: 'PUT',
+          body: JSON.stringify({ contenido: payload.contenido }),
+        });
+      }
+      if (protocoloId) {
+        return apiFetch(`/api/protocolos/${protocoloId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            titulo: registro?.titulo,
+            categoria: registro?.categoria,
+            descripcion: registro?.descripcion,
+            prioridad: registro?.prioridad,
+            activo: registro?.activo,
+            tipo: 'documento',
+            pasos: [],
+            contenido: payload.contenido,
           }),
+        });
+      }
+      return apiFetch(`/api/reglamento?ambito=${ambito}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...payload, ambito }),
+      });
+    },
     onSuccess: () => {
       setCambiosPendientes(false);
-      queryClient.invalidateQueries({
-        queryKey: protocoloId ? ['protocolo-documento', protocoloId] : ['reglamento-documento', ambito],
-      });
-      toast.success('Documento guardado correctamente');
+      if (guardiaId) {
+        queryClient.invalidateQueries({ queryKey: ['guardia-contrato', guardiaId] });
+        queryClient.invalidateQueries({ queryKey: ['guardia-documentos', guardiaId] });
+        queryClient.invalidateQueries({ queryKey: ['guardia', guardiaId] });
+      } else if (protocoloId) {
+        queryClient.invalidateQueries({ queryKey: ['protocolo-documento', protocoloId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['reglamento-documento', ambito] });
+      }
+      toast.success(guardiaId ? 'Contrato guardado en el expediente del guardia' : 'Documento guardado correctamente');
     },
     onError: (err: Error) => {
       toast.error(err.message || 'Error al guardar');
@@ -1111,14 +1169,17 @@ export default function DocumentoReglamentoApp({
   });
 
   const esReglamento = Boolean(
-    registro &&
+    !guardiaId &&
+      registro &&
       (registro.categoria === 'Reglamento' ||
         registro.titulo?.toLowerCase().includes('reglamento') ||
         (!protocoloId && ambitoInicial))
   );
 
   const ambitoMeta = AMBITOS.find((a) => a.id === ambito) ?? AMBITOS[0];
-  const codigoDocumento = esReglamento
+  const codigoDocumento = guardiaId
+    ? `EXP-CONTRATO-${guardiaId}`
+    : esReglamento
     ? ambitoMeta.codigo
     : (registro?.contenido as any)?.codigo || `U3-PROT-${protocoloId ?? registro?.id ?? 'DOC'}-2026`;
   const secciones = useMemo(() => contenidoLocal?.secciones ?? [], [contenidoLocal]);
@@ -1143,6 +1204,15 @@ export default function DocumentoReglamentoApp({
     });
   }, [secciones, searchTerm]);
 
+  const sinPortadaNiIndice = Boolean(
+    guardiaId ||
+    (registro?.contenido as any)?.sinPortadaNiIndice ||
+    (contenidoLocal as any)?.sinPortadaNiIndice ||
+    registro?.categoria === 'Recursos Humanos' ||
+    registro?.categoria === 'Contrato' ||
+    registro?.titulo?.toLowerCase().includes('contrato')
+  );
+
   // ------------------------------------------------------------- medición real
   // El reparto en hojas se calcula con el alto que de verdad ocupa cada bloque
   // ya pintado, medido sobre una copia oculta con el mismo ancho de columna que
@@ -1154,7 +1224,7 @@ export default function DocumentoReglamentoApp({
   const pieRef = useRef<HTMLElement>(null);
   const portadillaRef = useRef<HTMLDivElement>(null);
   const [medidas, setMedidas] = useState<Partial<MedidasDoc> | null>(null);
-  const [altoUtil, setAltoUtil] = useState(ALTO_UTIL_HOJA);
+  const [altoUtil, setAltoUtil] = useState(sinPortadaNiIndice ? 920 : ALTO_UTIL_HOJA);
 
   useEffect(() => {
     // Mientras se escribe no se remide: el reparto está congelado de todos modos.
@@ -1199,21 +1269,20 @@ export default function DocumentoReglamentoApp({
       const nuevas: Partial<MedidasDoc> = {
         bloques,
         encabezados,
-        separacion: 24,
-        // La portadilla del título solo resta espacio en la primera hoja.
-        primeraHoja: portadillaRef.current ? portadillaRef.current.offsetHeight + 24 : 0,
+        separacion: sinPortadaNiIndice ? 6 : 24,
+        // La portadilla del título solo resta espacio en la primera hoja si no es documento sin portada.
+        primeraHoja: sinPortadaNiIndice ? 0 : (portadillaRef.current ? portadillaRef.current.offsetHeight + 24 : 0),
       };
       setMedidas((prev) => (JSON.stringify(prev) === JSON.stringify(nuevas) ? prev : nuevas));
 
       // Hueco disponible entre el membrete y el pie. Se calcula restándolos de
       // la hoja y no midiendo el contenedor: ese crece con lo que se le mete y
       // el reparto se realimentaría a sí mismo hoja tras hoja.
-      const membrete = membreteRef.current ? membreteRef.current.offsetHeight + 24 : 0;
-      const pie = pieRef.current?.offsetHeight ?? 0;
-      if (membrete > 0 && pie > 0) {
-        const hueco = ALTO_HOJA - MARGEN_HOJA * 2 - membrete - pie - 8;
-        if (hueco > 200) setAltoUtil((prev) => (Math.abs(prev - hueco) < 1 ? prev : hueco));
-      }
+      const membrete = membreteRef.current ? membreteRef.current.offsetHeight + (sinPortadaNiIndice ? 4 : 24) : 0;
+      const pie = pieRef.current ? pieRef.current.offsetHeight : 0;
+      const margenV = sinPortadaNiIndice ? MARGEN_CONTRATO.top + MARGEN_CONTRATO.bottom : MARGEN_HOJA * 2;
+      const hueco = ALTO_HOJA - margenV - membrete - pie - 4;
+      if (hueco > 300) setAltoUtil((prev) => (Math.abs(prev - hueco) < 1 ? prev : hueco));
     };
 
     const t = setTimeout(() => {
@@ -1229,11 +1298,11 @@ export default function DocumentoReglamentoApp({
       cancelado = true;
       clearTimeout(t);
     };
-  }, [secciones, escribiendo]);
+  }, [secciones, escribiendo, sinPortadaNiIndice]);
 
   const layout = useMemo<FragmentoLayout[][]>(
     () =>
-      paginarFragmentos(seccionesFiltradas, altoUtil, true, medidas ?? undefined).map((hoja) =>
+      paginarFragmentos(seccionesFiltradas, altoUtil, !sinPortadaNiIndice, medidas ?? undefined).map((hoja) =>
         hoja.map((f) => ({
           seccionId: f.seccion.id,
           desde: f.desde,
@@ -1242,7 +1311,7 @@ export default function DocumentoReglamentoApp({
           ultimo: f.ultimo,
         }))
       ),
-    [seccionesFiltradas, altoUtil, medidas]
+    [seccionesFiltradas, altoUtil, medidas, sinPortadaNiIndice]
   );
 
   // Mientras se escribe, el reparto en hojas se congela: si el texto crecido
@@ -1258,8 +1327,8 @@ export default function DocumentoReglamentoApp({
   // Portada e Índice oficial del documento
   const SECCIONES_POR_INDICE = 16;
   const indicePartido = secciones.length > SECCIONES_POR_INDICE;
-  const hojasPreliminares = indicePartido ? 3 : 2; // Portada + 1 o 2 hojas de índice
-  const totalHojas = hojasPreliminares + hojas.length;
+  const hojasPreliminares = sinPortadaNiIndice ? 0 : (indicePartido ? 3 : 2); // Portada + 1 o 2 hojas de índice (0 si es copia idéntica de contrato)
+  const totalHojas = sinPortadaNiIndice ? hojas.length : (hojasPreliminares + hojas.length);
   const fechaEmision = new Date(registro?.actualizado_en ?? Date.now()).toLocaleDateString('es-MX', {
     day: 'numeric',
     month: 'long',
@@ -1783,7 +1852,7 @@ export default function DocumentoReglamentoApp({
             height: ${ALTO_HOJA}px !important;
             min-height: ${ALTO_HOJA}px !important;
             max-height: ${ALTO_HOJA}px !important;
-            padding: ${MARGEN_HOJA}px !important;
+            padding: ${sinPortadaNiIndice ? PADDING_CONTRATO_CSS : `${MARGEN_HOJA}px`} !important;
             /* Red de seguridad: si algo se pasara de largo se recorta aquí en
                vez de derramarse a una página extra con el pie descolgado. */
             overflow: hidden !important;
@@ -1817,15 +1886,29 @@ export default function DocumentoReglamentoApp({
             transform: none !important;
             transform-origin: top left !important;
           }
+          .dato-critico {
+            background: transparent !important;
+            background-color: transparent !important;
+            color: inherit !important;
+            border: none !important;
+            border-bottom: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            font-weight: inherit !important;
+            box-shadow: none !important;
+            text-decoration: none !important;
+            outline: none !important;
+            display: inline !important;
+          }
         }
       `}</style>
 
       {/* Cabecera institucional de herramientas (estática, no fija) */}
       <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 print:hidden">
         <div className="flex items-center gap-3">
-          <Link href={esReglamento ? "/" : "/protocolos"}>
+          <Link href={volverUrl || (guardiaId ? `/guardias/${guardiaId}` : esReglamento ? "/" : "/protocolos")}>
             <Button variant="ghost" size="sm" className="h-9 px-2 text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="w-4 h-4 mr-1" /> {esReglamento ? 'Inicio' : 'Protocolos'}
+              <ArrowLeft className="w-4 h-4 mr-1" /> {guardiaId ? 'Volver al Expediente' : esReglamento ? 'Inicio' : 'Protocolos'}
             </Button>
           </Link>
           <div className="h-5 w-px bg-border hidden sm:block" />
@@ -1834,7 +1917,7 @@ export default function DocumentoReglamentoApp({
               <ShieldCheck className="w-5 h-5 text-primary" /> {registro.titulo}
             </h1>
             <p className="text-xs text-muted-foreground hidden sm:block">
-              {secciones.length} capítulos y secciones · Formato Oficial U3 Seguridad Privada
+              {guardiaId ? 'Expediente Digital del Elemento · Formato Oficial U3 Seguridad Privada' : `${secciones.length} capítulos y secciones · Formato Oficial U3 Seguridad Privada`}
             </p>
           </div>
         </div>
@@ -2000,6 +2083,24 @@ export default function DocumentoReglamentoApp({
         </div>
       </div>
 
+      {/* Banner de revisión visual para datos críticos (solo en pantalla, no se imprime) */}
+      {sinPortadaNiIndice && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300/80 dark:border-amber-800/60 rounded-xl p-3 sm:px-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-amber-900 dark:text-amber-200 print:hidden">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2.5 w-2.5 relative shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            </span>
+            <p className="leading-relaxed">
+              <strong className="font-semibold text-amber-950 dark:text-amber-100">Modo Verificación de Expediente:</strong> Los datos personales y legales críticos (nombre, RFC, CURP, domicilio, puesto, salario, beneficiario) se muestran resaltados en <span className="inline-block bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-bold border border-amber-400/60">color ámbar</span> para comprobar si están correctos. <span className="font-semibold underline decoration-amber-500">Este color ámbar no se imprime</span> ni saldrá en el PDF oficial.
+            </p>
+          </div>
+          <span className="shrink-0 text-[11px] font-medium text-amber-800 dark:text-amber-300 bg-amber-200/60 dark:bg-amber-900/40 px-2.5 py-1 rounded-md border border-amber-300 dark:border-amber-700/50">
+            {guardiaId ? 'Guardado en Expediente Digital' : 'Expediente RH'}
+          </span>
+        </div>
+      )}
+
       {/* Banner informativo de política de salidas de 10 minutos (solo en reglamento) */}
       {esReglamento && (
         <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs print:hidden shadow-xs">
@@ -2031,67 +2132,69 @@ export default function DocumentoReglamentoApp({
       )}
 
       {/* Contenedor con Navegación Lateral (Índice) y Hojas de Papel */}
-      <div className="flex flex-col xl:flex-row items-start gap-6">
-        {/* Índice lateral interactivo (nunca tapado por la barra de formato) */}
-        <aside className="w-full xl:w-72 bg-card border border-border rounded-xl p-4 shadow-sm xl:sticky xl:top-2 max-h-[92vh] overflow-y-auto no-scrollbar print:hidden">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <ListOrdered className="w-4 h-4 text-primary" /> Índice del Reglamento
-            </span>
-            {editable && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleAgregarCapitulo}
-                className="h-6 text-[11px] px-1.5 text-primary hover:text-primary/80"
-              >
-                <Plus className="w-3 h-3 mr-0.5" /> Capítulo
-              </Button>
-            )}
-          </div>
-          <nav className="space-y-1">
-            {secciones.map((sec, idx) => (
-              <div key={sec.id} className="group/idx flex items-center gap-1">
-                <a
-                  href={`#${sec.id}`}
-                  className="flex-1 min-w-0 block p-2 rounded-lg text-xs hover:bg-muted/70 transition-colors group"
+      <div className={cn("flex flex-col items-start gap-6", sinPortadaNiIndice ? "w-full justify-center items-center" : "xl:flex-row")}>
+        {/* Índice lateral interactivo (solo si no es copia idéntica de contrato) */}
+        {!sinPortadaNiIndice && (
+          <aside className="w-full xl:w-72 bg-card border border-border rounded-xl p-4 shadow-sm xl:sticky xl:top-2 max-h-[92vh] overflow-y-auto no-scrollbar print:hidden">
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <ListOrdered className="w-4 h-4 text-primary" /> Índice del Reglamento
+              </span>
+              {editable && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleAgregarCapitulo}
+                  className="h-6 text-[11px] px-1.5 text-primary hover:text-primary/80"
                 >
-                  <div className="font-semibold text-foreground group-hover:text-primary leading-tight">
-                    {sec.numero ? `${sec.numero}: ` : ''}{sec.titulo}
-                  </div>
-                  <div className="text-[10.5px] text-muted-foreground">
-                    {sec.bloques.length} bloque{sec.bloques.length === 1 ? '' : 's'}
-                  </div>
-                </a>
-                {editable && (
-                  <div className="hidden group-hover/idx:flex items-center gap-0.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => moverSeccion(sec.id, -1)}
-                      disabled={idx === 0}
-                      title="Subir capítulo"
-                      className="text-muted-foreground hover:text-foreground disabled:opacity-25"
-                    >
-                      <ArrowUp className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moverSeccion(sec.id, 1)}
-                      disabled={idx === secciones.length - 1}
-                      title="Bajar capítulo"
-                      className="text-muted-foreground hover:text-foreground disabled:opacity-25"
-                    >
-                      <ArrowDown className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </nav>
-        </aside>
+                  <Plus className="w-3 h-3 mr-0.5" /> Capítulo
+                </Button>
+              )}
+            </div>
+            <nav className="space-y-1">
+              {secciones.map((sec, idx) => (
+                <div key={sec.id} className="group/idx flex items-center gap-1">
+                  <a
+                    href={`#${sec.id}`}
+                    className="flex-1 min-w-0 block p-2 rounded-lg text-xs hover:bg-muted/70 transition-colors group"
+                  >
+                    <div className="font-semibold text-foreground group-hover:text-primary leading-tight">
+                      {sec.numero ? `${sec.numero}: ` : ''}{sec.titulo}
+                    </div>
+                    <div className="text-[10.5px] text-muted-foreground">
+                      {sec.bloques.length} bloque{sec.bloques.length === 1 ? '' : 's'}
+                    </div>
+                  </a>
+                  {editable && (
+                    <div className="hidden group-hover/idx:flex items-center gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => moverSeccion(sec.id, -1)}
+                        disabled={idx === 0}
+                        title="Subir capítulo"
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-25"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moverSeccion(sec.id, 1)}
+                        disabled={idx === secciones.length - 1}
+                        title="Bajar capítulo"
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-25"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </nav>
+          </aside>
+        )}
 
         {/* Visor de Páginas Tamaño Carta */}
-        <main className="flex-1 w-full flex flex-col items-center pb-12">
+        <main className={cn("flex-1 w-full flex flex-col items-center pb-12", sinPortadaNiIndice && "max-w-4xl mx-auto")}>
           {/* Barra de Formato Fija/Adherente sobre las hojas del documento (siempre fija al hacer scroll) */}
           {editable && (
             <div className="sticky top-2 z-30 mb-4 print:hidden animate-in slide-in-from-top-1 duration-150 w-full max-w-[816px]">
@@ -2108,11 +2211,13 @@ export default function DocumentoReglamentoApp({
               className="hoja-carta-canvas hoja-zoom transition-transform duration-150 origin-top flex flex-col items-center space-y-8 print:space-y-0"
               style={{ transform: `scale(${zoom})` }}
             >
-              {/* HOJA 1: PORTADA EJECUTIVA MODERNA FORMAL */}
-              <div
-                className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none flex flex-col justify-between shadow-xl shrink-0 box-border"
-                style={{ width: ANCHO_HOJA, minHeight: ALTO_HOJA, padding: MARGEN_HOJA, fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
-              >
+              {!sinPortadaNiIndice && (
+                <>
+                  {/* HOJA 1: PORTADA EJECUTIVA MODERNA FORMAL */}
+                  <div
+                    className="hoja-carta mx-auto bg-white text-slate-900 border border-slate-300 rounded-none flex flex-col justify-between shadow-xl shrink-0 box-border"
+                    style={{ width: ANCHO_HOJA, minHeight: ALTO_HOJA, padding: MARGEN_HOJA, fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                  >
                 {/* Header Superior Corporativo */}
                 <div className="bg-[#0f172a] text-white -mx-14 -mt-14 px-8 py-5 flex items-center justify-between mb-8 shrink-0">
                   <div className="flex items-center gap-3">
@@ -2120,7 +2225,9 @@ export default function DocumentoReglamentoApp({
                     <div>
                       <p className="text-[12px] font-extrabold uppercase tracking-widest">{COMPANY.razonSocial}</p>
                       <p className="text-[9.5px] text-slate-300 uppercase tracking-wider font-semibold">
-                        {ambito === 'oficinas' ? 'Dirección General · Corporativo Insurgentes' : 'Dirección de Operaciones · Seguridad en Servicio'}
+                        {esReglamento
+                          ? (ambito === 'oficinas' ? 'Dirección General · Corporativo Insurgentes' : 'Dirección de Operaciones · Seguridad en Servicio')
+                          : (contenidoLocal?.area || 'Dirección de Recursos Humanos y Jurídico')}
                       </p>
                     </div>
                   </div>
@@ -2133,7 +2240,9 @@ export default function DocumentoReglamentoApp({
                 <div className="my-auto py-6 space-y-8 flex-1 flex flex-col justify-center">
                   <div className="space-y-4 max-w-xl">
                     <div className="border-l-4 border-[#1e3a8a] pl-4 py-1">
-                      <span className="text-[11px] font-extrabold uppercase tracking-widest text-blue-800 font-mono">DOCUMENTO RECTOR OFICIAL</span>
+                      <span className="text-[11px] font-extrabold uppercase tracking-widest text-blue-800 font-mono">
+                        {esReglamento ? 'DOCUMENTO RECTOR OFICIAL' : (contenidoLocal?.clasificacion?.toUpperCase() || 'INSTRUMENTO LEGAL OFICIAL')}
+                      </span>
                       <h1 className="text-2xl sm:text-3xl font-extrabold uppercase leading-tight text-[#0f172a] tracking-tight mt-1">
                         {registro.titulo}
                       </h1>
@@ -2144,7 +2253,7 @@ export default function DocumentoReglamentoApp({
                         value={contenidoLocal?.subtitulo ?? registro.descripcion ?? ''}
                         onChange={(subtitulo) => mutarContenido((c) => ({ ...c, subtitulo }))}
                         readOnly={!editable}
-                        placeholder="Escribe el subtítulo o alcance del reglamento..."
+                        placeholder="Escribe el subtítulo o alcance del documento..."
                       />
                     </div>
                   </div>
@@ -2160,7 +2269,7 @@ export default function DocumentoReglamentoApp({
                         <span className="font-bold text-[#0f172a]">
                           {esReglamento
                             ? (ambito === 'oficinas' ? 'Personal Administrativo y Directivo' : 'Personal Operativo y Guardias')
-                            : (registro.categoria ? `${registro.categoria} · Aplicación General` : 'Todo el Personal Operativo')}
+                            : (contenidoLocal?.alcance || (registro.categoria ? `${registro.categoria} · Aplicación General` : 'Todo el Personal Operativo'))}
                         </span>
                       </div>
                       <div>
@@ -2174,7 +2283,9 @@ export default function DocumentoReglamentoApp({
                       <div>
                         <span className="text-slate-500 text-[10px] uppercase font-bold block">Clasificación</span>
                         <span className="font-bold text-slate-800 text-[10.5px] uppercase">
-                          {esReglamento ? 'Reglamento Laboral Interno' : (registro.categoria || 'Normativa Institucional')}
+                          {esReglamento
+                            ? 'Reglamento Laboral Interno'
+                            : (contenidoLocal?.clasificacion || registro.categoria || 'Contrato Individual de Trabajo')}
                         </span>
                       </div>
                     </div>
@@ -2291,6 +2402,8 @@ export default function DocumentoReglamentoApp({
                   </footer>
                 </div>
               )}
+            </>
+          )}
 
               {/* HOJAS DE CONTENIDO DEL DOCUMENTO */}
               {hojas.map((hojaSecciones, hojaIdx) => (
@@ -2301,43 +2414,55 @@ export default function DocumentoReglamentoApp({
                   style={{
                     width: ANCHO_HOJA,
                     minHeight: ALTO_HOJA,
-                    padding: MARGEN_HOJA,
-                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                    padding: sinPortadaNiIndice ? PADDING_CONTRATO_CSS : MARGEN_HOJA,
+                    fontFamily: sinPortadaNiIndice ? '"Arial Nova", Arial, sans-serif' : 'Inter, system-ui, -apple-system, sans-serif',
                   }}
                 >
                   {/* Membrete Oficial Superior */}
                   <header
                     ref={hojaIdx === 0 ? membreteRef : undefined}
-                    className="border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between shrink-0"
+                    className={cn(
+                      sinPortadaNiIndice
+                        ? "flex items-center justify-end pb-1 mb-3 text-right shrink-0"
+                        : "border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between shrink-0"
+                    )}
                   >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={COMPANY.logoPublicPath || '/logo_b.png'}
-                        alt={COMPANY.razonSocial}
-                        className="w-12 h-12 object-contain"
-                      />
-                      <div>
-                        <div className="text-[13px] font-extrabold tracking-wider text-[#0f172a] uppercase">
-                          {COMPANY.razonSocial}
+                    {sinPortadaNiIndice ? (
+                      <span className="text-[11px] font-sans text-slate-700 font-normal">
+                        Hoja: {hojaIdx + 1}
+                      </span>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={COMPANY.logoPublicPath || '/logo_b.png'}
+                            alt={COMPANY.razonSocial}
+                            className="w-12 h-12 object-contain"
+                          />
+                          <div>
+                            <div className="text-[13px] font-extrabold tracking-wider text-[#0f172a] uppercase">
+                              {COMPANY.razonSocial}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-medium tracking-tight">
+                              Seguridad Patrimonial · Custodia · Control Operativo
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-slate-500 font-medium tracking-tight">
-                          Seguridad Patrimonial · Custodia · Control Operativo
+                        <div className="text-right">
+                          <div className="text-[10.5px] font-bold text-blue-900 uppercase tracking-wider">
+                            {esReglamento ? `Reglamento Normativo · ${ambitoMeta.etiqueta}` : (registro.categoria || 'Normativa Oficial')}
+                          </div>
+                          <div className="text-[9.5px] text-slate-500 font-mono">
+                            CÓDIGO: {codigoDocumento}
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[10.5px] font-bold text-blue-900 uppercase tracking-wider">
-                        {esReglamento ? `Reglamento Normativo · ${ambitoMeta.etiqueta}` : (registro.categoria || 'Normativa Oficial')}
-                      </div>
-                      <div className="text-[9.5px] text-slate-500 font-mono">
-                        CÓDIGO: {codigoDocumento}
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </header>
 
                   {/* Contenido de la hoja */}
                   <div className="hoja-contenido flex-1 space-y-6">
-                    {hojaIdx === 0 && (
+                    {!sinPortadaNiIndice && hojaIdx === 0 && (
                       <div ref={portadillaRef} className="text-center pb-4 mb-4 border-b border-slate-200">
                         <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight uppercase">
                           {registro.titulo}
@@ -2384,6 +2509,7 @@ export default function DocumentoReglamentoApp({
                           onEliminar={() => eliminarSeccion(seccion.id)}
                           onMoverSeccion={(delta) => moverSeccion(seccion.id, delta)}
                           readOnly={!editable}
+                          compacto={sinPortadaNiIndice}
                         />
                       );
                     })}
@@ -2419,7 +2545,7 @@ export default function DocumentoReglamentoApp({
                       </div>
                     )}
 
-                    {editable && hojaIdx === hojas.length - 1 && (
+                    {editable && !sinPortadaNiIndice && hojaIdx === hojas.length - 1 && (
                       <div className="pt-4 print:hidden">
                         <button
                           type="button"
@@ -2433,17 +2559,24 @@ export default function DocumentoReglamentoApp({
                   </div>
 
                   {/* Pie de Página Oficial con Foliado */}
-                  <footer
-                    ref={hojaIdx === 0 ? pieRef : undefined}
-                    className="hoja-footer border-t border-slate-200 pt-3 mt-auto flex items-center justify-between gap-6 text-[10px] text-slate-600 font-sans w-full shrink-0"
-                  >
-                    <div className="leading-snug min-w-0 flex-1 truncate">
-                      <strong className="text-slate-800">{COMPANY.razonSocial}</strong> · {registro.titulo}
-                    </div>
-                    <div className="font-mono font-bold whitespace-nowrap shrink-0 text-slate-700">
-                      Hoja {hojasPreliminares + hojaIdx + 1} de {totalHojas}
-                    </div>
-                  </footer>
+                  {sinPortadaNiIndice ? (
+                    <footer
+                      ref={hojaIdx === 0 ? pieRef : undefined}
+                      className="h-2 mt-auto shrink-0 print:hidden"
+                    />
+                  ) : (
+                    <footer
+                      ref={hojaIdx === 0 ? pieRef : undefined}
+                      className="hoja-footer border-t border-slate-200 pt-3 mt-auto flex items-center justify-between gap-6 text-[10px] text-slate-600 font-sans w-full shrink-0"
+                    >
+                      <div className="leading-snug min-w-0 flex-1 truncate">
+                        <strong className="text-slate-800">{COMPANY.razonSocial}</strong> · {registro.titulo}
+                      </div>
+                      <div className="font-mono font-bold whitespace-nowrap shrink-0 text-slate-700">
+                        Hoja {hojasPreliminares + hojaIdx + 1} de {totalHojas}
+                      </div>
+                    </footer>
+                  )}
                 </div>
               ))}
             </div>
@@ -2475,9 +2608,9 @@ export default function DocumentoReglamentoApp({
           position: 'fixed',
           top: 0,
           left: -99999,
-          width: ANCHO_CONTENIDO,
+          width: sinPortadaNiIndice ? ANCHO_CONTENIDO_CONTRATO : ANCHO_CONTENIDO,
           visibility: 'hidden',
-          fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+          fontFamily: sinPortadaNiIndice ? '"Arial Nova", Arial, sans-serif' : 'Inter, system-ui, -apple-system, sans-serif',
         }}
       >
         {secciones.map((sec) => (
@@ -2492,6 +2625,7 @@ export default function DocumentoReglamentoApp({
                 onActualizar={() => {}}
                 onEliminar={() => {}}
                 onMoverSeccion={() => {}}
+                compacto={sinPortadaNiIndice}
               />
             </div>
             {/* El encabezado compacto de «continúa» mide distinto que el normal. */}
@@ -2508,6 +2642,7 @@ export default function DocumentoReglamentoApp({
                 onActualizar={() => {}}
                 onEliminar={() => {}}
                 onMoverSeccion={() => {}}
+                compacto={sinPortadaNiIndice}
               />
             </div>
           </div>

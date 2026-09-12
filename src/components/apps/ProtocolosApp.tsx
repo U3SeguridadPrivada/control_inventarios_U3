@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import Link from 'next/link';
 import {
   Search, Plus, Edit, Trash2, ChevronDown, ChevronRight, ClipboardList,
-  GripVertical, X, ArrowUp, ArrowDown, EyeOff, FileText, BookOpen,
+  GripVertical, X, ArrowUp, ArrowDown, EyeOff, FileText, BookOpen, FileCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
@@ -31,7 +31,7 @@ interface Protocolo {
   actualizado_en: string | null;
 }
 
-const CATEGORIAS = ['Reglamento', 'Emergencia', 'Operativo', 'Seguridad', 'Recursos Humanos', 'Administrativo'];
+const CATEGORIAS = ['Reglamento', 'Recursos Humanos', 'Emergencia', 'Operativo', 'Seguridad', 'Administrativo'];
 const PRIORIDADES = ['Alta', 'Media', 'Baja'];
 
 const FORM_INICIAL = {
@@ -146,7 +146,7 @@ export default function ProtocolosApp() {
               <BookOpen className="w-4 h-4 mr-2" /> Reglamentos
             </Button>
           </Link>
-          {isEditor && <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" /> Nuevo protocolo</Button>}
+          {isEditor && <Button onClick={openCreate} variant="outline"><Plus className="w-4 h-4 mr-2" /> Nuevo protocolo</Button>}
         </div>
       </div>
 

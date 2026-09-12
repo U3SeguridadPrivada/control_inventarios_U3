@@ -2,6 +2,18 @@ import fs from 'fs';
 import path from 'path';
 import { desglosarDireccion } from './fichaTecnicaUtils';
 
+/**
+ * Versión de la plantilla de la ficha técnica. El PDF generado se cachea en
+ * disco por guardia (uploads/guardias/{id}-ficha-tecnica-{VERSION}.pdf) para
+ * no relanzar Chromium en cada vista. Esa caché solo distingue por guardia,
+ * no por cambios en el HTML/CSS de esta plantilla — así que cada vez que se
+ * edite el diseño de la ficha (encabezado, tablas, pie, márgenes, etc.) hay
+ * que subir este número: el nombre de archivo cambia, la caché vieja queda
+ * huérfana e ignorada, y el siguiente PDF se regenera con el diseño nuevo
+ * sin depender de que alguien borre el archivo cacheado a mano.
+ */
+export const FICHA_TEMPLATE_VERSION = 'v3';
+
 export interface EmpleoAnterior {
   empresa: string;
   periodo: string;
@@ -122,7 +134,11 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
     .sheet {
       position: relative;
       width: 100%;
-      max-width: 192mm;
+      max-width: 195mm;
+      /* Alto fijo de la hoja imprimible para poder anclar el pie de página
+         (fecha + footer) al fondo real de la hoja con position:absolute,
+         sin importar cuánto contenido haya arriba. */
+      min-height: 258mm;
       margin: 0 auto;
       background: #fff;
     }
@@ -145,6 +161,10 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
     .content {
       position: relative;
       z-index: 1;
+      /* Margen de seguridad para que nada (como el encabezado de arriba o
+         el logo del pie) quede pegado al borde físico de la hoja imprimible
+         y se recorte por redondeo del visor o la impresora. */
+      padding: 2mm 3mm 0 3mm;
     }
 
     /* Encabezado formal e institucional */
@@ -154,7 +174,7 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
       justify-content: space-between;
       border-bottom: 2px solid #0f172a;
       padding-bottom: 2mm;
-      margin-bottom: 2.5mm;
+      margin-bottom: 6mm;
     }
     .header-logo {
       width: 22mm;
@@ -197,11 +217,11 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
     .photo-row {
       display: flex;
       justify-content: center;
-      margin: 1.5mm 0 2.5mm 0;
+      margin: 3mm 0 6mm 0;
     }
     .photo-frame {
-      width: 32mm;
-      height: 40mm;
+      width: 34mm;
+      height: 43mm;
       border: 1.5px solid #0f172a;
       box-shadow: 2px 3px 6px rgba(0, 0, 0, 0.15);
       background: #f8fafc;
@@ -229,11 +249,11 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
     /* Nombre del Elemento con subrayado corporativo en rojo */
     .guard-name-box {
       text-align: center;
-      margin-bottom: 2mm;
+      margin-bottom: 5mm;
     }
     .guard-name {
       display: inline-block;
-      font-size: 13pt;
+      font-size: 14pt;
       font-weight: 900;
       letter-spacing: 0.8px;
       color: #C00000;
@@ -245,7 +265,7 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
 
     /* Recuadro Puesto */
     .puesto-table {
-      margin: 0 auto 2.5mm auto;
+      margin: 0 auto 6mm auto;
       border-collapse: collapse;
       width: 60mm;
       table-layout: fixed;
@@ -274,10 +294,10 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
 
     /* Título de sección formal */
     .section-title {
-      font-size: 8.5pt;
+      font-size: 9pt;
       font-weight: 800;
       letter-spacing: 0.5px;
-      margin: 2mm 0 1.2mm 0;
+      margin: 3mm 0 1.5mm 0;
       text-transform: uppercase;
       color: #0f172a;
       display: flex;
@@ -301,9 +321,9 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
     }
     table.data-table td {
       border: 1px solid #0f172a;
-      padding: 2px 4.5px;
-      font-size: 7.5pt;
-      line-height: 1.18;
+      padding: 1.7px 4.5px;
+      font-size: 7.7pt;
+      line-height: 1.2;
       vertical-align: middle;
       word-wrap: break-word;
       word-break: break-word;
@@ -338,14 +358,22 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
     .col-ant-lbl { width: 42%; }
     .col-ant-val { width: 58%; }
 
+    /* Pie de página anclado al fondo real de la hoja (fecha + footer),
+       independiente de cuánto contenido haya arriba. */
+    .page-footer {
+      position: absolute;
+      left: 3mm;
+      right: 3mm;
+      bottom: 2mm;
+    }
+
     /* Fecha al calce */
     .date-row {
       text-align: right;
-      font-size: 7.5pt;
+      font-size: 8pt;
       font-weight: 700;
       letter-spacing: 0.3px;
-      margin-top: 2mm;
-      margin-bottom: 1.5mm;
+      margin-bottom: 3mm;
       color: #334155;
     }
 
@@ -355,8 +383,7 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
       align-items: flex-end;
       justify-content: space-between;
       border-top: 1px solid #94a3b8;
-      margin-top: 1mm;
-      padding-top: 1.5mm;
+      padding-top: 3mm;
       padding-bottom: 2mm;
     }
     .footer-web {
@@ -384,6 +411,7 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
     </div>` : ''}
 
     <div class="content">
+      <div class="blk-top">
       <!-- Encabezado Institucional -->
       <div class="header">
         <div class="header-logo">
@@ -418,8 +446,10 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
           <td class="puesto-value">${puesto || 'GUARDIA DE SEGURIDAD'}</td>
         </tr>
       </table>
+      </div>
 
       <!-- I. DATOS PERSONALES -->
+      <div class="blk-seccion">
       <div class="section-title">I. Datos Personales y Filiación</div>
       <table class="data-table">
         <colgroup>
@@ -467,8 +497,10 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
           </tr>
         </tbody>
       </table>
+      </div>
 
       <!-- II. DOMICILIO -->
+      <div class="blk-seccion">
       <div class="section-title">II. Domicilio Actual y Contacto</div>
       <table class="data-table">
         <colgroup>
@@ -510,8 +542,10 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
           </tr>
         </tbody>
       </table>
+      </div>
 
       <!-- III. ANTECEDENTES LABORALES -->
+      <div class="blk-seccion">
       <div class="section-title">III. Historial y Antecedentes Laborales</div>
       <table class="data-table">
         <colgroup>
@@ -535,7 +569,10 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
           `).join('')}
         </tbody>
       </table>
+      </div>
+    </div>
 
+    <div class="page-footer">
       <!-- Fecha al calce -->
       <div class="date-row">
         ${fechaDoc}

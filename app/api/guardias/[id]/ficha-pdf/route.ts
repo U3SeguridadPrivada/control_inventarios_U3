@@ -4,7 +4,7 @@ import { guardias, candidatos, guardia_documentos } from '@/src/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAuth, unauthorized } from '@/src/lib/auth';
 import { htmlToPdf } from '@/src/lib/pdf';
-import { generateFichaTecnicaHtml, FichaTecnicaData } from '@/src/lib/fichaTecnicaHtml';
+import { generateFichaTecnicaHtml, FichaTecnicaData, FICHA_TEMPLATE_VERSION } from '@/src/lib/fichaTecnicaHtml';
 import { desglosarDireccion } from '@/src/lib/fichaTecnicaUtils';
 import fs from 'fs';
 import path from 'path';
@@ -67,7 +67,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const isInline = req.nextUrl.searchParams.get('inline') === 'true';
   const forceFresh = req.nextUrl.searchParams.get('fresh') === 'true';
-  const cachedFilePath = path.join(process.cwd(), 'uploads', 'guardias', `${guardiaId}-ficha-tecnica.pdf`);
+  // El nombre incluye la versión de la plantilla: si se edita el diseño de
+  // la ficha (fichaTecnicaHtml.ts) y se sube FICHA_TEMPLATE_VERSION, esta
+  // ruta cambia sola y la caché vieja queda huérfana en vez de servirse.
+  const cachedFilePath = path.join(process.cwd(), 'uploads', 'guardias', `${guardiaId}-ficha-tecnica-${FICHA_TEMPLATE_VERSION}.pdf`);
 
   if (!forceFresh && fs.existsSync(cachedFilePath)) {
     try {
@@ -78,7 +81,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           headers: {
             'Content-Type': 'application/pdf',
             'Content-Disposition': `${isInline ? 'inline' : 'attachment'}; filename="ficha_${guardia.numero_elemento}.pdf"`,
-            'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+            // Nunca en caché del navegador: la ficha puede cambiar (datos o
+            // plantilla) y el navegador no tiene forma de saberlo con esta
+            // misma URL, así que siempre se revalida contra el servidor.
+            'Cache-Control': 'no-store',
           },
         });
       }
@@ -105,7 +111,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `${isInline ? 'inline' : 'attachment'}; filename="ficha_${guardia.numero_elemento}.pdf"`,
-      'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+      'Cache-Control': 'no-store',
     },
   });
 }

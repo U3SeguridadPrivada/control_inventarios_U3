@@ -9,7 +9,7 @@
  *
  * Al cambiar VERSION se invalidan todas las caches anteriores.
  */
-const VERSION = 'u3-v2';
+const VERSION = 'u3-v3';
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 const PAGE_CACHE = `${VERSION}-pages`;

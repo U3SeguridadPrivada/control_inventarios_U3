@@ -1,8 +1,17 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Type, Palette, Highlighter, RemoveFormatting
+  Bold,
+  Italic,
+  Underline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  Type,
+  Palette,
+  Highlighter,
+  RemoveFormatting,
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
@@ -23,7 +32,7 @@ const COLORES_RESALTADO = [
 ];
 
 const TAMANOS_TEXTO = [
-  { etiqueta: '10px (Pequeño)', valor: '10px' },
+  { etiqueta: '10px (Muy pequeño)', valor: '10px' },
   { etiqueta: '11.5px (Estándar)', valor: '11.5px' },
   { etiqueta: '13px (Mediano)', valor: '13px' },
   { etiqueta: '14.5px (Destacado)', valor: '14.5px' },
@@ -41,35 +50,101 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
   const [mostrarPaletaFondo, setMostrarPaletaFondo] = useState(false);
   const [mostrarTamanos, setMostrarTamanos] = useState(false);
 
-  // Cerrar popovers al hacer clic fuera
+  const barraRef = useRef<HTMLDivElement>(null);
+  const savedRangeRef = useRef<Range | null>(null);
+
+  // Guardar continuamente la selección del usuario mientras está dentro de un bloque editable
   useEffect(() => {
-    const handleDocumentClick = () => {
-      setMostrarTamanos(false);
-      setMostrarPaletaTexto(false);
-      setMostrarPaletaFondo(false);
+    const guardarSeleccion = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+
+      const anchor = sel.anchorNode;
+      let curr: Node | null = anchor;
+      let dentroDeEditable = false;
+
+      while (curr && curr !== document.body) {
+        if (curr instanceof HTMLElement && curr.isContentEditable) {
+          dentroDeEditable = true;
+          break;
+        }
+        curr = curr.parentNode;
+      }
+
+      if (dentroDeEditable) {
+        savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+      }
     };
-    document.addEventListener('click', handleDocumentClick);
-    return () => document.removeEventListener('click', handleDocumentClick);
+
+    document.addEventListener('selectionchange', guardarSeleccion);
+    return () => document.removeEventListener('selectionchange', guardarSeleccion);
   }, []);
 
-  const dispararCambioEnActivo = () => {
-    const el = document.activeElement as HTMLElement | null;
-    if (el && el.isContentEditable) {
-      el.dispatchEvent(new Event('input', { bubbles: true }));
+  // Cerrar popovers sólo al hacer clic fuera de la barra de formato
+  useEffect(() => {
+    const handleClickFuera = (e: MouseEvent) => {
+      if (barraRef.current && !barraRef.current.contains(e.target as Node)) {
+        setMostrarTamanos(false);
+        setMostrarPaletaTexto(false);
+        setMostrarPaletaFondo(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickFuera);
+    return () => document.removeEventListener('mousedown', handleClickFuera);
+  }, []);
+
+  // Obtener la selección activa o restaurar la última guardada
+  const obtenerORestaurarSeleccion = (): Range | null => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+      return sel.getRangeAt(0);
+    }
+    if (savedRangeRef.current) {
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedRangeRef.current);
+      }
+      return savedRangeRef.current;
+    }
+    return null;
+  };
+
+  // Notificar al componente EditableText para que guarde los cambios en el estado React
+  const dispararCambioEnContenedor = (nodo: Node | null) => {
+    let curr: Node | null = nodo;
+    let contenedorEditable: HTMLElement | null = null;
+
+    while (curr && curr !== document.body) {
+      if (curr instanceof HTMLElement && curr.isContentEditable) {
+        contenedorEditable = curr;
+        break;
+      }
+      curr = curr.parentNode;
+    }
+
+    if (!contenedorEditable) {
+      const activo = document.activeElement as HTMLElement | null;
+      if (activo && activo.isContentEditable) {
+        contenedorEditable = activo;
+      }
+    }
+
+    if (contenedorEditable) {
+      contenedorEditable.focus();
+      contenedorEditable.dispatchEvent(new Event('input', { bubbles: true }));
     }
   };
 
   const ejecutarComando = (comando: string, valor?: string) => {
+    const range = obtenerORestaurarSeleccion();
     document.execCommand(comando, false, valor);
-    dispararCambioEnActivo();
+    dispararCambioEnContenedor(range ? range.commonAncestorContainer : null);
   };
 
   const aplicarEstiloSeleccion = (propiedad: string, valor: string) => {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    const range = sel.getRangeAt(0);
-
-    if (sel.isCollapsed) return;
+    const range = obtenerORestaurarSeleccion();
+    if (!range || range.collapsed) return;
 
     try {
       const span = document.createElement('span');
@@ -77,35 +152,45 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
       span.appendChild(range.extractContents());
       range.insertNode(span);
 
-      // Mantener la selección activa
-      sel.removeAllRanges();
-      const nuevoRango = document.createRange();
-      nuevoRango.selectNodeContents(span);
-      sel.addRange(nuevoRango);
+      // Mantener la selección activa sobre el nuevo elemento
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        const nuevoRango = document.createRange();
+        nuevoRango.selectNodeContents(span);
+        sel.addRange(nuevoRango);
+        savedRangeRef.current = nuevoRango.cloneRange();
+      }
 
-      dispararCambioEnActivo();
+      dispararCambioEnContenedor(span);
     } catch (e) {
-      console.warn('No se pudo aplicar estilo a la selección:', e);
+      console.warn('No se pudo aplicar el estilo a la selección:', e);
     }
   };
 
   const limpiarFormato = () => {
+    const range = obtenerORestaurarSeleccion();
     document.execCommand('removeFormat', false);
-    const sel = window.getSelection();
-    if (sel && !sel.isCollapsed) {
-      const range = sel.getRangeAt(0);
-      const text = range.toString();
-      range.deleteContents();
-      range.insertNode(document.createTextNode(text));
+    if (range && !range.collapsed) {
+      try {
+        const text = range.toString();
+        range.deleteContents();
+        const textNode = document.createTextNode(text);
+        range.insertNode(textNode);
+        dispararCambioEnContenedor(textNode);
+      } catch (e) {
+        console.warn('Error al limpiar formato:', e);
+      }
+    } else {
+      dispararCambioEnContenedor(null);
     }
-    dispararCambioEnActivo();
   };
 
   if (!visible) return null;
 
   return (
     <div
-      onClick={(e) => e.stopPropagation()}
+      ref={barraRef}
       className="bg-slate-900/95 text-white border border-slate-700/80 shadow-lg rounded-xl px-3 py-1.5 flex flex-wrap items-center gap-1.5 backdrop-blur-md transition-all z-40 print:hidden text-xs"
     >
       <div className="flex items-center gap-1 pr-2.5 border-r border-slate-700 text-slate-400 font-semibold text-[10px] uppercase tracking-wider select-none">
@@ -116,8 +201,9 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
       <div className="flex items-center gap-0.5">
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
             ejecutarComando('bold');
           }}
           title="Negrita (Ctrl+B)"
@@ -128,8 +214,9 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
 
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
             ejecutarComando('italic');
           }}
           title="Cursiva (Ctrl+I)"
@@ -140,8 +227,9 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
 
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
             ejecutarComando('underline');
           }}
           title="Subrayado (Ctrl+U)"
@@ -157,14 +245,18 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
       <div className="relative">
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
             setMostrarTamanos((v) => !v);
             setMostrarPaletaTexto(false);
             setMostrarPaletaFondo(false);
           }}
           title="Cambiar tamaño de texto"
-          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-[11px] font-medium text-slate-200"
+          className={cn(
+            "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors",
+            mostrarTamanos ? "bg-slate-800 text-blue-400" : "hover:bg-slate-800 text-slate-200"
+          )}
         >
           <Type className="w-3.5 h-3.5 text-blue-400" />
           <span>Tamaño</span>
@@ -172,24 +264,25 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
 
         {mostrarTamanos && (
           <div
-            onMouseDown={(e) => e.preventDefault()}
-            className="absolute top-full mt-1 left-0 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-1.5 z-50 min-w-[150px] space-y-0.5"
+            className="absolute top-full mt-1 left-0 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-1.5 z-50 min-w-[160px] space-y-0.5 animate-in fade-in zoom-in-95 duration-100"
           >
-            <div className="text-[10px] text-slate-400 font-semibold px-2 py-0.5 uppercase tracking-wider">
+            <div className="text-[10px] text-slate-400 font-semibold px-2 py-1 uppercase tracking-wider border-b border-slate-800 mb-1">
               Tamaño de fuente
             </div>
             {TAMANOS_TEXTO.map((t) => (
               <button
                 key={t.valor}
                 type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.stopPropagation();
                   aplicarEstiloSeleccion('font-size', t.valor);
                   setMostrarTamanos(false);
                 }}
-                className="w-full text-left px-2 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-200 flex items-center justify-between"
+                className="w-full text-left px-2 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-200 flex items-center justify-between transition-colors"
               >
                 <span>{t.etiqueta}</span>
+                <span className="text-[10px] font-mono text-slate-500">{t.valor}</span>
               </button>
             ))}
           </div>
@@ -200,14 +293,18 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
       <div className="relative">
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
             setMostrarPaletaTexto((v) => !v);
             setMostrarTamanos(false);
             setMostrarPaletaFondo(false);
           }}
           title="Color de texto"
-          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-[11px] font-medium text-slate-200"
+          className={cn(
+            "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors",
+            mostrarPaletaTexto ? "bg-slate-800 text-indigo-400" : "hover:bg-slate-800 text-slate-200"
+          )}
         >
           <Palette className="w-3.5 h-3.5 text-indigo-400" />
           <span>Color</span>
@@ -215,22 +312,22 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
 
         {mostrarPaletaTexto && (
           <div
-            onMouseDown={(e) => e.preventDefault()}
-            className="absolute top-full mt-1 left-0 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-2 z-50 min-w-[140px] space-y-1"
+            className="absolute top-full mt-1 left-0 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-2 z-50 min-w-[150px] space-y-1 animate-in fade-in zoom-in-95 duration-100"
           >
-            <div className="text-[10px] text-slate-400 font-semibold px-1 uppercase tracking-wider">
+            <div className="text-[10px] text-slate-400 font-semibold px-1 uppercase tracking-wider border-b border-slate-800 pb-1 mb-1">
               Color de letra
             </div>
             {COLORES_TEXTO.map((c) => (
               <button
                 key={c.color}
                 type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  ejecutarComando('foreColor', c.color);
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  aplicarEstiloSeleccion('color', c.color);
                   setMostrarPaletaTexto(false);
                 }}
-                className="w-full text-left px-2 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-200 flex items-center gap-2"
+                className="w-full text-left px-2 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-200 flex items-center gap-2 transition-colors"
               >
                 <span className="w-3 h-3 rounded-full border border-slate-500 shrink-0" style={{ backgroundColor: c.color }} />
                 <span>{c.label}</span>
@@ -244,14 +341,18 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
       <div className="relative">
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
             setMostrarPaletaFondo((v) => !v);
             setMostrarTamanos(false);
             setMostrarPaletaTexto(false);
           }}
           title="Resaltador / Marcatextos"
-          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-[11px] font-medium text-slate-200"
+          className={cn(
+            "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors",
+            mostrarPaletaFondo ? "bg-slate-800 text-yellow-400" : "hover:bg-slate-800 text-slate-200"
+          )}
         >
           <Highlighter className="w-3.5 h-3.5 text-yellow-400" />
           <span>Resaltar</span>
@@ -259,18 +360,18 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
 
         {mostrarPaletaFondo && (
           <div
-            onMouseDown={(e) => e.preventDefault()}
-            className="absolute top-full mt-1 left-0 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-2 z-50 min-w-[140px] space-y-1"
+            className="absolute top-full mt-1 left-0 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-2 z-50 min-w-[150px] space-y-1 animate-in fade-in zoom-in-95 duration-100"
           >
-            <div className="text-[10px] text-slate-400 font-semibold px-1 uppercase tracking-wider">
+            <div className="text-[10px] text-slate-400 font-semibold px-1 uppercase tracking-wider border-b border-slate-800 pb-1 mb-1">
               Marcatextos
             </div>
             {COLORES_RESALTADO.map((c) => (
               <button
                 key={c.color}
                 type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.stopPropagation();
                   if (c.color === 'transparent') {
                     aplicarEstiloSeleccion('background-color', 'transparent');
                   } else {
@@ -278,7 +379,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
                   }
                   setMostrarPaletaFondo(false);
                 }}
-                className="w-full text-left px-2 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-200 flex items-center gap-2"
+                className="w-full text-left px-2 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-200 flex items-center gap-2 transition-colors"
               >
                 <span className="w-3 h-3 rounded border border-slate-500 shrink-0" style={{ backgroundColor: c.color === 'transparent' ? '#334155' : c.color }} />
                 <span>{c.label}</span>
@@ -294,8 +395,9 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
       <div className="flex items-center gap-0.5">
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
             ejecutarComando('justifyLeft');
           }}
           title="Alinear a la izquierda"
@@ -305,8 +407,9 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
         </button>
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
             ejecutarComando('justifyCenter');
           }}
           title="Centrar"
@@ -316,8 +419,9 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
         </button>
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
             ejecutarComando('justifyRight');
           }}
           title="Alinear a la derecha"
@@ -327,8 +431,9 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
         </button>
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
             ejecutarComando('justifyFull');
           }}
           title="Justificar texto"
@@ -343,8 +448,9 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
       {/* Limpiar formato */}
       <button
         type="button"
-        onMouseDown={(e) => {
-          e.preventDefault();
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={(e) => {
+          e.stopPropagation();
           limpiarFormato();
         }}
         title="Quitar formato del texto seleccionado"
@@ -356,7 +462,9 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
 
       {/* Atajos de teclado */}
       <div className="hidden xl:flex items-center text-[10.5px] text-slate-400 ml-auto pl-2">
-        <span>Atajos: <strong className="text-slate-300">Ctrl+B</strong>, <strong className="text-slate-300">Ctrl+U</strong>, <strong className="text-slate-300">Ctrl+I</strong></span>
+        <span>
+          Atajos: <strong className="text-slate-300">Ctrl+B</strong>, <strong className="text-slate-300">Ctrl+U</strong>, <strong className="text-slate-300">Ctrl+I</strong>
+        </span>
       </div>
     </div>
   );

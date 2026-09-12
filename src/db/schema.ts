@@ -51,6 +51,7 @@ export const guardia_documentos = sqliteTable('guardia_documentos', {
   nombre_documento: text('nombre_documento').notNull(),
   nombre_archivo: text('nombre_archivo').notNull(),
   tipo_mimetype: text('tipo_mimetype').notNull(),
+  contenido_json: text('contenido_json'),
   fecha_subida: text('fecha_subida').default(sql`(datetime('now'))`),
 });
 

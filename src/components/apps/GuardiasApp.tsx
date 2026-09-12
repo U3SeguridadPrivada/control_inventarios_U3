@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/src/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -149,8 +149,87 @@ function abrirPdfEnNuevaVentana(guardiaId: number) {
   window.open(url, '_blank');
 }
 
+interface MenuContextualGuardia {
+  x: number;
+  y: number;
+  guardia: any;
+}
+
+function MenuContextualGuardia({
+  ctx,
+  isAdmin,
+  onCerrar,
+  onVerPerfil,
+  onEditar,
+  onDarBaja,
+  onEliminar,
+}: {
+  ctx: MenuContextualGuardia;
+  isAdmin: boolean;
+  onCerrar: () => void;
+  onVerPerfil: (g: any) => void;
+  onEditar: (g: any) => void;
+  onDarBaja: (g: any) => void;
+  onEliminar: (g: any) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const cerrarFuera = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onCerrar();
+    };
+    const cerrarEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
+    window.addEventListener('mousedown', cerrarFuera);
+    window.addEventListener('keydown', cerrarEsc);
+    window.addEventListener('scroll', onCerrar, true);
+    return () => {
+      window.removeEventListener('mousedown', cerrarFuera);
+      window.removeEventListener('keydown', cerrarEsc);
+      window.removeEventListener('scroll', onCerrar, true);
+    };
+  }, [onCerrar]);
+
+  // Evita que el menú se salga de la pantalla en los bordes
+  const left = Math.min(ctx.x, window.innerWidth - 220);
+  const top = Math.min(ctx.y, window.innerHeight - 220);
+
+  const item = (icon: React.ReactNode, label: string, onClick: () => void, danger?: boolean) => (
+    <button
+      type="button"
+      onClick={() => { onClick(); onCerrar(); }}
+      className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg text-left transition-colors ${
+        danger ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40' : 'text-foreground hover:bg-muted'
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-[100] bg-card border border-border rounded-xl shadow-2xl p-1.5 min-w-[210px] animate-in fade-in zoom-in-95 duration-100"
+      style={{ left, top }}
+    >
+      <div className="px-2.5 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground truncate border-b border-border/60 mb-1">
+        {ctx.guardia.nombre}
+      </div>
+      {item(<User className="w-3.5 h-3.5" />, 'Ver Perfil', () => onVerPerfil(ctx.guardia))}
+      {item(<Edit className="w-3.5 h-3.5" />, 'Editar Datos', () => onEditar(ctx.guardia))}
+      {ctx.guardia.estado === 'Activo' && item(<LogOut className="w-3.5 h-3.5" />, 'Dar de Baja', () => onDarBaja(ctx.guardia))}
+      {isAdmin && (
+        <>
+          <div className="my-1 h-px bg-border/60" />
+          {item(<Trash2 className="w-3.5 h-3.5" />, 'Eliminar Permanentemente', () => onEliminar(ctx.guardia), true)}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: number } = {}) {
-  const { isEditor } = useAuth();
+  const { isEditor, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [selectedGuardiaId, setSelectedGuardiaId] = useState<number | null>(initialGuardiaId || null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -160,6 +239,15 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBajaModalOpen, setIsBajaModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  // Menú contextual (clic derecho)
+  const [ctxMenu, setCtxMenu] = useState<MenuContextualGuardia | null>(null);
+  const abrirMenuContextual = (e: React.MouseEvent, guardia: any) => {
+    if (!isEditor) return;
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY, guardia });
+  };
 
   // Registration States
   const [numeroElemento, setNumeroElemento] = useState('');
@@ -224,6 +312,18 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
       setIsBajaModalOpen(false);
     },
     onError: () => toast.error('Error al procesar la baja'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiFetch(`/api/guardias/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['guardias'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] });
+      toast.success('Guardia eliminado permanentemente');
+      setIsDeleteModalOpen(false);
+      setSelectedGuardia(null);
+    },
+    onError: (err: any) => toast.error(err.message || 'Error al eliminar guardia'),
   });
 
   const startEdit = (guardia: any) => {
@@ -431,6 +531,7 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
             return (
               <div
                 key={item.id}
+                onContextMenu={(e) => abrirMenuContextual(e, item)}
                 className="group relative bg-card hover:bg-card/90 border border-border/80 hover:border-primary/50 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
               >
                 <div>
@@ -614,7 +715,7 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
               {filteredData.map((item: any) => {
                 const hasFicha = !!item.ficha_tecnica_json;
                 return (
-                  <TableRow key={item.id} className="hover:bg-muted/30">
+                  <TableRow key={item.id} onContextMenu={(e) => abrirMenuContextual(e, item)} className="hover:bg-muted/30">
                     <TableCell className="font-mono font-bold text-primary">
                       {item.numero_elemento}
                     </TableCell>
@@ -702,6 +803,18 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
         </div>
       )}
 
+      {/* ================= MENÚ CONTEXTUAL (CLIC DERECHO) ================= */}
+      {ctxMenu && (
+        <MenuContextualGuardia
+          ctx={ctxMenu}
+          isAdmin={isAdmin}
+          onCerrar={() => setCtxMenu(null)}
+          onVerPerfil={(g) => openPerfil(g, 'datos')}
+          onEditar={(g) => startEdit(g)}
+          onDarBaja={(g) => { setSelectedGuardia(g); setFechaBaja(new Date().toISOString().split('T')[0]); setIsBajaModalOpen(true); }}
+          onEliminar={(g) => { setSelectedGuardia(g); setIsDeleteModalOpen(true); }}
+        />
+      )}
 
 
       {/* ================= MODAL REGISTRAR NUEVO GUARDIA ================= */}
@@ -942,6 +1055,43 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= MODAL ELIMINAR GUARDIA PERMANENTEMENTE ================= */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" /> Eliminar Guardia Permanentemente
+            </DialogTitle>
+            <DialogDescription>
+              Para el elemento <b>{selectedGuardia?.nombre}</b> (#{selectedGuardia?.numero_elemento}).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-xl text-xs leading-relaxed space-y-1.5">
+              <p><b>Esta acción no se puede deshacer.</b> Se borrará el perfil, expediente, documentos, bitácora y fichas técnicas del guardia.</p>
+              <p>El historial de uniformes, movimientos financieros, incidencias en el calendario y reclutamiento asociado se conserva, pero quedará sin vincular a este guardia.</p>
+              <p>Si solo necesitas desactivarlo conservando su historial, usa <b>Dar de Baja</b> en vez de esto.</p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsDeleteModalOpen(false)} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => selectedGuardia && deleteMutation.mutate(selectedGuardia.id)}
+              className="rounded-xl font-bold"
+            >
+              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar Permanentemente'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

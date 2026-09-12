@@ -142,3 +142,68 @@ export async function PUT(
     return Response.json({ error: 'Error al guardar la ficha técnica: ' + err.message }, { status: 500 });
   }
 }
+
+/**
+ * Elimina por completo la ficha técnica de un guardia: borra los datos
+ * capturados (ficha_tecnica_json), el/los PDF generados en disco y el
+ * registro correspondiente en el expediente digital (guardia_documentos).
+ * Antes solo existía un botón para borrar el "documento" cacheado de la
+ * lista de papeles, pero eso no tocaba ficha_tecnica_json: la tarjeta
+ * "Ficha Técnica Oficial" seguía apareciendo porque depende únicamente de
+ * ese campo, no del documento.
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authUser = verifyAuth(req);
+  if (!authUser) return unauthorized();
+  if (authUser.role === 'viewer') return Response.json({ error: 'Sin permisos' }, { status: 403 });
+
+  const { id } = await params;
+  const guardiaId = Number(id);
+
+  const guardia = db.select().from(guardias).where(eq(guardias.id, guardiaId)).get();
+  if (!guardia) return Response.json({ error: 'Guardia no encontrado' }, { status: 404 });
+
+  db.update(guardias)
+    .set({ ficha_tecnica_json: null })
+    .where(eq(guardias.id, guardiaId))
+    .run();
+
+  // Borrar el/los PDF cacheados en disco (el nombre incluye la versión de
+  // la plantilla, así que puede haber varios de ejecuciones anteriores).
+  try {
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'guardias');
+    const archivos = await fs.readdir(uploadsDir).catch(() => [] as string[]);
+    const prefijo = `${guardiaId}-ficha-tecnica`;
+    await Promise.all(
+      archivos
+        .filter((nombre) => nombre.startsWith(prefijo))
+        .map((nombre) => fs.unlink(path.join(uploadsDir, nombre)).catch(() => undefined))
+    );
+  } catch (e) {
+    console.warn('No se pudieron borrar los PDF cacheados de la ficha:', e);
+  }
+
+  // Quitar el registro del expediente digital si existe.
+  const docsFicha = db.select().from(guardia_documentos)
+    .where(
+      and(
+        eq(guardia_documentos.guardia_id, guardiaId),
+        eq(guardia_documentos.nombre_documento, 'Ficha Técnica Oficial')
+      )
+    )
+    .all();
+
+  for (const doc of docsFicha) {
+    try {
+      await fs.unlink(path.join(process.cwd(), 'uploads', 'guardias', doc.nombre_archivo));
+    } catch {
+      // Puede que el archivo ya no exista; no es motivo para fallar.
+    }
+    db.delete(guardia_documentos).where(eq(guardia_documentos.id, doc.id)).run();
+  }
+
+  return Response.json({ ok: true });
+}

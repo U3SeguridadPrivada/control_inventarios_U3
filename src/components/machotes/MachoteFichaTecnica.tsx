@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { Button } from '@/src/components/ui/button';
 import {
   ArrowLeft,
@@ -16,6 +17,7 @@ import {
   CheckCircle2,
   X,
   Sparkles,
+  ShieldCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -173,6 +175,8 @@ interface Props {
   initialGuardiaId?: number | string;
   embedded?: boolean;
   fullScreen?: boolean;
+  pageMode?: boolean;
+  volverUrl?: string;
   onGuardadoExitoso?: () => void;
   onClose?: () => void;
 }
@@ -182,6 +186,8 @@ export default function MachoteFichaTecnica({
   initialGuardiaId,
   embedded = false,
   fullScreen = false,
+  pageMode = false,
+  volverUrl,
   onGuardadoExitoso,
   onClose,
 }: Props) {
@@ -192,6 +198,7 @@ export default function MachoteFichaTecnica({
   );
   const [zoomVista, setZoomVista] = useState<number>(100);
   const [descargandoPdf, setDescargandoPdf] = useState(false);
+  const [imprimiendoPdf, setImprimiendoPdf] = useState(false);
   const [guardandoDb, setGuardandoDb] = useState(false);
   const [arrastrandoFoto, setArrastrandoFoto] = useState(false);
   const inputFotoRef = useRef<HTMLInputElement>(null);
@@ -410,19 +417,74 @@ export default function MachoteFichaTecnica({
     }
   };
 
-  const handleImprimir = () => {
-    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
+  // Imprimir usa el mismo PDF oficial generado por el servidor (una sola
+  // hoja Carta, ya calibrado) en vez de imprimir el formulario en pantalla:
+  // eso evitaba que los placeholders ("EJ. 5 AÑOS", etc.) salieran impresos
+  // en gris y que el documento se repartiera en 2 hojas.
+  // Imprimir directo en la misma pantalla sin abrir otra pestaña del navegador:
+  // Se genera el PDF oficial en segundo plano y se invoca el diálogo de impresión
+  // nativo a través de un iframe invisible.
+  const handleImprimir = async () => {
+    setImprimiendoPdf(true);
+    const toastId = toast.loading('Preparando impresión oficial...');
+    try {
+      const token = localStorage.getItem('inv_token');
+      const res = await fetch('/api/guardias/ficha-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(ficha),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al generar el PDF en el servidor');
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      // Creamos un iframe oculto en el documento para imprimir directamente
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          toast.success('Diálogo de impresión listo', { id: toastId });
+        } catch (printErr) {
+          console.warn('Fallback a ventana directa de impresión:', printErr);
+          window.print();
+        }
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+          window.URL.revokeObjectURL(url);
+        }, 60000);
+      };
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || 'Error al preparar la impresión', { id: toastId });
+    } finally {
+      setImprimiendoPdf(false);
     }
-    setTimeout(() => {
-      window.print();
-    }, 120);
   };
 
   const selectedGuardiaNombre = guardias.find((g: any) => String(g.id) === String(selectedGuardiaId))?.nombre;
 
   return (
-    <div className={fullScreen ? "fixed inset-0 z-[250] bg-slate-900 flex flex-col overflow-hidden text-foreground animate-in fade-in duration-200" : "space-y-4"}>
+    <div className={pageMode ? "space-y-4 animate-in fade-in duration-300 pb-16 font-sans" : fullScreen ? "fixed inset-0 z-[250] bg-slate-900 flex flex-col overflow-hidden text-foreground animate-in fade-in duration-200" : "space-y-4"}>
       {/* Estilos para impresión exacta en 1 hoja Carta vertical */}
       <style>{`
         @page {
@@ -447,23 +509,38 @@ export default function MachoteFichaTecnica({
           body * {
             visibility: hidden;
           }
+          /* El formulario en vivo (con textareas que se autoajustan por JS y
+             pueden recortarse o repartirse en más de una hoja al imprimir
+             directo) ya NO se imprime aquí. El botón "Imprimir" genera el PDF
+             oficial ya validado en una sola hoja Carta y lo abre en una
+             pestaña nueva; si alguien imprime esta pantalla con Ctrl+P sin
+             pasar por ese botón, mostramos un aviso en vez del formulario. */
           #ficha-print-area, #ficha-print-area * {
+            visibility: hidden !important;
+          }
+          #ficha-print-fallback-msg, #ficha-print-fallback-msg * {
             visibility: visible !important;
           }
-          #ficha-print-area {
+          #ficha-print-fallback-msg {
+            display: flex !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
-            max-width: 100% !important;
+            padding: 30mm 20mm !important;
             margin: 0 !important;
-            padding: 0 !important;
             background: #fff !important;
             box-shadow: none !important;
             border: none !important;
             transform: none !important;
             page-break-after: avoid !important;
             break-after: avoid !important;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 4mm;
+            font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+            color: #0f172a;
           }
           .mch-ft-sheet {
             position: static !important;
@@ -493,6 +570,13 @@ export default function MachoteFichaTecnica({
             resize: none !important;
             overflow: visible !important;
             height: auto !important;
+          }
+          /* Los placeholders (textos de ejemplo como "EJ. 5 AÑOS") son solo
+             una guía visual del formulario: nunca deben salir impresos. */
+          .mch-ft-input::placeholder,
+          .mch-ft-textarea::placeholder {
+            color: transparent !important;
+            opacity: 0 !important;
           }
           .mch-ft-input-name {
             color: #C00000 !important;
@@ -525,6 +609,25 @@ export default function MachoteFichaTecnica({
           border-radius: 4px;
           color: #0f172a;
           font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+        }
+
+        .mch-ft-critico {
+          background-color: #fef3c7 !important;
+          color: #78350f !important;
+          border-bottom: 2px solid #f59e0b !important;
+          border-radius: 2px !important;
+          font-weight: 600 !important;
+        }
+        @media print {
+          .mch-ft-critico {
+            background-color: transparent !important;
+            background: none !important;
+            color: inherit !important;
+            border: none !important;
+            border-bottom: none !important;
+            font-weight: inherit !important;
+            box-shadow: none !important;
+          }
         }
 
         .mch-ft-textarea {
@@ -622,7 +725,144 @@ export default function MachoteFichaTecnica({
       `}</style>
 
       {/* Barra de herramientas superior (oculta en impresión) */}
-      {fullScreen ? (
+      {pageMode ? (
+        <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 print:hidden">
+          <div className="flex items-center gap-3">
+            <Link href={volverUrl || (selectedGuardiaId ? `/guardias/${selectedGuardiaId}` : "/guardias")}>
+              <Button variant="ghost" size="sm" className="h-9 px-2 text-muted-foreground hover:text-foreground">
+                <ArrowLeft className="w-4 h-4 mr-1" /> Volver al Expediente
+              </Button>
+            </Link>
+            <div className="h-5 w-px bg-border hidden sm:block" />
+            <div>
+              <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-primary" /> Ficha Técnica Oficial — {selectedGuardiaNombre || ficha.nombre || 'Guardia'}
+              </h1>
+              <p className="text-xs text-muted-foreground hidden sm:block">
+                Expediente Digital del Elemento · Formato Oficial U3 Seguridad Privada
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-auto">
+            <span className="text-xs font-mono font-bold uppercase px-2.5 py-1 rounded bg-primary/10 text-primary border border-primary/20">
+              EXP-FT-{selectedGuardiaId || 'NUEVO'}
+            </span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded bg-muted text-muted-foreground border border-border">
+              Recursos Humanos
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 justify-end">
+            {/* Controles de Zoom */}
+            <div className="hidden sm:flex items-center bg-muted/60 rounded-lg p-0.5 border border-border">
+              <button
+                type="button"
+                onClick={() => setZoomVista((z) => Math.max(60, z - 10))}
+                title="Alejar"
+                className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[11px] font-mono px-2 text-muted-foreground">
+                {zoomVista}%
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoomVista((z) => Math.min(130, z + 10))}
+                title="Acercar"
+                className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoomVista(100)}
+                title="Restablecer"
+                className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground border-l border-border"
+              >
+                <RotateCcw className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Selector de Fotografía */}
+            <input
+              type="file"
+              ref={inputFotoRef}
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => procesarArchivoFoto(e.target.files?.[0])}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-semibold"
+              onClick={() => inputFotoRef.current?.click()}
+            >
+              <ImageUp className="w-3.5 h-3.5 mr-1.5" />
+              {ficha.fotoUrl ? 'Cambiar Foto' : 'Subir Foto'}
+            </Button>
+            {ficha.fotoUrl && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-destructive hover:bg-destructive/10"
+                onClick={() => {
+                  actualizarCampo('fotoUrl', null);
+                  toast.info('Fotografía removida');
+                }}
+                title="Eliminar fotografía"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            )}
+
+            {/* Botón Imprimir / PDF */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-semibold"
+              disabled={imprimiendoPdf}
+              onClick={handleImprimir}
+              title="Genera la ficha técnica y la abre en el visor de impresión"
+            >
+              {imprimiendoPdf ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Printer className="w-3.5 h-3.5 mr-1.5" />}
+              Imprimir / PDF
+            </Button>
+
+            {/* Descargar PDF servidor */}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-8 text-xs font-semibold"
+              disabled={descargandoPdf}
+              onClick={descargarPdfServidor}
+              title="Descarga el PDF oficial listo para archivar"
+            >
+              {descargandoPdf ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1.5" />}
+              Descargar PDF
+            </Button>
+
+            {/* Guardar cambios */}
+            <Button
+              size="sm"
+              className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow"
+              disabled={guardandoDb || !selectedGuardiaId}
+              onClick={guardarEnExpediente}
+            >
+              {guardandoDb ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Guardando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-white" /> Guardar Cambios
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : fullScreen ? (
         <header className="h-14 bg-slate-950/95 border-b border-slate-800 text-white px-4 sm:px-6 flex items-center justify-between flex-shrink-0 z-20 shadow-md print:hidden">
           <div className="flex items-center gap-3 min-w-0">
             {(onClose || onVolver) && (
@@ -697,9 +937,11 @@ export default function MachoteFichaTecnica({
               variant="outline"
               size="sm"
               className="h-8 text-xs border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
+              disabled={imprimiendoPdf}
               onClick={handleImprimir}
             >
-              <Printer className="w-3.5 h-3.5 mr-1.5" /> Imprimir
+              {imprimiendoPdf ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Printer className="w-3.5 h-3.5 mr-1.5" />}
+              Imprimir
             </Button>
 
             <Button
@@ -806,10 +1048,12 @@ export default function MachoteFichaTecnica({
               <Button
                 variant="outline"
                 size="sm"
+                disabled={imprimiendoPdf}
                 onClick={handleImprimir}
-                title="Abre el cuadro de diálogo de impresión para imprimir o Guardar como PDF"
+                title="Genera el PDF oficial y lo abre en una pestaña para imprimir o guardar"
               >
-                <Printer className="w-4 h-4 mr-1.5" /> Imprimir / PDF
+                {imprimiendoPdf ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Printer className="w-4 h-4 mr-1.5" />}
+                Imprimir / PDF
               </Button>
 
               {/* Descargar PDF generado por el servidor */}
@@ -903,8 +1147,30 @@ export default function MachoteFichaTecnica({
         </div>
       )}
 
+      {/* Banner de revisión visual para datos críticos (solo en pantalla, no se imprime) */}
+      {pageMode && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300/80 dark:border-amber-800/60 rounded-xl p-3 sm:px-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-amber-900 dark:text-amber-200 print:hidden">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <span>
+              <strong>Modo Verificación de Expediente:</strong> Los datos personales y laborales críticos se muestran resaltados en color ámbar para comprobar si están correctos. Este color ámbar <u>no se imprime</u> y sirve de guía visual.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="inline-block w-4 h-3 rounded border border-amber-400 bg-amber-200 dark:bg-amber-800/70" />
+            <span className="text-[11px] font-mono text-muted-foreground">Datos Clave</span>
+          </div>
+        </div>
+      )}
+
       {/* Contenedor del lienzo con zoom */}
-      <div className={fullScreen ? "flex-1 overflow-auto bg-slate-200/90 dark:bg-slate-950 p-6 sm:p-10 flex justify-center items-start" : "overflow-auto py-4 bg-muted/20 rounded-xl flex justify-center border border-border/50"}>
+      <div className={
+        pageMode
+          ? "overflow-auto py-8 px-4 bg-muted/20 dark:bg-muted/5 rounded-2xl flex justify-center border border-border/60 min-h-[85vh]"
+          : fullScreen
+          ? "flex-1 overflow-auto bg-slate-200/90 dark:bg-slate-950 p-6 sm:p-10 flex justify-center items-start"
+          : "overflow-auto py-4 bg-muted/20 rounded-xl flex justify-center border border-border/50"
+      }>
         <div
           id="ficha-print-area"
           style={{
@@ -935,7 +1201,8 @@ export default function MachoteFichaTecnica({
               />
             </div>
 
-            <div style={{ position: 'relative', zIndex: 1 }}>
+            <div className="mch-ft-content" style={{ position: 'relative', zIndex: 1 }}>
+              <div className="mch-blk-top">
               {/* Encabezado Institucional Formal */}
               <div
                 className="flex items-center justify-between pb-2 mb-2"
@@ -1050,7 +1317,7 @@ export default function MachoteFichaTecnica({
                   }}
                 >
                   <FichaCellInput
-                    className="mch-ft-input-name text-center font-black"
+                    className="mch-ft-input-name text-center font-black mch-ft-critico"
                     style={{
                       fontSize: '12pt',
                       fontWeight: 900,
@@ -1097,7 +1364,7 @@ export default function MachoteFichaTecnica({
                       }}
                     >
                       <FichaCellInput
-                        className="text-center font-extrabold"
+                        className="text-center font-extrabold mch-ft-critico"
                         style={{ fontSize: '8.5pt', fontWeight: 800 }}
                         value={ficha.puesto}
                         onChange={(val) => actualizarCampo('puesto', val)}
@@ -1108,8 +1375,10 @@ export default function MachoteFichaTecnica({
                   </tr>
                 </tbody>
               </table>
+              </div>
 
               {/* I. DATOS PERSONALES */}
+              <div className="mch-blk-seccion">
               <div
                 className="font-bold text-[8.5pt] uppercase tracking-wide my-1 flex items-center gap-2"
                 style={{ color: '#0f172a' }}
@@ -1129,6 +1398,7 @@ export default function MachoteFichaTecnica({
                     <td className="lbl">FECHA DE NACIMIENTO:</td>
                     <td className="val">
                       <FichaCellInput
+                        className="mch-ft-critico"
                         value={ficha.fechaNacimiento}
                         onChange={(val) => actualizarCampo('fechaNacimiento', val)}
                         placeholder="DD/MM/AAAA"
@@ -1137,6 +1407,7 @@ export default function MachoteFichaTecnica({
                     <td className="lbl">EDAD:</td>
                     <td className="val">
                       <FichaCellInput
+                        className="mch-ft-critico"
                         value={ficha.edad}
                         onChange={(val) => actualizarCampo('edad', val)}
                         placeholder="EJ. 35 AÑOS"
@@ -1183,6 +1454,7 @@ export default function MachoteFichaTecnica({
                     <td className="lbl">RFC:</td>
                     <td className="val">
                       <FichaCellInput
+                        className="mch-ft-critico"
                         value={ficha.rfc}
                         onChange={(val) => actualizarCampo('rfc', val)}
                         placeholder="13 POSICIONES"
@@ -1191,6 +1463,7 @@ export default function MachoteFichaTecnica({
                     <td className="lbl">CURP:</td>
                     <td className="val">
                       <FichaCellInput
+                        className="mch-ft-critico"
                         value={ficha.curp}
                         onChange={(val) => actualizarCampo('curp', val)}
                         placeholder="18 POSICIONES"
@@ -1201,6 +1474,7 @@ export default function MachoteFichaTecnica({
                     <td className="lbl">AFILIACIÓN IMSS:</td>
                     <td className="val">
                       <FichaCellInput
+                        className="mch-ft-critico"
                         value={ficha.imss}
                         onChange={(val) => actualizarCampo('imss', val)}
                         placeholder="NSS 11 DÍGITOS"
@@ -1235,8 +1509,10 @@ export default function MachoteFichaTecnica({
                   </tr>
                 </tbody>
               </table>
+              </div>
 
               {/* II. DOMICILIO */}
+              <div className="mch-blk-seccion">
               <div
                 className="font-bold text-[8.5pt] uppercase tracking-wide my-1 flex items-center justify-between gap-2"
                 style={{ color: '#0f172a' }}
@@ -1281,6 +1557,7 @@ export default function MachoteFichaTecnica({
                     <td className="lbl">CALLE Y NÚMERO</td>
                     <td className="val">
                       <FichaCellInput
+                        className="mch-ft-critico"
                         value={ficha.calleNumero}
                         onChange={(val) => actualizarCampo('calleNumero', val)}
                         placeholder="CALLE, NO. EXT. E INT."
@@ -1289,6 +1566,7 @@ export default function MachoteFichaTecnica({
                     <td className="lbl">COLONIA</td>
                     <td className="val">
                       <FichaCellInput
+                        className="mch-ft-critico"
                         value={ficha.colonia}
                         onChange={(val) => actualizarCampo('colonia', val)}
                         placeholder="COLONIA / FRACC."
@@ -1317,6 +1595,7 @@ export default function MachoteFichaTecnica({
                     <td className="lbl">DELEGACIÓN / MUNICIPIO</td>
                     <td className="val">
                       <FichaCellInput
+                        className="mch-ft-critico"
                         value={ficha.delegacionMunicipio}
                         onChange={(val) => actualizarCampo('delegacionMunicipio', val)}
                         placeholder="ALCALDÍA O MUNICIPIO"
@@ -1361,6 +1640,7 @@ export default function MachoteFichaTecnica({
                     <td className="lbl">CELULAR</td>
                     <td className="val">
                       <FichaCellInput
+                        className="mch-ft-critico"
                         value={ficha.celular}
                         onChange={(val) => actualizarCampo('celular', val)}
                         placeholder="10 DÍGITOS"
@@ -1369,8 +1649,10 @@ export default function MachoteFichaTecnica({
                   </tr>
                 </tbody>
               </table>
+              </div>
 
               {/* III. ANTECEDENTES LABORALES */}
+              <div className="mch-blk-seccion">
               <div
                 className="font-bold text-[8.5pt] uppercase tracking-wide my-1 flex items-center gap-2"
                 style={{ color: '#0f172a' }}
@@ -1434,7 +1716,9 @@ export default function MachoteFichaTecnica({
                   ))}
                 </tbody>
               </table>
+              </div>
 
+              <div className="mch-blk-bottom">
               {/* Fecha al calce */}
               <div className="text-right mt-2 mb-1 flex justify-end">
                 <div style={{ maxWidth: '380px', width: '100%' }}>
@@ -1470,8 +1754,27 @@ export default function MachoteFichaTecnica({
                   />
                 </div>
               </div>
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* Aviso que solo aparece al imprimir esta pantalla directamente
+            (p. ej. con Ctrl+P) sin pasar por el botón "Imprimir": el
+            formulario en vivo no se imprime porque no se puede garantizar
+            que quepa en una sola hoja. Oculto en pantalla. */}
+        <div id="ficha-print-fallback-msg" style={{ display: 'none' }}>
+          <Printer className="w-10 h-10 text-slate-400" />
+          <p style={{ fontSize: '13pt', fontWeight: 800 }}>
+            Usa el botón &quot;Imprimir&quot; de la ficha técnica
+          </p>
+          <p style={{ fontSize: '10pt', color: '#475569', maxWidth: '140mm' }}>
+            Esta pantalla es el formulario de edición y no se imprime directamente.
+            Cierra este cuadro de impresión y usa el botón &quot;Imprimir&quot; o
+            &quot;Imprimir / PDF&quot; de la barra superior: genera el documento
+            oficial completo en una sola hoja Carta y lo abre en una pestaña
+            nueva lista para imprimir.
+          </p>
         </div>
       </div>
     </div>
