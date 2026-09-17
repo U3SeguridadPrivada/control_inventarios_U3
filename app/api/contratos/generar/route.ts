@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/src/db';
 import { guardias, guardia_documentos, guardia_bitacora } from '@/src/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { extraerDatosDeGuardia, generarContenidoContrato, DatosContrato, DATOS_CONTRATO_DEFAULT } from '@/src/lib/generadorContrato';
+import { extraerDatosDeGuardia, DatosContrato, DATOS_CONTRATO_DEFAULT } from '@/src/lib/generadorContrato';
+import { construirContratoParaGuardia } from '@/src/lib/contratoPlantilla';
+import { CONTRATO_TEMPLATE_VERSION } from '@/src/lib/contratoHtml';
+import fs from 'fs';
+import path from 'path';
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
       datosFinales.beneficiarioNombre = datosFinales.beneficiarioNombre.toUpperCase().trim();
     }
 
-    const contenido = generarContenidoContrato(datosFinales);
+    const contenido = construirContratoParaGuardia(datosFinales);
     const contenidoStr = JSON.stringify(contenido);
 
     let redirectUrl = '/guardias';
@@ -56,6 +60,14 @@ export async function POST(req: NextRequest) {
           })
           .where(eq(guardia_documentos.id, existingDoc.id))
           .run();
+
+        // El PDF cacheado quedó con el contenido viejo; que se regenere.
+        try {
+          const cachedFilePath = path.join(process.cwd(), 'uploads', 'guardias', `${gId}-contrato-${CONTRATO_TEMPLATE_VERSION}.pdf`);
+          if (fs.existsSync(cachedFilePath)) fs.unlinkSync(cachedFilePath);
+        } catch (e) {
+          console.warn('No se pudo invalidar el contrato PDF cacheado:', e);
+        }
       } else {
         db.insert(guardia_documentos)
           .values({

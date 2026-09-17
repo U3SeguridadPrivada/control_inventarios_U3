@@ -48,7 +48,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         data.nombre = guardia.nombre;
       }
       if (!data.numeroElemento) {
-        data.numeroElemento = guardia.numero_elemento;
+        data.numeroElemento = guardia.numero_elemento ?? undefined;
       }
       if (!data.colonia && !data.delegacionMunicipio && data.calleNumero && (data.calleNumero.includes(';') || /,\s*col/i.test(data.calleNumero))) {
         const desglose = desglosarDireccion(data.calleNumero);

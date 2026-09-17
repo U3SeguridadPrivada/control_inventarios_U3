@@ -306,17 +306,24 @@
 
 /* ==========================================================================
    RESALTADOR ÁMBAR PARA DATOS CRÍTICOS (CONTRATOS LABORALES)
-   En pantalla destaca en ámbar para revisión visual del usuario.
-   En impresión (@media print / PDF) se oculta completamente y es texto normal.
+   En pantalla destaca en ámbar para revisión visual y evitar errores.
+   En impresión (@media print / PDF) se oculta completamente y es texto limpio normal.
    ========================================================================== */
 .dato-critico {
   background-color: #fef3c7 !important;
   color: #92400e !important;
-  border-bottom: 2px solid #f59e0b !important;
+  /* Antes era border-bottom: 2px solid. Un borde real en un elemento inline
+     obliga al renglón entero a crecer para contenerlo, así que cualquier
+     línea con un dato resaltado quedaba más alta que las líneas vecinas sin
+     resaltar — el interlineado se veía "brincado" en el editor de contratos,
+     que tiene datos críticos casi en cada renglón. Un box-shadow interior
+     dibuja la misma línea inferior sin ocupar espacio en el cuadro del
+     elemento, así que no afecta la altura del renglón. */
+  border-bottom: none !important;
+  box-shadow: inset 0 -2px 0 0 #f59e0b, 0 1px 2px rgba(245, 158, 11, 0.15) !important;
   border-radius: 3px !important;
   padding: 0 4px !important;
   font-weight: 600 !important;
-  box-shadow: 0 1px 2px rgba(245, 158, 11, 0.15) !important;
   display: inline !important;
 }
 

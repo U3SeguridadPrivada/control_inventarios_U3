@@ -1,11 +1,12 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { generarContenidoContrato, DATOS_CONTRATO_DEFAULT } from '../src/lib/generadorContrato';
+import fs from 'fs';
+import { generarContenidoContrato, extraerDatosDeGuardia, DATOS_CONTRATO_DEFAULT } from '../src/lib/generadorContrato';
 
 const dbPath = process.env.SQLITE_DB_PATH || path.join(process.cwd(), 'db', 'app.db');
 const db = new Database(dbPath);
 
-console.log('Sembrando Plantilla Base del Contrato Laboral U3 en:', dbPath);
+console.log('Sembrando y actualizando Plantilla Base del Contrato Laboral U3 en:', dbPath);
 
 const contenidoDoc = generarContenidoContrato(DATOS_CONTRATO_DEFAULT);
 const jsonStr = JSON.stringify(contenidoDoc);
@@ -39,33 +40,41 @@ if (existente) {
   console.log(`Plantilla creada con ID: ${info.lastInsertRowid}`);
 }
 
-// También actualizar el protocolo 27 (generado para Norberto Romero Granados si existe)
-const prot27 = db.prepare(`SELECT id, titulo FROM protocolos WHERE id = 27`).get() as { id: number; titulo: string } | undefined;
-if (prot27) {
-  console.log('Actualizando protocolo 27...');
-  // Generar contrato para Norberto Romero Granados (guardia 3)
-  const guardia3 = db.prepare(`SELECT * FROM guardias WHERE id = 3`).get() as any;
-  let datosNorberto = { ...DATOS_CONTRATO_DEFAULT };
-  if (guardia3) {
-    let ficha: any = {};
-    try { ficha = JSON.parse(guardia3.ficha_tecnica_json || '{}'); } catch {}
-    datosNorberto = {
-      ...datosNorberto,
-      nombreTrabajador: (guardia3.nombre || 'NORBERTO ROMERO GRANADOS').toUpperCase(),
-      puesto: (ficha.puesto || 'TÉCNICO EN SEGURIDAD PRIVADA').toUpperCase(),
-      rfcTrabajador: (ficha.rfc || 'ROGN900101XXX').toUpperCase(),
-      curpTrabajador: (ficha.curp || 'ROGN900101HDFRRN01').toUpperCase(),
-      edad: ficha.edad ? `${ficha.edad} AÑOS` : '35 AÑOS',
-      domicilioTrabajador: guardia3.direccion || datosNorberto.domicilioTrabajador,
-    };
-  }
-  const cont27 = generarContenidoContrato(datosNorberto);
+// Actualizar todos los contratos de trabajo existentes en guardia_documentos
+const contratosGuardias = db.prepare(`
+  SELECT id, guardia_id FROM guardia_documentos 
+  WHERE nombre_documento = 'Contrato de Trabajo'
+`).all() as { id: number; guardia_id: number }[];
+
+console.log(`Actualizando ${contratosGuardias.length} contratos en guardia_documentos...`);
+
+for (const cd of contratosGuardias) {
+  const guardia = db.prepare(`SELECT * FROM guardias WHERE id = ?`).get(cd.guardia_id) as any;
+  if (!guardia) continue;
+  const datos = { ...DATOS_CONTRATO_DEFAULT, ...extraerDatosDeGuardia(guardia) };
+  const cont = generarContenidoContrato(datos);
   db.prepare(`
-    UPDATE protocolos
-    SET contenido = ?, actualizado_en = datetime('now')
-    WHERE id = 27
-  `).run(JSON.stringify(cont27));
-  console.log('Protocolo 27 actualizado con contenido idéntico sin portada ni índice.');
+    UPDATE guardia_documentos
+    SET contenido_json = ?, fecha_subida = datetime('now')
+    WHERE id = ?
+  `).run(JSON.stringify(cont), cd.id);
+  console.log(`Contrato de guardia ID ${guardia.id} (${guardia.nombre}) actualizado.`);
 }
 
-console.log('Finalizado con éxito.');
+// Limpiar archivos PDF cacheados
+const uploadsDir = path.join(process.cwd(), 'uploads', 'guardias');
+if (fs.existsSync(uploadsDir)) {
+  const files = fs.readdirSync(uploadsDir);
+  for (const f of files) {
+    if (f.includes('contrato') && f.endsWith('.pdf')) {
+      try {
+        fs.unlinkSync(path.join(uploadsDir, f));
+        console.log(`Eliminada caché vieja: ${f}`);
+      } catch (e) {
+        console.warn(`No se pudo eliminar ${f}:`, e);
+      }
+    }
+  }
+}
+
+console.log('Sembrado y actualización finalizados con éxito.');

@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE TABLE IF NOT EXISTS guardias (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  numero_elemento TEXT NOT NULL UNIQUE,
+  numero_elemento TEXT UNIQUE,
   nombre TEXT NOT NULL,
   estado TEXT DEFAULT 'Activo',
   fecha_alta TEXT NOT NULL,
@@ -432,6 +432,40 @@ function initDb(): DrizzleDB {
     sqlite.exec(`ALTER TABLE users ADD COLUMN role_personalizado_id INTEGER REFERENCES roles_personalizados(id);`);
   } catch (e) {
     // Column might already exist
+  }
+
+  /**
+   * numero_elemento dejó de ser obligatorio: se puede dar de alta un guardia
+   * sin folio y asignárselo después. SQLite no permite quitar un NOT NULL con
+   * ALTER TABLE, así que la tabla se reconstruye conservando los ids (muchas
+   * otras tablas los referencian) y todo el histórico. Se detecta si hace
+   * falta mirando el propio esquema, así que corre una sola vez por base.
+   */
+  try {
+    const columnas = sqlite.prepare(`PRAGMA table_info(guardias)`).all() as Array<{ name: string; notnull: number }>;
+    const numeroElementoCol = columnas.find((c) => c.name === 'numero_elemento');
+    if (numeroElementoCol && numeroElementoCol.notnull) {
+      sqlite.exec(`
+        CREATE TABLE guardias_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          numero_elemento TEXT UNIQUE,
+          nombre TEXT NOT NULL,
+          estado TEXT DEFAULT 'Activo',
+          fecha_alta TEXT NOT NULL,
+          fecha_baja TEXT,
+          telefono TEXT,
+          direccion TEXT,
+          ficha_tecnica_json TEXT
+        );
+        INSERT INTO guardias_new (id, numero_elemento, nombre, estado, fecha_alta, fecha_baja, telefono, direccion, ficha_tecnica_json)
+          SELECT id, numero_elemento, nombre, estado, fecha_alta, fecha_baja, telefono, direccion, ficha_tecnica_json FROM guardias;
+        DROP TABLE guardias;
+        ALTER TABLE guardias_new RENAME TO guardias;
+      `);
+      console.log('[migración] numero_elemento de guardias ahora admite valores nulos.');
+    }
+  } catch (err) {
+    console.error('[migración] Error liberando numero_elemento de guardias:', err);
   }
   for (const stmt of [
     `ALTER TABLE cotizaciones ADD COLUMN solicitante TEXT;`,

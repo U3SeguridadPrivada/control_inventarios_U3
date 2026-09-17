@@ -280,7 +280,16 @@ export default function MachoteFichaTecnica({
       );
 
       if (res.ficha) {
-        let f = res.ficha;
+        // El alta rápida de guardias (y cualquier ficha_tecnica_json antiguo o
+        // capturado a mano) puede traer solo un subconjunto de campos; sin
+        // completar con ESTADO_VACIO, campos como empleos (un arreglo) llegan
+        // undefined y truenan el .map() al pintar la tabla.
+        let f: FichaState = { ...ESTADO_VACIO, ...res.ficha, empleos: res.ficha.empleos?.length ? res.ficha.empleos : ESTADO_VACIO.empleos };
+        // El alta rápida guarda los datos personales y de domicilio en
+        // ficha_tecnica_json, pero el nombre y el número de elemento viven en
+        // la tabla guardias — sin esto la ficha se ve con el nombre en blanco.
+        if (!f.nombre) f.nombre = (res.guardia.nombre || '').toUpperCase();
+        if (!f.numeroElemento) f.numeroElemento = (res.guardia.numero_elemento || '').toUpperCase();
         // Si no tiene colonia ni delegación pero calleNumero viene con desglose o semicolons, desglosar
         if (!f.colonia && !f.delegacionMunicipio && f.calleNumero && (f.calleNumero.includes(';') || /,\s*col/i.test(f.calleNumero))) {
           const d = desglosarDireccion(f.calleNumero);

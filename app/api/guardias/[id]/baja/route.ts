@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       db.update(salidas).set({ estado_asignacion: 'Uniforme en Bajas' }).where(eq(salidas.id, s.id)).run();
     }
 
-    const newBaja = db.insert(bajas).values({ fecha, guardia_id: guardiaId, nombre_guardia: guardia.nombre, numero_elemento: guardia.numero_elemento, estado_general: 'Pendiente', checklist }).returning().get();
+    const newBaja = db.insert(bajas).values({ fecha, guardia_id: guardiaId, nombre_guardia: guardia.nombre, numero_elemento: guardia.numero_elemento || 'SIN FOLIO', estado_general: 'Pendiente', checklist }).returning().get();
     db.update(guardias).set({ estado: 'Baja Pendiente', fecha_baja: fecha }).where(eq(guardias.id, guardiaId)).run();
 
     return Response.json({ ...newBaja, checklist });

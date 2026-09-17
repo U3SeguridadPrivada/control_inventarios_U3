@@ -12,6 +12,7 @@ import {
   Palette,
   Highlighter,
   RemoveFormatting,
+  MoveVertical,
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
@@ -34,11 +35,22 @@ const COLORES_RESALTADO = [
 const TAMANOS_TEXTO = [
   { etiqueta: '10px (Muy pequeño)', valor: '10px' },
   { etiqueta: '11.5px (Estándar)', valor: '11.5px' },
+  { etiqueta: '12px (Normal)', valor: '12px' },
+  { etiqueta: '12.5px (Intermedio)', valor: '12.5px' },
   { etiqueta: '13px (Mediano)', valor: '13px' },
   { etiqueta: '14.5px (Destacado)', valor: '14.5px' },
   { etiqueta: '16px (Subtítulo)', valor: '16px' },
   { etiqueta: '18px (Título)', valor: '18px' },
   { etiqueta: '22px (Grande)', valor: '22px' },
+];
+
+const INTERLINEADOS = [
+  { etiqueta: '1.15 (Compacto)', valor: '1.15' },
+  { etiqueta: '1.30 (Normal)', valor: '1.3' },
+  { etiqueta: '1.42 (Estándar Contrato)', valor: '1.42' },
+  { etiqueta: '1.50 (Medio)', valor: '1.5' },
+  { etiqueta: '1.75 (Relajado)', valor: '1.75' },
+  { etiqueta: '2.00 (Doble)', valor: '2.0' },
 ];
 
 interface BarraFormatoProps {
@@ -49,6 +61,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
   const [mostrarPaletaTexto, setMostrarPaletaTexto] = useState(false);
   const [mostrarPaletaFondo, setMostrarPaletaFondo] = useState(false);
   const [mostrarTamanos, setMostrarTamanos] = useState(false);
+  const [mostrarInterlineado, setMostrarInterlineado] = useState(false);
 
   const barraRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
@@ -85,6 +98,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
     const handleClickFuera = (e: MouseEvent) => {
       if (barraRef.current && !barraRef.current.contains(e.target as Node)) {
         setMostrarTamanos(false);
+        setMostrarInterlineado(false);
         setMostrarPaletaTexto(false);
         setMostrarPaletaFondo(false);
       }
@@ -165,6 +179,59 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
       dispararCambioEnContenedor(span);
     } catch (e) {
       console.warn('No se pudo aplicar el estilo a la selección:', e);
+    }
+  };
+
+  const aplicarInterlineado = (valor: string) => {
+    let range = obtenerORestaurarSeleccion();
+    if (!range) return;
+
+    // Si no hay texto seleccionado (solo cursor en el párrafo), seleccionar todo el bloque editable
+    if (range.collapsed) {
+      let curr: Node | null = range.startContainer;
+      let editable: HTMLElement | null = null;
+      while (curr && curr !== document.body) {
+        if (curr instanceof HTMLElement && curr.isContentEditable) {
+          editable = curr;
+          break;
+        }
+        curr = curr.parentNode;
+      }
+      if (editable) {
+        const nuevoRango = document.createRange();
+        nuevoRango.selectNodeContents(editable);
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(nuevoRango);
+        }
+        savedRangeRef.current = nuevoRango;
+        range = nuevoRango;
+      }
+    }
+
+    if (!range || range.collapsed) return;
+
+    try {
+      const span = document.createElement('span');
+      span.style.setProperty('line-height', valor);
+      span.style.setProperty('display', 'inline-block');
+      span.style.setProperty('width', '100%');
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        const nuevoRango = document.createRange();
+        nuevoRango.selectNodeContents(span);
+        sel.addRange(nuevoRango);
+        savedRangeRef.current = nuevoRango.cloneRange();
+      }
+
+      dispararCambioEnContenedor(span);
+    } catch (e) {
+      console.warn('No se pudo aplicar el interlineado:', e);
     }
   };
 
@@ -249,6 +316,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
           onClick={(e) => {
             e.stopPropagation();
             setMostrarTamanos((v) => !v);
+            setMostrarInterlineado(false);
             setMostrarPaletaTexto(false);
             setMostrarPaletaFondo(false);
           }}
@@ -289,6 +357,55 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
         )}
       </div>
 
+      {/* Selector de Interlineado */}
+      <div className="relative">
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMostrarInterlineado((v) => !v);
+            setMostrarTamanos(false);
+            setMostrarPaletaTexto(false);
+            setMostrarPaletaFondo(false);
+          }}
+          title="Interlineado (Espaciado entre líneas)"
+          className={cn(
+            "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors",
+            mostrarInterlineado ? "bg-slate-800 text-teal-400" : "hover:bg-slate-800 text-slate-200"
+          )}
+        >
+          <MoveVertical className="w-3.5 h-3.5 text-teal-400" />
+          <span>Interlineado</span>
+        </button>
+
+        {mostrarInterlineado && (
+          <div
+            className="absolute top-full mt-1 left-0 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-1.5 z-50 min-w-[180px] space-y-0.5 animate-in fade-in zoom-in-95 duration-100"
+          >
+            <div className="text-[10px] text-slate-400 font-semibold px-2 py-1 uppercase tracking-wider border-b border-slate-800 mb-1">
+              Espaciado entre líneas
+            </div>
+            {INTERLINEADOS.map((item) => (
+              <button
+                key={item.valor}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  aplicarInterlineado(item.valor);
+                  setMostrarInterlineado(false);
+                }}
+                className="w-full text-left px-2 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-200 flex items-center justify-between transition-colors"
+              >
+                <span>{item.etiqueta}</span>
+                <span className="text-[10px] font-mono text-slate-500">{item.valor}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Color de Texto */}
       <div className="relative">
         <button
@@ -298,6 +415,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             e.stopPropagation();
             setMostrarPaletaTexto((v) => !v);
             setMostrarTamanos(false);
+            setMostrarInterlineado(false);
             setMostrarPaletaFondo(false);
           }}
           title="Color de texto"
@@ -346,6 +464,7 @@ export default function BarraFormatoFlotante({ visible = true }: BarraFormatoPro
             e.stopPropagation();
             setMostrarPaletaFondo((v) => !v);
             setMostrarTamanos(false);
+            setMostrarInterlineado(false);
             setMostrarPaletaTexto(false);
           }}
           title="Resaltador / Marcatextos"

@@ -35,7 +35,7 @@ export const users = sqliteTable('users', {
 
 export const guardias = sqliteTable('guardias', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  numero_elemento: text('numero_elemento').notNull().unique(),
+  numero_elemento: text('numero_elemento').unique(),
   nombre: text('nombre').notNull(),
   estado: text('estado').default('Activo'),
   fecha_alta: text('fecha_alta').notNull(),

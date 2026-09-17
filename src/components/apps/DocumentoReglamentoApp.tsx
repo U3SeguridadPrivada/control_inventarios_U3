@@ -10,7 +10,7 @@ import {
   ArrowLeft, Printer, Plus, Trash2, ArrowUp, ArrowDown,
   ZoomIn, ZoomOut, RotateCcw, Loader2, CheckCircle2,
   BookOpen, Search, ShieldCheck, ListOrdered, Building2, Pencil, Eye, X,
-  Timer, Undo2, Redo2, FilePlus2, Scissors, Copy, ChevronRight, AlertTriangle,
+  Timer, Undo2, Redo2, FilePlus2, Scissors, Copy, ChevronRight, AlertTriangle, Replace,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DOMPurify from 'isomorphic-dompurify';
@@ -33,7 +33,7 @@ const TIPOS_BLOQUE: TipoBloque[] = ['parrafo', 'subtitulo', 'lista', 'nota', 'ta
  * reglamentos. Sin esto, la columna de texto queda más ancha que la del Word y el
  * contenido se redistribuye distinto (menos saltos de línea de los que corresponden).
  */
-const MARGEN_CONTRATO = { top: 38, right: 76, bottom: 57, left: 76 };
+const MARGEN_CONTRATO = { top: 48, right: 76, bottom: 52, left: 76 };
 const PADDING_CONTRATO_CSS = `${MARGEN_CONTRATO.top}px ${MARGEN_CONTRATO.right}px ${MARGEN_CONTRATO.bottom}px ${MARGEN_CONTRATO.left}px`;
 const ANCHO_CONTENIDO_CONTRATO = ANCHO_HOJA - MARGEN_CONTRATO.left - MARGEN_CONTRATO.right;
 
@@ -86,6 +86,41 @@ function EditableText({
     }
   }, [value]);
 
+  const sincronizarDOMEnVivo = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const anchor = sel.anchorNode;
+    const parent = anchor instanceof HTMLElement ? anchor : anchor?.parentElement;
+    const spanCritico = parent?.closest?.('[data-campo], span.dato-critico') as HTMLElement | null;
+    if (!spanCritico) return;
+
+    const dataCampo = spanCritico.getAttribute('data-campo');
+    const titleAttr = spanCritico.getAttribute('title');
+    const titlePrefijo = titleAttr?.split(':')[0]?.trim();
+
+    let selector = '';
+    if (dataCampo) {
+      selector = `[data-campo="${dataCampo}"]`;
+    } else if (titlePrefijo) {
+      selector = `span.dato-critico[title^="${titlePrefijo}:"]`;
+    }
+
+    if (!selector) return;
+
+    const nuevoHtml = spanCritico.innerHTML;
+
+    try {
+      const otros = document.querySelectorAll<HTMLElement>(selector);
+      otros.forEach((el) => {
+        if (el !== spanCritico && el.innerHTML !== nuevoHtml) {
+          el.innerHTML = nuevoHtml;
+        }
+      });
+    } catch {
+      // Ignorar errores en selectores
+    }
+  }, []);
+
   const confirmar = useCallback(() => {
     // Normalizamos el contenido HTML quitando <br> huérfano al final
     const rawHtml = ref.current?.innerHTML ?? '';
@@ -96,10 +131,13 @@ function EditableText({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const handleInput = () => confirmar();
+    const handleInput = () => {
+      sincronizarDOMEnVivo();
+      confirmar();
+    };
     el.addEventListener('input', handleInput);
     return () => el.removeEventListener('input', handleInput);
-  }, [confirmar]);
+  }, [confirmar, sincronizarDOMEnVivo]);
 
   if (readOnly) {
     return (
@@ -463,8 +501,8 @@ function BloqueVistaEditable({
           readOnly={readOnly}
           placeholder="Escribe el párrafo del artículo..."
           className={cn(
-            'leading-relaxed text-justify text-slate-800 font-sans',
-            compacto ? 'text-[11.2px] leading-[1.38]' : 'text-[12px]'
+            'text-justify font-sans',
+            compacto ? 'text-[13px] leading-[1.42] text-black my-0' : 'text-[12px] leading-relaxed text-slate-800'
           )}
         />
       )}
@@ -874,6 +912,63 @@ function BloqueVistaEditable({
   );
 }
 
+/**
+ * Detecta si un campo crítico o vinculado (como nombre-trabajador, fecha-contrato, etc.)
+ * fue modificado en el bloque actual y propaga ese nuevo valor a todos los demás bloques
+ * de la sección que contengan el mismo campo vinculado.
+ */
+function sincronizarCamposVinculados(bloques: Bloque[], idxModificado: number, nuevoBloque: Bloque): Bloque[] {
+  // Solo los bloques de texto (parrafo/subtitulo/nota/firma) tienen .texto;
+  // lista/tabla/campos/salto no traen datos críticos que sincronizar.
+  if (!('texto' in nuevoBloque)) {
+    return bloques.map((item, i) => (i === idxModificado ? nuevoBloque : item));
+  }
+
+  const campoRegex = /<span\b(?=[^>]*class="[^"]*dato-critico[^"]*")[^>]*(?:data-campo="([^"]+)"|title="([^":]+):)[^>]*>([\s\S]*?)<\/span>/gi;
+
+  const cambios = new Map<string, { valor: string; titlePrefijo?: string }>();
+  let m;
+  while ((m = campoRegex.exec(nuevoBloque.texto)) !== null) {
+    const slug = (m[1] || m[2] || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').trim();
+    const titlePrefijo = m[2]?.trim();
+    const valor = m[3];
+    if (slug && valor !== undefined) {
+      cambios.set(slug, { valor, titlePrefijo });
+    }
+  }
+
+  if (cambios.size === 0) {
+    return bloques.map((item, i) => (i === idxModificado ? nuevoBloque : item));
+  }
+
+  return bloques.map((item, i) => {
+    if (i === idxModificado) return nuevoBloque;
+    if (!('texto' in item)) return item;
+    let texto = item.texto;
+    let modificado = false;
+
+    cambios.forEach(({ valor, titlePrefijo }, slug) => {
+      // Caso A: Por data-campo
+      const reData = new RegExp(`(<span\\b[^>]*data-campo="${slug}"[^>]*>)[\\s\\S]*?(<\\/span>)`, 'gi');
+      if (reData.test(texto)) {
+        texto = texto.replace(reData, `$1${valor}$2`);
+        modificado = true;
+      }
+
+      // Caso B: Por title="Nombre del trabajador: ..."
+      if (titlePrefijo) {
+        const reTitle = new RegExp(`(<span\\b(?=[^>]*class="[^"]*dato-critico[^"]*")[^>]*title="${titlePrefijo}:[^"]*"[^>]*>)[\\s\\S]*?(<\\/span>)`, 'gi');
+        if (reTitle.test(texto)) {
+          texto = texto.replace(reTitle, `$1${valor}$2`);
+          modificado = true;
+        }
+      }
+    });
+
+    return modificado ? { ...item, texto } : item;
+  });
+}
+
 function SeccionVistaEditable({
   seccion,
   onActualizar,
@@ -907,7 +1002,10 @@ function SeccionVistaEditable({
   compacto?: boolean;
 }) {
   const setBloque = (idx: number, b: Bloque) =>
-    onActualizar((s) => ({ ...s, bloques: s.bloques.map((item, i) => (i === idx ? b : item)) }));
+    onActualizar((s) => ({
+      ...s,
+      bloques: sincronizarCamposVinculados(s.bloques, idx, b),
+    }));
 
   const insertarBloque = (idx: number, tipo: TipoBloque) =>
     onActualizar((s) => {
@@ -993,7 +1091,7 @@ function SeccionVistaEditable({
       ) : null}
 
       {/* Lista de bloques de contenido de este fragmento */}
-      <div className={compacto ? "space-y-1" : "space-y-2"}>
+      <div className={compacto ? "space-y-2" : "space-y-2"}>
         {seccion.bloques.slice(desde, hasta).map((b, i) => {
           const idx = desde + i;
           return (
@@ -1058,6 +1156,11 @@ export default function DocumentoReglamentoApp({
   const [modoEdicion, setModoEdicion] = useState(true);
   const [escribiendo, setEscribiendo] = useState(false);
   const finEscrituraRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [mostrarBuscarReemplazar, setMostrarBuscarReemplazar] = useState(false);
+  const [textoBuscar, setTextoBuscar] = useState('');
+  const [textoReemplazar, setTextoReemplazar] = useState('');
+  const [coincidenciasContadas, setCoincidenciasContadas] = useState(0);
 
   const queryKey = guardiaId
     ? ['guardia-contrato', guardiaId]
@@ -1224,7 +1327,7 @@ export default function DocumentoReglamentoApp({
   const pieRef = useRef<HTMLElement>(null);
   const portadillaRef = useRef<HTMLDivElement>(null);
   const [medidas, setMedidas] = useState<Partial<MedidasDoc> | null>(null);
-  const [altoUtil, setAltoUtil] = useState(sinPortadaNiIndice ? 920 : ALTO_UTIL_HOJA);
+  const [altoUtil, setAltoUtil] = useState(sinPortadaNiIndice ? 945 : ALTO_UTIL_HOJA);
 
   useEffect(() => {
     // Mientras se escribe no se remide: el reparto está congelado de todos modos.
@@ -1269,7 +1372,7 @@ export default function DocumentoReglamentoApp({
       const nuevas: Partial<MedidasDoc> = {
         bloques,
         encabezados,
-        separacion: sinPortadaNiIndice ? 6 : 24,
+        separacion: sinPortadaNiIndice ? 3 : 24,
         // La portadilla del título solo resta espacio en la primera hoja si no es documento sin portada.
         primeraHoja: sinPortadaNiIndice ? 0 : (portadillaRef.current ? portadillaRef.current.offsetHeight + 24 : 0),
       };
@@ -1278,8 +1381,8 @@ export default function DocumentoReglamentoApp({
       // Hueco disponible entre el membrete y el pie. Se calcula restándolos de
       // la hoja y no midiendo el contenedor: ese crece con lo que se le mete y
       // el reparto se realimentaría a sí mismo hoja tras hoja.
-      const membrete = membreteRef.current ? membreteRef.current.offsetHeight + (sinPortadaNiIndice ? 4 : 24) : 0;
-      const pie = pieRef.current ? pieRef.current.offsetHeight : 0;
+      const membrete = !sinPortadaNiIndice && membreteRef.current ? membreteRef.current.offsetHeight + 24 : 0;
+      const pie = pieRef.current ? pieRef.current.offsetHeight : (sinPortadaNiIndice ? 22 : 0);
       const margenV = sinPortadaNiIndice ? MARGEN_CONTRATO.top + MARGEN_CONTRATO.bottom : MARGEN_HOJA * 2;
       const hueco = ALTO_HOJA - margenV - membrete - pie - 4;
       if (hueco > 300) setAltoUtil((prev) => (Math.abs(prev - hueco) < 1 ? prev : hueco));
@@ -1301,8 +1404,48 @@ export default function DocumentoReglamentoApp({
   }, [secciones, escribiendo, sinPortadaNiIndice]);
 
   const layout = useMemo<FragmentoLayout[][]>(
-    () =>
-      paginarFragmentos(seccionesFiltradas, altoUtil, !sinPortadaNiIndice, medidas ?? undefined).map((hoja) =>
+    () => {
+      if (sinPortadaNiIndice) {
+        // En contratos sin portada ni índice, las hojas están rigurosamente definidas
+        // por los bloques de salto de página ('salto'). Esto garantiza que la división
+        // entre la Hoja 1 (que termina en "...y previa opinión de la Comisión Mixta de")
+        // y la Hoja 2 (que empieza en "Productividad, Capacitación y Adiestramiento...")
+        // sea exactamente la misma en el visualizador y en el PDF impreso.
+        const sec = seccionesFiltradas[0];
+        if (!sec) return [];
+        const hojasContrato: FragmentoLayout[][] = [];
+        let desde = 0;
+        for (let i = 0; i < sec.bloques.length; i++) {
+          if (sec.bloques[i].tipo === 'salto') {
+            hojasContrato.push([{
+              seccionId: sec.id,
+              desde,
+              hasta: i + 1,
+              continuacion: desde > 0,
+              ultimo: false,
+            }]);
+            desde = i + 1;
+          }
+        }
+        if (desde < sec.bloques.length) {
+          hojasContrato.push([{
+            seccionId: sec.id,
+            desde,
+            hasta: sec.bloques.length,
+            continuacion: desde > 0,
+            ultimo: true,
+          }]);
+        }
+        return hojasContrato.length > 0 ? hojasContrato : [[{
+          seccionId: sec.id,
+          desde: 0,
+          hasta: sec.bloques.length,
+          continuacion: false,
+          ultimo: true,
+        }]];
+      }
+
+      return paginarFragmentos(seccionesFiltradas, altoUtil, !sinPortadaNiIndice, medidas ?? undefined).map((hoja) =>
         hoja.map((f) => ({
           seccionId: f.seccion.id,
           desde: f.desde,
@@ -1310,7 +1453,8 @@ export default function DocumentoReglamentoApp({
           continuacion: f.continuacion,
           ultimo: f.ultimo,
         }))
-      ),
+      );
+    },
     [seccionesFiltradas, altoUtil, medidas, sinPortadaNiIndice]
   );
 
@@ -1450,6 +1594,63 @@ export default function DocumentoReglamentoApp({
     ultimoRegistroRef.current = 0;
     setCambiosPendientes(true);
     sincronizarHistorial();
+  };
+
+  useEffect(() => {
+    if (!textoBuscar.trim() || !contenidoLocal) {
+      setCoincidenciasContadas(0);
+      return;
+    }
+    try {
+      const escaped = textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'gi');
+      let count = 0;
+      contenidoLocal.secciones.forEach((s) => {
+        s.bloques.forEach((b) => {
+          if ('texto' in b && b.texto) {
+            const m = b.texto.match(regex);
+            if (m) count += m.length;
+          }
+        });
+      });
+      setCoincidenciasContadas(count);
+    } catch {
+      setCoincidenciasContadas(0);
+    }
+  }, [textoBuscar, contenidoLocal]);
+
+  const ejecutarReemplazarTodos = () => {
+    if (!textoBuscar.trim()) {
+      toast.error('Ingresa el texto que deseas buscar');
+      return;
+    }
+    let totalReemplazos = 0;
+    mutarContenido((c) => {
+      const escaped = textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'gi');
+
+      const nuevasSecciones = c.secciones.map((sec) => ({
+        ...sec,
+        bloques: sec.bloques.map((b) => {
+          if (!('texto' in b) || !b.texto) return b;
+          const matches = b.texto.match(regex);
+          if (matches) {
+            totalReemplazos += matches.length;
+            return { ...b, texto: b.texto.replace(regex, textoReemplazar) };
+          }
+          return b;
+        }),
+      }));
+
+      return { ...c, secciones: nuevasSecciones };
+    });
+
+    if (totalReemplazos > 0) {
+      toast.success(`Se reemplazaron ${totalReemplazos} coincidencia(s) en todo el documento`);
+      setMostrarBuscarReemplazar(false);
+    } else {
+      toast.info('No se encontraron coincidencias para ese texto');
+    }
   };
 
   const actualizarSeccion = (id: string, fn: (s: SeccionDoc) => SeccionDoc) =>
@@ -1603,8 +1804,82 @@ export default function DocumentoReglamentoApp({
     });
   };
 
-  const handleImprimir = () => {
-    window.print();
+  const [guardandoPlantilla, setGuardandoPlantilla] = useState(false);
+  const handleGuardarComoPlantillaBase = async () => {
+    if (!contenidoLocal) return;
+    setGuardandoPlantilla(true);
+    const toastId = toast.loading('Guardando como Plantilla Base...');
+    try {
+      const limpio = limpiarContenido(contenidoLocal);
+      await apiFetch('/api/contratos/plantilla-base', {
+        method: 'POST',
+        body: JSON.stringify({ contenido: limpio }),
+      });
+      toast.success('¡Plantilla base guardada! Todos los contratos nuevos usarán este formato exacto.', { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || 'Error al guardar plantilla base', { id: toastId });
+    } finally {
+      setGuardandoPlantilla(false);
+    }
+  };
+
+  const [imprimiendoPdf, setImprimiendoPdf] = useState(false);
+
+  /**
+   * Imprimir el contrato con window.print() sobre la pantalla en vivo deja el
+   * tamaño de papel a merced de lo último que haya usado esa impresora (por
+   * ejemplo Oficio, de otra plantilla): el CSS @page es solo una sugerencia
+   * que muchos drivers ignoran al imprimir HTML directo. El PDF real
+   * generado por el servidor sí trae Carta grabada en el propio archivo
+   * (Puppeteer con format:'Letter'), así que Chrome lo respeta siempre —
+   * igual que ya se resolvió para la Ficha Técnica.
+   */
+  const handleImprimir = async () => {
+    if (!guardiaId) {
+      window.print();
+      return;
+    }
+    setImprimiendoPdf(true);
+    const toastId = toast.loading('Preparando impresión oficial...');
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : null;
+      const res = await fetch(`/api/guardias/${guardiaId}/contrato-pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!res.ok) throw new Error('Error al generar el PDF del contrato');
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          toast.success('Diálogo de impresión listo', { id: toastId });
+        } catch (printErr) {
+          console.warn('Fallback a impresión directa de la pantalla:', printErr);
+          window.print();
+        }
+        setTimeout(() => {
+          if (document.body.contains(iframe)) document.body.removeChild(iframe);
+          window.URL.revokeObjectURL(url);
+        }, 60000);
+      };
+    } catch (e: any) {
+      toast.error(e.message || 'Error al generar el PDF del contrato', { id: toastId });
+    } finally {
+      setImprimiendoPdf(false);
+    }
   };
 
   const canEdit = isEditor || isAdmin;
@@ -1733,6 +2008,7 @@ export default function DocumentoReglamentoApp({
       opciones: [
         { id: 'deshacer', etiqueta: 'Deshacer', icono: Undo2, atajo: 'Ctrl+Z', deshabilitado: !puedeDeshacer, onClick: deshacer },
         { id: 'rehacer', etiqueta: 'Rehacer', icono: Redo2, atajo: 'Ctrl+Y', deshabilitado: !puedeRehacer, onClick: rehacer },
+        { id: 'reemplazar', etiqueta: 'Buscar y reemplazar', icono: Replace, atajo: 'Ctrl+H', onClick: () => setMostrarBuscarReemplazar(true) },
         {
           id: 'guardar',
           etiqueta: 'Guardar cambios',
@@ -1774,6 +2050,9 @@ export default function DocumentoReglamentoApp({
       } else if (tecla === 'y' || (tecla === 'z' && e.shiftKey)) {
         e.preventDefault();
         rehacer();
+      } else if (tecla === 'h') {
+        e.preventDefault();
+        setMostrarBuscarReemplazar((v) => !v);
       } else if (tecla === 's') {
         e.preventDefault();
         if (cambiosPendientes && !updateMutation.isPending) handleGuardar();
@@ -2041,8 +2320,13 @@ export default function DocumentoReglamentoApp({
           )}
 
           {/* Botón Imprimir / PDF */}
-          <Button onClick={handleImprimir} variant="outline" size="sm" className="h-8 text-xs font-semibold">
-            <Printer className="w-3.5 h-3.5 mr-1.5" /> Imprimir / PDF
+          <Button onClick={handleImprimir} disabled={imprimiendoPdf} variant="outline" size="sm" className="h-8 text-xs font-semibold">
+            {imprimiendoPdf ? (
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Printer className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            {imprimiendoPdf ? 'Generando...' : 'Imprimir / PDF'}
           </Button>
 
           {/* Acceso directo al Checador de Salidas de 10 min (solo en reglamento) */}
@@ -2057,6 +2341,19 @@ export default function DocumentoReglamentoApp({
                 <Timer className="w-3.5 h-3.5 mr-1.5 text-amber-600 dark:text-amber-400" /> Checador (10 min)
               </Button>
             </Link>
+          )}
+
+          {/* Buscar y reemplazar en todo el documento */}
+          {canEdit && (
+            <Button
+              onClick={() => setMostrarBuscarReemplazar(true)}
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
+              title="Buscar y reemplazar texto en todas las hojas (Ctrl+H)"
+            >
+              <Replace className="w-3.5 h-3.5 mr-1.5 text-blue-600" /> Reemplazar
+            </Button>
           )}
 
           {/* Guardar cambios (si es editor/admin) */}
@@ -2080,6 +2377,25 @@ export default function DocumentoReglamentoApp({
               )}
             </Button>
           )}
+
+          {/* Guardar distribución actual como Plantilla Maestra oficial para todos los contratos */}
+          {canEdit && sinPortadaNiIndice && (
+            <Button
+              onClick={handleGuardarComoPlantillaBase}
+              disabled={guardandoPlantilla}
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-semibold border-blue-300 text-blue-800 bg-blue-50/70 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300 dark:bg-blue-950/40"
+              title="Guarda el orden de cláusulas, saltos de página y redacción como la plantilla oficial"
+            >
+              {guardandoPlantilla ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <BookOpen className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+              )}
+              Usar como Plantilla Base
+            </Button>
+          )}
         </div>
       </div>
 
@@ -2092,14 +2408,16 @@ export default function DocumentoReglamentoApp({
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
             </span>
             <p className="leading-relaxed">
-              <strong className="font-semibold text-amber-950 dark:text-amber-100">Modo Verificación de Expediente:</strong> Los datos personales y legales críticos (nombre, RFC, CURP, domicilio, puesto, salario, beneficiario) se muestran resaltados en <span className="inline-block bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-bold border border-amber-400/60">color ámbar</span> para comprobar si están correctos. <span className="font-semibold underline decoration-amber-500">Este color ámbar no se imprime</span> ni saldrá en el PDF oficial.
+              <strong className="font-semibold text-amber-950 dark:text-amber-100">Editor Activo de Contrato:</strong> Haz clic directamente sobre cualquier texto, cláusula o título para editarlo. Los campos en <span className="inline-block bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-bold border border-amber-400/60">color ámbar</span> destacan los datos críticos para evitar errores (este color ámbar se oculta automáticamente en la impresión y el PDF oficial).
             </p>
           </div>
           <span className="shrink-0 text-[11px] font-medium text-amber-800 dark:text-amber-300 bg-amber-200/60 dark:bg-amber-900/40 px-2.5 py-1 rounded-md border border-amber-300 dark:border-amber-700/50">
-            {guardiaId ? 'Guardado en Expediente Digital' : 'Expediente RH'}
+            {guardiaId ? 'Contrato de Expediente' : 'Plantilla Maestra'}
           </span>
         </div>
       )}
+
+
 
       {/* Banner informativo de política de salidas de 10 minutos (solo en reglamento) */}
       {esReglamento && (
@@ -2413,55 +2731,48 @@ export default function DocumentoReglamentoApp({
                   className="hoja-carta bg-white text-slate-900 shadow-xl rounded-none relative flex flex-col justify-between border border-slate-200 shrink-0 box-border"
                   style={{
                     width: ANCHO_HOJA,
-                    minHeight: ALTO_HOJA,
+                    height: sinPortadaNiIndice ? 1056 : undefined,
+                    minHeight: sinPortadaNiIndice ? 1056 : ALTO_HOJA,
+                    maxHeight: sinPortadaNiIndice ? 1056 : undefined,
+                    overflow: sinPortadaNiIndice ? 'hidden' : undefined,
                     padding: sinPortadaNiIndice ? PADDING_CONTRATO_CSS : MARGEN_HOJA,
-                    fontFamily: sinPortadaNiIndice ? '"Arial Nova", Arial, sans-serif' : 'Inter, system-ui, -apple-system, sans-serif',
+                    fontFamily: sinPortadaNiIndice ? 'Arial, "Helvetica Neue", Helvetica, sans-serif' : 'Inter, system-ui, -apple-system, sans-serif',
                   }}
                 >
-                  {/* Membrete Oficial Superior */}
-                  <header
-                    ref={hojaIdx === 0 ? membreteRef : undefined}
-                    className={cn(
-                      sinPortadaNiIndice
-                        ? "flex items-center justify-end pb-1 mb-3 text-right shrink-0"
-                        : "border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between shrink-0"
-                    )}
-                  >
-                    {sinPortadaNiIndice ? (
-                      <span className="text-[11px] font-sans text-slate-700 font-normal">
-                        Hoja: {hojaIdx + 1}
-                      </span>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={COMPANY.logoPublicPath || '/logo_b.png'}
-                            alt={COMPANY.razonSocial}
-                            className="w-12 h-12 object-contain"
-                          />
-                          <div>
-                            <div className="text-[13px] font-extrabold tracking-wider text-[#0f172a] uppercase">
-                              {COMPANY.razonSocial}
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-medium tracking-tight">
-                              Seguridad Patrimonial · Custodia · Control Operativo
-                            </div>
+                  {/* Membrete Oficial Superior (solo en reglamentos con portada/índice) */}
+                  {!sinPortadaNiIndice && (
+                    <header
+                      ref={hojaIdx === 0 ? membreteRef : undefined}
+                      className="border-b-2 border-slate-900 pb-3 mb-6 flex items-center justify-between shrink-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={COMPANY.logoPublicPath || '/logo_b.png'}
+                          alt={COMPANY.razonSocial}
+                          className="w-12 h-12 object-contain"
+                        />
+                        <div>
+                          <div className="text-[13px] font-extrabold tracking-wider text-[#0f172a] uppercase">
+                            {COMPANY.razonSocial}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-medium tracking-tight">
+                            Seguridad Patrimonial · Custodia · Control Operativo
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-[10.5px] font-bold text-blue-900 uppercase tracking-wider">
-                            {esReglamento ? `Reglamento Normativo · ${ambitoMeta.etiqueta}` : (registro.categoria || 'Normativa Oficial')}
-                          </div>
-                          <div className="text-[9.5px] text-slate-500 font-mono">
-                            CÓDIGO: {codigoDocumento}
-                          </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10.5px] font-bold text-blue-900 uppercase tracking-wider">
+                          {esReglamento ? `Reglamento Normativo · ${ambitoMeta.etiqueta}` : (registro.categoria || 'Normativa Oficial')}
                         </div>
-                      </>
-                    )}
-                  </header>
+                        <div className="text-[9.5px] text-slate-500 font-mono">
+                          CÓDIGO: {codigoDocumento}
+                        </div>
+                      </div>
+                    </header>
+                  )}
 
                   {/* Contenido de la hoja */}
-                  <div className="hoja-contenido flex-1 space-y-6">
+                  <div className={cn("hoja-contenido flex-1", sinPortadaNiIndice ? "space-y-0" : "space-y-6")}>
                     {!sinPortadaNiIndice && hojaIdx === 0 && (
                       <div ref={portadillaRef} className="text-center pb-4 mb-4 border-b border-slate-200">
                         <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight uppercase">
@@ -2562,8 +2873,10 @@ export default function DocumentoReglamentoApp({
                   {sinPortadaNiIndice ? (
                     <footer
                       ref={hojaIdx === 0 ? pieRef : undefined}
-                      className="h-2 mt-auto shrink-0 print:hidden"
-                    />
+                      className="hoja-footer absolute bottom-5 left-0 right-0 text-center text-[11px] text-slate-500 font-sans w-full select-none pointer-events-none z-10 print:bottom-6"
+                    >
+                      Hoja: {hojaIdx + 1}
+                    </footer>
                   ) : (
                     <footer
                       ref={hojaIdx === 0 ? pieRef : undefined}
@@ -2587,6 +2900,78 @@ export default function DocumentoReglamentoApp({
       {confirmacion && (
         <DialogoConfirmar datos={confirmacion} onCerrar={() => setConfirmacion(null)} />
       )}
+
+      {/* Modal Buscar y Reemplazar en todo el documento */}
+      <Dialog open={mostrarBuscarReemplazar} onOpenChange={setMostrarBuscarReemplazar}>
+        <div className="p-4 sm:p-6 space-y-4 font-sans">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600">
+                <Replace className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-foreground">
+                  Buscar y reemplazar en todo el documento
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Reemplaza el nombre del trabajador, fecha o cualquier dato en todas las hojas simultáneamente.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-3 pt-1">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Texto a buscar:
+              </label>
+              <input
+                type="text"
+                value={textoBuscar}
+                onChange={(e) => setTextoBuscar(e.target.value)}
+                placeholder="Ej. ISRAEL MONROY SAN MARTIN o fecha..."
+                className="w-full px-3 py-1.5 text-xs sm:text-sm border border-border rounded-lg bg-background focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                autoFocus
+              />
+              {textoBuscar.trim() && (
+                <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
+                  <span>Coincidencias encontradas:</span>
+                  <strong className={coincidenciasContadas > 0 ? "text-blue-600 font-bold" : "text-amber-600 font-semibold"}>
+                    {coincidenciasContadas}
+                  </strong>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Reemplazar por:
+              </label>
+              <input
+                type="text"
+                value={textoReemplazar}
+                onChange={(e) => setTextoReemplazar(e.target.value)}
+                placeholder="Ej. JUAN PÉREZ GARCÍA..."
+                className="w-full px-3 py-1.5 text-xs sm:text-sm border border-border rounded-lg bg-background focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2 flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setMostrarBuscarReemplazar(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={ejecutarReemplazarTodos}
+              disabled={!textoBuscar.trim() || coincidenciasContadas === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+            >
+              Reemplazar todos ({coincidenciasContadas})
+            </Button>
+          </DialogFooter>
+        </div>
+      </Dialog>
 
       {menuCtx && (
         <MenuContextual

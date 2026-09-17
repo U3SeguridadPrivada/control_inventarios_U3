@@ -127,6 +127,18 @@ function imprimirExpediente(guardia: any, salidas: any[], entradas: any[]) {
   win.addEventListener('load', () => { win.focus(); win.print(); setTimeout(() => URL.revokeObjectURL(url), 2000); });
 }
 
+/**
+ * Añade la unidad a un valor de la ficha técnica sin duplicarla: como el
+ * campo es texto libre, alguien puede haber capturado "1.82 m" o "84.5 kg"
+ * directamente ahí, así que primero se quita cualquier unidad que ya traiga
+ * el valor (en cualquier variante) antes de anexar la canónica.
+ */
+function conUnidad(valor: string | undefined | null, patronUnidad: RegExp, unidad: string): string {
+  if (!valor) return '—';
+  const limpio = valor.replace(patronUnidad, '').trim();
+  return limpio ? `${limpio} ${unidad}` : '—';
+}
+
 export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialTab }: Props) {
   const router = useRouter();
   const { user, isEditor } = useAuth();
@@ -358,6 +370,21 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
     });
   };
 
+  // Abrir el Contrato Laboral en el Visualizador PDF (mismo mecanismo que la
+  // ficha técnica: el contrato vive como JSON en el expediente, así que el
+  // PDF real se genera al vuelo en /api/guardias/[id]/contrato-pdf).
+  const abrirVisorContrato = () => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ modal: 'visor' }, '', `${window.location.pathname}#visor-contrato`);
+    }
+    const url = `/api/guardias/${id}/contrato-pdf?inline=true${authToken ? `&token=${authToken}` : ''}`;
+    setViewerDoc({
+      title: `Contrato de Trabajo — ${guardia?.nombre} (${guardia?.numero_elemento})`,
+      url,
+      downloadName: `contrato_${guardia?.numero_elemento || guardia?.nombre}.pdf`,
+    });
+  };
+
   // Abrir Documento en el Visualizador PDF
   const abrirVisorDocumento = (doc: any) => {
     if (typeof window !== 'undefined') {
@@ -372,7 +399,7 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
   };
 
   const cerrarVisorDoc = () => {
-    if (typeof window !== 'undefined' && (window.location.hash === '#visor-pdf' || window.location.hash === '#visor-doc')) {
+    if (typeof window !== 'undefined' && (window.location.hash === '#visor-pdf' || window.location.hash === '#visor-doc' || window.location.hash === '#visor-contrato')) {
       window.history.back();
     }
     setViewerDoc(null);
@@ -645,7 +672,7 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                 </div>
                 <div className="p-2 rounded bg-muted/20 border border-border/40">
                   <span className="text-muted-foreground block text-[11px]">Edad:</span>
-                  <span className="font-semibold text-foreground">{fichaData.edad ? `${fichaData.edad} años` : '—'}</span>
+                  <span className="font-semibold text-foreground">{conUnidad(fichaData.edad, /\s*años?\.?\s*$/i, 'años')}</span>
                 </div>
                 <div className="p-2 rounded bg-muted/20 border border-border/40">
                   <span className="text-muted-foreground block text-[11px]">F. Nacimiento:</span>
@@ -657,11 +684,11 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                 </div>
                 <div className="p-2 rounded bg-muted/20 border border-border/40">
                   <span className="text-muted-foreground block text-[11px]">Estatura:</span>
-                  <span className="font-semibold text-foreground">{fichaData.estatura ? `${fichaData.estatura} m` : '—'}</span>
+                  <span className="font-semibold text-foreground">{conUnidad(fichaData.estatura, /\s*m(?:ts?|etros?)?\.?\s*$/i, 'm')}</span>
                 </div>
                 <div className="p-2 rounded bg-muted/20 border border-border/40">
                   <span className="text-muted-foreground block text-[11px]">Peso:</span>
-                  <span className="font-semibold text-foreground">{fichaData.peso ? `${fichaData.peso} kg` : '—'}</span>
+                  <span className="font-semibold text-foreground">{conUnidad(fichaData.peso, /\s*k(?:g|ilos?)\.?\s*$/i, 'kg')}</span>
                 </div>
               </div>
             ) : (
@@ -909,13 +936,13 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                       <div
                         onClick={() => {
                           if (isContrato) {
-                            router.push(`/guardias/${guardia.id}/contrato`);
+                            abrirVisorContrato();
                           } else {
                             abrirVisorDocumento(doc);
                           }
                         }}
                         className="flex items-center gap-2.5 overflow-hidden cursor-pointer flex-1"
-                        title={isContrato ? 'Haga clic para ver o editar el contrato en hojas oficiales' : 'Haga clic para ver este papel en el visualizador'}
+                        title="Haga clic para ver este papel en el visualizador"
                       >
                         <div className={`p-2 rounded-lg ${isContrato ? 'bg-amber-500/10 text-amber-600' : isPdf ? 'bg-red-500/10 text-red-600' : 'bg-blue-500/10 text-blue-600'}`}>
                           <FileText className="w-4 h-4" />
@@ -933,14 +960,14 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                            className="h-7 w-7 p-0 text-primary hover:bg-primary/10"
                             onClick={(e) => {
                               e.stopPropagation();
-                              router.push(`/guardias/${guardia.id}/contrato`);
+                              abrirVisorContrato();
                             }}
-                            title="Editar contrato laboral en hojas oficiales"
+                            title="Ver el contrato en el visualizador"
                           >
-                            <Pencil className="w-3.5 h-3.5" />
+                            <Eye className="w-3.5 h-3.5" />
                           </Button>
                         ) : (
                           <Button
@@ -951,6 +978,20 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
                             title="Abrir en visualizador"
                           >
                             <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                        {isContrato && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/guardias/${guardia.id}/contrato`);
+                            }}
+                            title="Editar contrato laboral en hojas oficiales"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
                           </Button>
                         )}
                         {isFicha && (

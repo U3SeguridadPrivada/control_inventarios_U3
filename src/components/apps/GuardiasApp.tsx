@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
+import { MESES } from '@/src/components/ui/rango-fechas';
 import { Badge } from '@/src/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
 import {
@@ -40,7 +41,7 @@ import {
   ChevronRight,
   Maximize2
 } from 'lucide-react';
-import { fmtDate } from '@/src/lib/utils';
+import { fmtDate, cn } from '@/src/lib/utils';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
 import MachoteFichaTecnica from '@/src/components/machotes/MachoteFichaTecnica';
@@ -228,6 +229,30 @@ function MenuContextualGuardia({
   );
 }
 
+/** Campo de una sola línea para el alta rápida: label diminuto + input bajo,
+ *  pensado para que quepan muchos en una cuadrícula sin forzar scroll. */
+function CampoCompacto({
+  label, value, onChange, placeholder, className,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn('space-y-0.5', className)}>
+      <label className="text-[11px] font-semibold text-muted-foreground truncate block">{label}</label>
+      <Input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="rounded-lg h-9"
+      />
+    </div>
+  );
+}
+
 export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: number } = {}) {
   const { isEditor, isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -254,7 +279,26 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
   const [nombre, setNombre] = useState('');
   const [fechaAlta, setFechaAlta] = useState(new Date().toISOString().split('T')[0]);
   const [telefono, setTelefono] = useState('');
-  const [direccion, setDireccion] = useState('');
+
+  // Datos personales y domicilio del alta rápida: mismas llaves que la Ficha
+  // Técnica oficial, para que al abrirla después ya vengan precargados.
+  const FICHA_EXTRA_VACIA = {
+    fechaNacimiento: '', edad: '', estadoCivil: '', estudios: '', rfc: '', curp: '', imss: '',
+    sexo: '', estatura: '', peso: '',
+    calleNumero: '', colonia: '', entreCalles: '', cp: '', delegacionMunicipio: '', estado: '',
+    tiempoResidencia: '', tiempoRadicarEstado: '', telefonoEmergencia: '', celular: '',
+  };
+  const [fichaExtra, setFichaExtra] = useState(FICHA_EXTRA_VACIA);
+  const actualizarFichaExtra = (campo: keyof typeof FICHA_EXTRA_VACIA, valor: string) =>
+    setFichaExtra((f) => ({ ...f, [campo]: valor }));
+
+  // Fecha de nacimiento con el mes en letra ("15 de marzo de 1998"): un
+  // calendario emergente es incómodo para saltar décadas atrás, así que se
+  // captura como tres campos sueltos y se compone al guardar.
+  const [diaNac, setDiaNac] = useState('');
+  const [mesNac, setMesNac] = useState('');
+  const [anioNac, setAnioNac] = useState('');
+  const fechaNacimientoTexto = diaNac && mesNac && anioNac ? `${diaNac} de ${mesNac} de ${anioNac}` : '';
 
   // Selected Guardia & Baja States
   const [selectedGuardia, setSelectedGuardia] = useState<any>(null);
@@ -286,7 +330,10 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
       setNumeroElemento('');
       setNombre('');
       setTelefono('');
-      setDireccion('');
+      setFichaExtra(FICHA_EXTRA_VACIA);
+      setDiaNac('');
+      setMesNac('');
+      setAnioNac('');
     },
     onError: () => toast.error('Error al registrar (¿Número duplicado?)'),
   });
@@ -563,7 +610,7 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                            {item.numero_elemento}
+                            {item.numero_elemento || 'Sin folio'}
                           </span>
                         </div>
                         <h2
@@ -717,7 +764,7 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
                 return (
                   <TableRow key={item.id} onContextMenu={(e) => abrirMenuContextual(e, item)} className="hover:bg-muted/30">
                     <TableCell className="font-mono font-bold text-primary">
-                      {item.numero_elemento}
+                      {item.numero_elemento || 'Sin folio'}
                     </TableCell>
                     <TableCell>
                       <div
@@ -818,8 +865,8 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
 
 
       {/* ================= MODAL REGISTRAR NUEVO GUARDIA ================= */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="rounded-2xl max-w-lg">
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen} className="max-w-6xl">
+        <DialogContent className="rounded-2xl">
           <form
             onSubmit={e => {
               e.preventDefault();
@@ -828,7 +875,8 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
                 nombre,
                 fecha_alta: fechaAlta,
                 telefono,
-                direccion,
+                ...fichaExtra,
+                fechaNacimiento: fechaNacimientoTexto,
               });
             }}
           >
@@ -841,54 +889,112 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid gap-4 py-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Número de Elemento</label>
-                <Input
-                  value={numeroElemento}
-                  onChange={e => setNumeroElemento(e.target.value)}
-                  placeholder="Ej. ELEM-001"
-                  required
-                  className="rounded-xl"
-                />
+            <div className="py-3 space-y-3">
+              {/* ---------- Datos básicos ---------- */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="space-y-0.5 col-span-2">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Nombre Completo</label>
+                  <Input
+                    value={nombre}
+                    onChange={e => setNombre(e.target.value)}
+                    placeholder="Nombre y apellidos"
+                    required
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">No. Elemento (opcional)</label>
+                  <Input
+                    value={numeroElemento}
+                    onChange={e => setNumeroElemento(e.target.value)}
+                    placeholder="Asignable después"
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Fecha de Alta</label>
+                  <Input
+                    type="date"
+                    value={fechaAlta}
+                    onChange={e => setFechaAlta(e.target.value)}
+                    required
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5 col-span-2 sm:col-span-1">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Teléfono de Contacto</label>
+                  <Input
+                    value={telefono}
+                    onChange={e => setTelefono(e.target.value)}
+                    placeholder="Ej. 5512345678"
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5 col-span-2">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Fecha de Nacimiento</label>
+                  <div className="grid grid-cols-[1fr_1.6fr_1fr] gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={diaNac}
+                      onChange={e => setDiaNac(e.target.value)}
+                      placeholder="Día"
+                      className="rounded-lg h-9"
+                    />
+                    <select
+                      value={mesNac}
+                      onChange={e => setMesNac(e.target.value)}
+                      className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+                    >
+                      <option value="">Mes</option>
+                      {MESES.map((m) => (
+                        <option key={m} value={m} className="capitalize">{m}</option>
+                      ))}
+                    </select>
+                    <Input
+                      type="number"
+                      min={1940}
+                      max={new Date().getFullYear()}
+                      value={anioNac}
+                      onChange={e => setAnioNac(e.target.value)}
+                      placeholder="Año"
+                      className="rounded-lg h-9"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Nombre Completo</label>
-                <Input
-                  value={nombre}
-                  onChange={e => setNombre(e.target.value)}
-                  placeholder="Nombre y apellidos del guardia"
-                  required
-                  className="rounded-xl"
-                />
+
+              {/* ---------- Datos Personales y Domicilio: una sola cuadrícula compacta ---------- */}
+              <div className="pt-2 border-t border-border">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Datos Personales</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <CampoCompacto label="Edad" value={fichaExtra.edad} onChange={v => actualizarFichaExtra('edad', v)} placeholder="Ej. 35" />
+                  <CampoCompacto label="Sexo" value={fichaExtra.sexo} onChange={v => actualizarFichaExtra('sexo', v)} placeholder="Masculino / Femenino" />
+                  <CampoCompacto label="Estado Civil" value={fichaExtra.estadoCivil} onChange={v => actualizarFichaExtra('estadoCivil', v)} placeholder="Soltero / Casado" />
+                  <CampoCompacto label="Estudios" value={fichaExtra.estudios} onChange={v => actualizarFichaExtra('estudios', v)} placeholder="Nivel académico" />
+                  <CampoCompacto label="RFC" value={fichaExtra.rfc} onChange={v => actualizarFichaExtra('rfc', v.toUpperCase())} placeholder="13 posiciones" className="uppercase" />
+                  <CampoCompacto label="CURP" value={fichaExtra.curp} onChange={v => actualizarFichaExtra('curp', v.toUpperCase())} placeholder="18 posiciones" className="uppercase" />
+                  <CampoCompacto label="Afiliación IMSS" value={fichaExtra.imss} onChange={v => actualizarFichaExtra('imss', v)} placeholder="NSS 11 dígitos" />
+                  <CampoCompacto label="Estatura" value={fichaExtra.estatura} onChange={v => actualizarFichaExtra('estatura', v)} placeholder="Ej. 1.75 m" />
+                  <CampoCompacto label="Peso Aproximado" value={fichaExtra.peso} onChange={v => actualizarFichaExtra('peso', v)} placeholder="Ej. 78 kg" />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
-                <Input
-                  type="date"
-                  value={fechaAlta}
-                  onChange={e => setFechaAlta(e.target.value)}
-                  required
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Teléfono de Contacto</label>
-                <Input
-                  value={telefono}
-                  onChange={e => setTelefono(e.target.value)}
-                  placeholder="Ej. 5512345678"
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Dirección de Domicilio</label>
-                <Input
-                  value={direccion}
-                  onChange={e => setDireccion(e.target.value)}
-                  placeholder="Calle, Número, Colonia, Alcaldía o Municipio"
-                  className="rounded-xl"
-                />
+
+              <div className="pt-2 border-t border-border">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Domicilio</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <CampoCompacto label="Calle y Número" value={fichaExtra.calleNumero} onChange={v => actualizarFichaExtra('calleNumero', v)} placeholder="Calle, no. ext. e int." className="col-span-2" />
+                  <CampoCompacto label="Colonia" value={fichaExtra.colonia} onChange={v => actualizarFichaExtra('colonia', v)} placeholder="Colonia / fracc." />
+                  <CampoCompacto label="C.P." value={fichaExtra.cp} onChange={v => actualizarFichaExtra('cp', v)} placeholder="Código postal" />
+                  <CampoCompacto label="Entre las Calles" value={fichaExtra.entreCalles} onChange={v => actualizarFichaExtra('entreCalles', v)} placeholder="Calles aledañas" className="col-span-2" />
+                  <CampoCompacto label="Delegación / Municipio" value={fichaExtra.delegacionMunicipio} onChange={v => actualizarFichaExtra('delegacionMunicipio', v)} placeholder="Alcaldía o municipio" />
+                  <CampoCompacto label="Estado" value={fichaExtra.estado} onChange={v => actualizarFichaExtra('estado', v)} placeholder="Estado de México / CDMX" />
+                  <CampoCompacto label="Tiempo de Residencia" value={fichaExtra.tiempoResidencia} onChange={v => actualizarFichaExtra('tiempoResidencia', v)} placeholder="Ej. 5 años" />
+                  <CampoCompacto label="Tiempo de Radicar en el Estado" value={fichaExtra.tiempoRadicarEstado} onChange={v => actualizarFichaExtra('tiempoRadicarEstado', v)} placeholder="Ej. 10 años" />
+                  <CampoCompacto label="Teléfono de Emergencia" value={fichaExtra.telefonoEmergencia} onChange={v => actualizarFichaExtra('telefonoEmergencia', v)} placeholder="Contacto familiar" />
+                  <CampoCompacto label="Celular" value={fichaExtra.celular} onChange={v => actualizarFichaExtra('celular', v)} placeholder="10 dígitos" />
+                </div>
               </div>
             </div>
 

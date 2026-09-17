@@ -3,7 +3,23 @@ import { db } from '@/src/db';
 import { guardias, guardia_documentos, guardia_bitacora } from '@/src/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { verifyAuth, unauthorized, forbidden } from '@/src/lib/auth';
-import { extraerDatosDeGuardia, generarContenidoContrato } from '@/src/lib/generadorContrato';
+import { extraerDatosDeGuardia } from '@/src/lib/generadorContrato';
+import { construirContratoParaGuardia } from '@/src/lib/contratoPlantilla';
+import { CONTRATO_TEMPLATE_VERSION } from '@/src/lib/contratoHtml';
+import fs from 'fs';
+import path from 'path';
+
+/** El PDF del contrato queda cacheado en disco; si el contenido cambia hay
+ *  que tirar esa caché para que el próximo "ver"/"descargar" regenere el
+ *  PDF con los datos nuevos en vez de servir la versión vieja. */
+function invalidarPdfCacheado(guardiaId: number) {
+  try {
+    const cachedFilePath = path.join(process.cwd(), 'uploads', 'guardias', `${guardiaId}-contrato-${CONTRATO_TEMPLATE_VERSION}.pdf`);
+    if (fs.existsSync(cachedFilePath)) fs.unlinkSync(cachedFilePath);
+  } catch (e) {
+    console.warn('No se pudo invalidar el contrato PDF cacheado:', e);
+  }
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!verifyAuth(req)) return unauthorized();
@@ -37,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // Si no existe aún o no tenía contenido_json, generarlo automáticamente a partir de sus datos
   if (!contenido) {
     const datosGuardia = extraerDatosDeGuardia(guardia);
-    contenido = generarContenidoContrato(datosGuardia);
+    contenido = construirContratoParaGuardia(datosGuardia);
 
     if (docExistente) {
       db.update(guardia_documentos)
@@ -141,6 +157,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         .get();
       docId = nuevo.id;
     }
+
+    invalidarPdfCacheado(guardiaId);
 
     // Registrar en bitácora del guardia
     try {

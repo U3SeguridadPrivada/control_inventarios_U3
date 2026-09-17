@@ -364,7 +364,7 @@ export function generateFichaTecnicaHtml(data: FichaTecnicaData): string {
       position: absolute;
       left: 3mm;
       right: 3mm;
-      bottom: 2mm;
+      bottom: -13mm;
     }
 
     /* Fecha al calce */
