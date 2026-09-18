@@ -4,6 +4,7 @@ import { apiFetch } from '@/src/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
+import { PasswordInput } from '@/src/components/ui/password-input';
 import { Select } from '@/src/components/ui/select';
 import { Settings, Landmark, Mail, UserCircle, Lock, Send, Bot, Smartphone, Download, Bell, BellOff, CheckCircle2 } from 'lucide-react';
 import { Textarea } from '@/src/components/ui/textarea';
@@ -53,7 +54,7 @@ function LibroConfigCard({ libro, usuarios, onGuardar, guardando }: { libro: Lib
           <Input value={form.imap_host} onChange={(e) => setForm((f) => ({ ...f, imap_host: e.target.value }))} placeholder="Servidor (imap.dominio.com)" />
           <Input type="number" value={form.imap_puerto} onChange={(e) => setForm((f) => ({ ...f, imap_puerto: e.target.value }))} placeholder="993" />
         </div>
-        <Input type="password" value={form.imap_password} onChange={(e) => setForm((f) => ({ ...f, imap_password: e.target.value }))} placeholder={libro.imap_tiene_password ? 'Contraseña guardada — escribe para cambiarla' : 'Contraseña'} autoComplete="new-password" />
+        <PasswordInput value={form.imap_password} onChange={(e) => setForm((f) => ({ ...f, imap_password: e.target.value }))} placeholder={libro.imap_tiene_password ? 'Contraseña guardada — escribe para cambiarla' : 'Contraseña'} autoComplete="new-password" />
         <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
           <input type="checkbox" checked={form.imap_ssl} onChange={(e) => setForm((f) => ({ ...f, imap_ssl: e.target.checked }))} className="rounded border-border" /> Usar SSL/TLS
         </label>
@@ -120,7 +121,7 @@ function SmtpConfigCard() {
         </div>
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Contraseña</label>
-          <Input type="password" value={form.smtp_password} onChange={(e) => setForm((f) => ({ ...f, smtp_password: e.target.value }))} placeholder={config?.tiene_password ? 'Contraseña guardada — escribe para cambiarla' : 'Contraseña'} autoComplete="new-password" />
+          <PasswordInput value={form.smtp_password} onChange={(e) => setForm((f) => ({ ...f, smtp_password: e.target.value }))} placeholder={config?.tiene_password ? 'Contraseña guardada — escribe para cambiarla' : 'Contraseña'} autoComplete="new-password" />
         </div>
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Nombre del remitente</label>

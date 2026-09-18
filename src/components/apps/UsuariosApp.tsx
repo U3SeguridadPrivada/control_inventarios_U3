@@ -6,6 +6,7 @@ import { useAuth } from '@/src/context/AuthContext';
 import { apiFetch } from '@/src/lib/api';
 import { UserPlus, Trash2, Shield, Eye, Edit3, KeyRound, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { PasswordInput } from '@/src/components/ui/password-input';
 
 interface User { id: number; username: string; email: string; role: string; role_personalizado_id: number | null; created_at: string; }
 interface RolPersonalizado { id: number; nombre: string; }
@@ -25,7 +26,6 @@ export default function UsuariosApp() {
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
   const [pwModal, setPwModal] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
 
   const { data: users = [], isLoading } = useQuery({ queryKey: ['users'], queryFn: () => apiFetch<User[]>('/api/auth/users'), enabled: isAdmin });
   const { data: rolesPersonalizados = [] } = useQuery({ queryKey: ['roles'], queryFn: () => apiFetch<RolPersonalizado[]>('/api/roles'), enabled: isAdmin });
@@ -80,7 +80,7 @@ export default function UsuariosApp() {
                       </div>
                     </td>
                     <td className="px-5 py-4"><div className="flex items-center justify-end gap-2">
-                      <button onClick={() => { setPwModal(u); setNewPassword(''); setShowPw(false); }} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted px-3 py-1.5 rounded-lg transition"><KeyRound className="w-3.5 h-3.5" />Cambiar contraseña</button>
+                      <button onClick={() => { setPwModal(u); setNewPassword(''); }} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted px-3 py-1.5 rounded-lg transition"><KeyRound className="w-3.5 h-3.5" />Cambiar contraseña</button>
                       {!isMe && <button onClick={() => setConfirmDelete(u)} className="inline-flex items-center gap-1.5 text-xs text-destructive hover:bg-destructive/10 px-3 py-1.5 rounded-lg transition"><Trash2 className="w-3.5 h-3.5" />Eliminar</button>}
                     </div></td>
                   </tr>
@@ -95,7 +95,7 @@ export default function UsuariosApp() {
           <div className="bg-card border border-border rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center justify-between mb-4"><div><h2 className="text-base font-bold">Cambiar contraseña</h2><p className="text-xs text-muted-foreground mt-0.5">Usuario: <span className="font-semibold text-foreground">{pwModal.username}</span></p></div><button onClick={() => setPwModal(null)} className="p-1.5 hover:bg-muted rounded-lg transition"><X className="w-4 h-4 text-muted-foreground" /></button></div>
             <div className="space-y-1.5"><label className="text-sm font-medium">Nueva contraseña</label>
-              <div className="relative"><input type={showPw ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mín. 8 chars, 1 mayúscula, 1 número" className="w-full px-3 py-2 pr-16 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition" /><button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground px-2 py-1">{showPw ? 'Ocultar' : 'Ver'}</button></div>
+              <PasswordInput value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mín. 8 chars, 1 mayúscula, 1 número" />
               <p className="text-xs text-muted-foreground">Mínimo 8 caracteres, una mayúscula y un número.</p>
             </div>
             <div className="flex gap-3 mt-5"><button onClick={() => setPwModal(null)} className="flex-1 py-2.5 text-sm font-medium border border-border rounded-lg hover:bg-muted transition">Cancelar</button><button onClick={() => pwMutation.mutate({ id: pwModal.id, password: newPassword })} disabled={pwMutation.isPending || newPassword.length < 8} className="flex-1 py-2.5 text-sm font-semibold text-white rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-60 transition">{pwMutation.isPending ? 'Guardando...' : 'Guardar'}</button></div>

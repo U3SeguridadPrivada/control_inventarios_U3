@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/src/context/AuthContext';
 import { apiFetch } from '@/src/lib/api';
+import { PasswordInput } from '@/src/components/ui/password-input';
 
 const ROLES = [
   { value: 'viewer', label: 'Visualizador — solo lectura' },
@@ -37,7 +38,7 @@ export default function NuevoUsuarioApp() {
       <form onSubmit={handleSubmit} className="bg-card border border-border rounded-2xl p-6 space-y-5 shadow-sm">
         <div className="space-y-1.5"><label className="text-sm font-medium">Nombre de usuario</label><input type="text" required value={form.username} onChange={e => set('username', e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition" placeholder="nombre_usuario" /></div>
         <div className="space-y-1.5"><label className="text-sm font-medium">Correo electrónico</label><input type="email" required value={form.email} onChange={e => set('email', e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition" placeholder="correo@empresa.com" /></div>
-        <div className="space-y-1.5"><label className="text-sm font-medium">Contraseña inicial</label><input type="password" required value={form.password} onChange={e => set('password', e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition" placeholder="Mín. 8 chars, 1 mayúscula, 1 número" /><p className="text-xs text-muted-foreground">Mínimo 8 caracteres, una mayúscula y un número.</p></div>
+        <div className="space-y-1.5"><label className="text-sm font-medium">Contraseña inicial</label><PasswordInput required value={form.password} onChange={e => set('password', e.target.value)} placeholder="Mín. 8 chars, 1 mayúscula, 1 número" /><p className="text-xs text-muted-foreground">Mínimo 8 caracteres, una mayúscula y un número.</p></div>
         <div className="space-y-1.5"><label className="text-sm font-medium">Rol</label><select value={form.role} onChange={e => set('role', e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition">{ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
         {error && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>}
         {success && <p className="text-sm text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">{success}</p>}

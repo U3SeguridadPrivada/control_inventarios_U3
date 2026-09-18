@@ -2,6 +2,7 @@
 import { useState, Suspense, type FormEvent } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { KeyRound } from 'lucide-react';
+import { PasswordInput } from '@/src/components/ui/password-input';
 
 function RestablecerForm() {
   const searchParams = useSearchParams();
@@ -45,19 +46,17 @@ function RestablecerForm() {
     <form onSubmit={handleSubmit} className="bg-card border border-border rounded-2xl shadow-sm p-8 space-y-5">
       <div className="space-y-1.5">
         <label className="text-sm font-medium" htmlFor="password">Nueva contraseña</label>
-        <input
-          id="password" type="password" required minLength={6} autoFocus autoComplete="new-password"
+        <PasswordInput
+          id="password" required minLength={6} autoFocus autoComplete="new-password"
           value={password} onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition"
           placeholder="Mínimo 6 caracteres"
         />
       </div>
       <div className="space-y-1.5">
         <label className="text-sm font-medium" htmlFor="confirmar">Confirmar contraseña</label>
-        <input
-          id="confirmar" type="password" required minLength={6} autoComplete="new-password"
+        <PasswordInput
+          id="confirmar" required minLength={6} autoComplete="new-password"
           value={confirmar} onChange={(e) => setConfirmar(e.target.value)}
-          className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition"
           placeholder="Repite la contraseña"
         />
       </div>
