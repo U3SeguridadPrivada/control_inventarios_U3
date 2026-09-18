@@ -1288,25 +1288,6 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
             </DialogHeader>
 
             <div className="grid gap-3.5 py-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Número de Empleado</label>
-                  <Input
-                    value={editNumeroElemento}
-                    onChange={e => setEditNumeroElemento(e.target.value)}
-                    className="font-mono font-bold"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
-                  <Input
-                    type="date"
-                    value={editFechaAlta}
-                    onChange={e => setEditFechaAlta(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground">Nombre Completo</label>
                 <Input
@@ -1343,6 +1324,15 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
+                  <Input
+                    type="date"
+                    value={editFechaAlta}
+                    onChange={e => setEditFechaAlta(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">Teléfono de Contacto</label>
                   <Input
                     value={editTelefono}
@@ -1350,6 +1340,8 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
                     placeholder="Ej. 5512345678"
                   />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">Correo Electrónico</label>
                   <Input
@@ -1357,17 +1349,6 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
                     value={editEmail}
                     onChange={e => setEditEmail(e.target.value)}
                     placeholder="ejemplo@u3.com"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Sueldo Mensual ($)</label>
-                  <Input
-                    type="number"
-                    value={editSueldoMensual}
-                    onChange={e => setEditSueldoMensual(e.target.value)}
-                    placeholder="Ej. 18000"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -1382,14 +1363,6 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
                     <option value="En Baja">En Baja</option>
                   </select>
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Dirección de Domicilio</label>
-                <Input
-                  value={editDireccion}
-                  onChange={e => setEditDireccion(e.target.value)}
-                  placeholder="Calle, Número, Colonia, Alcaldía o Municipio"
-                />
               </div>
             </div>
 

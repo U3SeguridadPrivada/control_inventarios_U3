@@ -188,6 +188,43 @@ export function FichaExtraEditor({
   return (
     <>
       <div className="pt-2 border-t border-border">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Domicilio</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <CampoCompacto label="Calle y Número" value={value.calleNumero} onChange={v => actualizar('calleNumero', v)} placeholder="Calle, no. ext. e int." className="col-span-2" />
+          {coloniasDisponibles.length > 0 ? (
+            <SelectCompacto
+              label="Colonia"
+              value={value.colonia}
+              onChange={v => actualizar('colonia', v)}
+              options={value.colonia && !coloniasDisponibles.includes(value.colonia) ? [value.colonia, ...coloniasDisponibles] : coloniasDisponibles}
+              placeholder="Elige la colonia"
+            />
+          ) : (
+            <CampoCompacto label="Colonia" value={value.colonia} onChange={v => actualizar('colonia', v)} placeholder="Colonia / fracc." />
+          )}
+          <CampoCompacto
+            label={buscandoCp ? 'C.P. (buscando colonias…)' : 'C.P.'}
+            value={value.cp}
+            onChange={v => actualizar('cp', v.replace(/\D/g, '').slice(0, 5))}
+            placeholder="Código postal"
+          />
+          <CampoCompacto label="Entre las Calles" value={value.entreCalles} onChange={v => actualizar('entreCalles', v)} placeholder="Calles aledañas" className="col-span-2" />
+          <CampoCompacto label="Delegación / Municipio" value={value.delegacionMunicipio} onChange={v => actualizar('delegacionMunicipio', v)} placeholder="Alcaldía o municipio" />
+          <SelectCompacto
+            label="Estado"
+            value={value.estado}
+            onChange={v => actualizar('estado', v)}
+            options={value.estado && !ESTADOS_MEXICO.includes(value.estado) ? [value.estado, ...ESTADOS_MEXICO] : ESTADOS_MEXICO}
+            placeholder="Elige el estado"
+          />
+          <CampoCompacto label="Tiempo de Residencia" value={value.tiempoResidencia} onChange={v => actualizar('tiempoResidencia', v)} placeholder="Ej. 5 años" />
+          <CampoCompacto label="Tiempo de Radicar en el Estado" value={value.tiempoRadicarEstado} onChange={v => actualizar('tiempoRadicarEstado', v)} placeholder="Ej. 10 años" />
+          <CampoCompacto label="Teléfono de Emergencia" value={value.telefonoEmergencia} onChange={v => actualizar('telefonoEmergencia', v)} placeholder="Contacto familiar" />
+          <CampoCompacto label="Celular" value={value.celular} onChange={v => actualizar('celular', v)} placeholder="10 dígitos" />
+        </div>
+      </div>
+
+      <div className="pt-2 border-t border-border">
         <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Datos Personales</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div className="space-y-0.5 col-span-2">
@@ -244,43 +281,6 @@ export function FichaExtraEditor({
           <CampoCompacto label="Afiliación IMSS" value={value.imss} onChange={v => actualizar('imss', v)} placeholder="NSS 11 dígitos" />
           <CampoCompacto label="Estatura" value={value.estatura} onChange={v => actualizar('estatura', v)} placeholder="Ej. 1.75 m" />
           <CampoCompacto label="Peso Aproximado" value={value.peso} onChange={v => actualizar('peso', v)} placeholder="Ej. 78 kg" />
-        </div>
-      </div>
-
-      <div className="pt-2 border-t border-border">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Domicilio</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <CampoCompacto label="Calle y Número" value={value.calleNumero} onChange={v => actualizar('calleNumero', v)} placeholder="Calle, no. ext. e int." className="col-span-2" />
-          {coloniasDisponibles.length > 0 ? (
-            <SelectCompacto
-              label="Colonia"
-              value={value.colonia}
-              onChange={v => actualizar('colonia', v)}
-              options={value.colonia && !coloniasDisponibles.includes(value.colonia) ? [value.colonia, ...coloniasDisponibles] : coloniasDisponibles}
-              placeholder="Elige la colonia"
-            />
-          ) : (
-            <CampoCompacto label="Colonia" value={value.colonia} onChange={v => actualizar('colonia', v)} placeholder="Colonia / fracc." />
-          )}
-          <CampoCompacto
-            label={buscandoCp ? 'C.P. (buscando colonias…)' : 'C.P.'}
-            value={value.cp}
-            onChange={v => actualizar('cp', v.replace(/\D/g, '').slice(0, 5))}
-            placeholder="Código postal"
-          />
-          <CampoCompacto label="Entre las Calles" value={value.entreCalles} onChange={v => actualizar('entreCalles', v)} placeholder="Calles aledañas" className="col-span-2" />
-          <CampoCompacto label="Delegación / Municipio" value={value.delegacionMunicipio} onChange={v => actualizar('delegacionMunicipio', v)} placeholder="Alcaldía o municipio" />
-          <SelectCompacto
-            label="Estado"
-            value={value.estado}
-            onChange={v => actualizar('estado', v)}
-            options={value.estado && !ESTADOS_MEXICO.includes(value.estado) ? [value.estado, ...ESTADOS_MEXICO] : ESTADOS_MEXICO}
-            placeholder="Elige el estado"
-          />
-          <CampoCompacto label="Tiempo de Residencia" value={value.tiempoResidencia} onChange={v => actualizar('tiempoResidencia', v)} placeholder="Ej. 5 años" />
-          <CampoCompacto label="Tiempo de Radicar en el Estado" value={value.tiempoRadicarEstado} onChange={v => actualizar('tiempoRadicarEstado', v)} placeholder="Ej. 10 años" />
-          <CampoCompacto label="Teléfono de Emergencia" value={value.telefonoEmergencia} onChange={v => actualizar('telefonoEmergencia', v)} placeholder="Contacto familiar" />
-          <CampoCompacto label="Celular" value={value.celular} onChange={v => actualizar('celular', v)} placeholder="10 dígitos" />
         </div>
       </div>
     </>

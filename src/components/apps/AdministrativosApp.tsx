@@ -251,14 +251,12 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
   };
 
   // Registration States
-  const [numeroElemento, setNumeroElemento] = useState('');
   const [nombre, setNombre] = useState('');
   const [puesto, setPuesto] = useState('Asistente Administrativo');
   const [departamento, setDepartamento] = useState('Administración');
   const [fechaAlta, setFechaAlta] = useState(new Date().toISOString().split('T')[0]);
   const [telefono, setTelefono] = useState('');
   const [email, setEmail] = useState('');
-  const [sueldoMensual, setSueldoMensual] = useState('');
 
   // Datos personales y domicilio del alta rápida: mismas llaves que la Ficha
   // Técnica oficial, para que al abrirla después ya vengan precargados.
@@ -296,7 +294,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
       queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] });
       toast.success('Administrativo registrado con éxito');
       setIsModalOpen(false);
-      setNumeroElemento('');
       setNombre('');
       setTelefono('');
       setFichaExtra(FICHA_EXTRA_VACIA);
@@ -855,14 +852,12 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
             onSubmit={e => {
               e.preventDefault();
               createMutation.mutate({
-                numero_empleado: numeroElemento,
                 nombre,
                 puesto,
                 departamento,
                 fecha_alta: fechaAlta,
                 telefono,
                 email,
-                sueldo_mensual: sueldoMensual ? Number(sueldoMensual) : undefined,
                 ...fichaExtra,
               });
             }}
@@ -886,15 +881,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                     onChange={e => setNombre(e.target.value)}
                     placeholder="Nombre y apellidos"
                     required
-                    className="rounded-lg h-9"
-                  />
-                </div>
-                <div className="space-y-0.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">No. Empleado (opcional)</label>
-                  <Input
-                    value={numeroElemento}
-                    onChange={e => setNumeroElemento(e.target.value)}
-                    placeholder="Ej. ADM-001"
                     className="rounded-lg h-9"
                   />
                 </div>
@@ -953,16 +939,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                     className="rounded-lg h-9"
                   />
                 </div>
-                <div className="space-y-0.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Sueldo Mensual ($)</label>
-                  <Input
-                    type="number"
-                    value={sueldoMensual}
-                    onChange={e => setSueldoMensual(e.target.value)}
-                    placeholder="Ej. 15000"
-                    className="rounded-lg h-9"
-                  />
-                </div>
               </div>
 
               <FichaExtraEditor nombreCompleto={nombre} value={fichaExtra} onChange={setFichaExtra} />
@@ -1014,26 +990,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
             </DialogHeader>
 
             <div className="grid gap-3.5 py-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Número de Empleado</label>
-                  <Input
-                    value={editNumeroElemento}
-                    onChange={e => setEditNumeroElemento(e.target.value)}
-                    className="rounded-xl font-mono font-bold"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
-                  <Input
-                    type="date"
-                    value={editFechaAlta}
-                    onChange={e => setEditFechaAlta(e.target.value)}
-                    required
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground">Nombre Completo</label>
                 <Input
@@ -1072,6 +1028,16 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
+                  <Input
+                    type="date"
+                    value={editFechaAlta}
+                    onChange={e => setEditFechaAlta(e.target.value)}
+                    required
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">Teléfono</label>
                   <Input
                     value={editTelefono}
@@ -1080,6 +1046,8 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                     className="rounded-xl"
                   />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">Correo Electrónico</label>
                   <Input
@@ -1087,18 +1055,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                     value={editEmail}
                     onChange={e => setEditEmail(e.target.value)}
                     placeholder="ejemplo@u3.com"
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Sueldo Mensual ($)</label>
-                  <Input
-                    type="number"
-                    value={editSueldoMensual}
-                    onChange={e => setEditSueldoMensual(e.target.value)}
-                    placeholder="Ej. 18000"
                     className="rounded-xl"
                   />
                 </div>
@@ -1114,15 +1070,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                     <option value="En Baja">En Baja</option>
                   </select>
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Dirección de Domicilio</label>
-                <Input
-                  value={editDireccion}
-                  onChange={e => setEditDireccion(e.target.value)}
-                  placeholder="Calle, Número, Colonia, Alcaldía o Municipio"
-                  className="rounded-xl"
-                />
               </div>
             </div>
 
