@@ -45,7 +45,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
 import MachoteFichaAdministrativo from '@/src/components/machotes/MachoteFichaAdministrativo';
 import AdministrativoPerfil from './AdministrativoPerfil';
-import { FichaExtraEditor, FICHA_EXTRA_VACIA, type FichaExtraValores } from './administrativos/FichaExtraEditor';
+import { FichaExtraEditor, FICHA_EXTRA_VACIA, extraerFichaExtra, type FichaExtraValores } from './administrativos/FichaExtraEditor';
 
 function imprimirExpediente(administrativo: any, salidas: any[], entradas: any[]) {
   const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -278,6 +278,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
   const [editDireccion, setEditDireccion] = useState('');
   const [editSueldoMensual, setEditSueldoMensual] = useState('');
   const [editEstado, setEditEstado] = useState('Activo');
+  const [editFichaExtra, setEditFichaExtra] = useState<FichaExtraValores>(FICHA_EXTRA_VACIA);
 
   // Queries
   const { data: administrativos = [], isLoading } = useQuery({
@@ -346,6 +347,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
     setEditDireccion(administrativo.direccion || '');
     setEditSueldoMensual(administrativo.sueldo_mensual ? String(administrativo.sueldo_mensual) : '');
     setEditEstado(administrativo.estado || 'Activo');
+    setEditFichaExtra(extraerFichaExtra(administrativo.ficha_tecnica_json));
     setSelectedAdministrativo(administrativo);
     setIsEditModalOpen(true);
   };
@@ -955,8 +957,8 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
       </Dialog>
 
       {/* ================= MODAL EDITAR DATOS DEL GUARDIA ================= */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="rounded-2xl max-w-lg">
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen} className="max-w-6xl">
+        <DialogContent className="rounded-2xl">
           <form
             onSubmit={e => {
               e.preventDefault();
@@ -973,6 +975,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   direccion: editDireccion,
                   sueldo_mensual: editSueldoMensual ? Number(editSueldoMensual) : null,
                   estado: editEstado,
+                  fichaExtra: editFichaExtra,
                 });
               }
             }}
@@ -1070,7 +1073,9 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
               </div>
             </div>
 
-            <DialogFooter className="gap-2">
+            <FichaExtraEditor nombreCompleto={editNombre} value={editFichaExtra} onChange={setEditFichaExtra} />
+
+            <DialogFooter className="gap-2 mt-3">
               <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} className="rounded-xl">
                 Cancelar
               </Button>
