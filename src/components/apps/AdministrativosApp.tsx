@@ -46,6 +46,15 @@ import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
 import MachoteFichaAdministrativo from '@/src/components/machotes/MachoteFichaAdministrativo';
 import AdministrativoPerfil from './AdministrativoPerfil';
+import { dividirNombreCompleto, calcularEdad, calcularCURP, calcularClaveRFC } from '@/src/lib/rfcCurp';
+import { ESTADOS_MEXICO } from '@/src/lib/direccionMexico';
+
+const SEXOS = ['Masculino', 'Femenino'];
+const ESTADOS_CIVILES = ['Soltero(a)', 'Casado(a)', 'Unión libre', 'Divorciado(a)', 'Viudo(a)'];
+const NIVELES_ESTUDIO = [
+  'Primaria', 'Secundaria', 'Preparatoria / Bachillerato', 'Técnico / Carrera Comercial',
+  'Licenciatura / Universidad', 'Posgrado', 'Sin estudios',
+];
 
 function imprimirExpediente(administrativo: any, salidas: any[], entradas: any[]) {
   const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -253,6 +262,34 @@ function CampoCompacto({
   );
 }
 
+/** Variante de CampoCompacto respaldada por un catálogo cerrado (sexo, estado civil, estudios, etc.). */
+function SelectCompacto({
+  label, value, onChange, options, placeholder, className,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  options: string[];
+  placeholder?: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn('space-y-0.5', className)}>
+      <label className="text-[11px] font-semibold text-muted-foreground truncate block">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-xs"
+      >
+        <option value="">{placeholder || 'Selecciona...'}</option>
+        {options.map(o => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function AdministrativosApp({ initialAdministrativoId }: { initialAdministrativoId?: number } = {}) {
   const { isEditor, isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -304,6 +341,63 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
   const [anioNac, setAnioNac] = useState('');
   const fechaNacimientoTexto = diaNac && mesNac && anioNac ? `${diaNac} de ${mesNac} de ${anioNac}` : '';
 
+  // Edad: se recalcula sola en cuanto la fecha de nacimiento queda completa.
+  useEffect(() => {
+    const edadCalculada = calcularEdad(diaNac, mesNac, anioNac);
+    if (edadCalculada !== null) {
+      setFichaExtra((f) => (f.edad === String(edadCalculada) ? f : { ...f, edad: String(edadCalculada) }));
+    }
+  }, [diaNac, mesNac, anioNac]);
+
+  // RFC y CURP: se proponen solos con nombre + fecha de nacimiento + sexo + estado,
+  // pero dejan de tocarse en cuanto el usuario los edita a mano (por ejemplo, para
+  // copiar la homoclave real desde la identificación oficial).
+  const [rfcTocadoManualmente, setRfcTocadoManualmente] = useState(false);
+  const [curpTocadaManualmente, setCurpTocadaManualmente] = useState(false);
+
+  useEffect(() => {
+    if (!nombre || !diaNac || !mesNac || !anioNac) return;
+    const { nombres, apellidoPaterno, apellidoMaterno } = dividirNombreCompleto(nombre);
+    const datos = { nombres, apellidoPaterno, apellidoMaterno, dia: diaNac, mes: mesNac, anio: anioNac, sexo: fichaExtra.sexo, estado: fichaExtra.estado };
+
+    if (!rfcTocadoManualmente) {
+      const claveRfc = calcularClaveRFC(datos);
+      if (claveRfc) setFichaExtra((f) => (f.rfc === claveRfc ? f : { ...f, rfc: claveRfc }));
+    }
+    if (!curpTocadaManualmente) {
+      const curp = calcularCURP(datos);
+      if (curp) setFichaExtra((f) => (f.curp === curp ? f : { ...f, curp }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nombre, diaNac, mesNac, anioNac, fichaExtra.sexo, fichaExtra.estado, rfcTocadoManualmente, curpTocadaManualmente]);
+
+  // C.P. -> colonias y estado: se consulta un servicio público en cuanto quedan los 5 dígitos.
+  const [coloniasDisponibles, setColoniasDisponibles] = useState<string[]>([]);
+  const [buscandoCp, setBuscandoCp] = useState(false);
+
+  useEffect(() => {
+    const cp = fichaExtra.cp.trim();
+    if (!/^\d{5}$/.test(cp)) {
+      setColoniasDisponibles([]);
+      return;
+    }
+    let cancelado = false;
+    setBuscandoCp(true);
+    const timer = setTimeout(() => {
+      apiFetch<{ colonias: string[]; estado: string | null }>(`/api/utilidades/cp/${cp}`)
+        .then((res) => {
+          if (cancelado) return;
+          setColoniasDisponibles(res.colonias || []);
+          if (res.estado) {
+            setFichaExtra((f) => (f.estado ? f : { ...f, estado: res.estado! }));
+          }
+        })
+        .catch(() => { if (!cancelado) setColoniasDisponibles([]); })
+        .finally(() => { if (!cancelado) setBuscandoCp(false); });
+    }, 450);
+    return () => { cancelado = true; clearTimeout(timer); setBuscandoCp(false); };
+  }, [fichaExtra.cp]);
+
   // Selected Administrativo & Baja States
   const [selectedAdministrativo, setSelectedAdministrativo] = useState<any>(null);
   const [fechaBaja, setFechaBaja] = useState(new Date().toISOString().split('T')[0]);
@@ -342,8 +436,11 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
       setDiaNac('');
       setMesNac('');
       setAnioNac('');
+      setRfcTocadoManualmente(false);
+      setCurpTocadaManualmente(false);
+      setColoniasDisponibles([]);
     },
-    onError: () => toast.error('Error al registrar (¿Número duplicado?)'),
+    onError: (err: any) => toast.error(err?.message || 'Error al registrar administrativo'),
   });
 
   const editMutation = useMutation({
@@ -1044,12 +1141,24 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
               <div className="pt-2 border-t border-border">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Datos Personales</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <CampoCompacto label="Edad" value={fichaExtra.edad} onChange={v => actualizarFichaExtra('edad', v)} placeholder="Ej. 35" />
-                  <CampoCompacto label="Sexo" value={fichaExtra.sexo} onChange={v => actualizarFichaExtra('sexo', v)} placeholder="Masculino / Femenino" />
-                  <CampoCompacto label="Estado Civil" value={fichaExtra.estadoCivil} onChange={v => actualizarFichaExtra('estadoCivil', v)} placeholder="Soltero / Casado" />
-                  <CampoCompacto label="Estudios" value={fichaExtra.estudios} onChange={v => actualizarFichaExtra('estudios', v)} placeholder="Nivel académico" />
-                  <CampoCompacto label="RFC" value={fichaExtra.rfc} onChange={v => actualizarFichaExtra('rfc', v.toUpperCase())} placeholder="13 posiciones" className="uppercase" />
-                  <CampoCompacto label="CURP" value={fichaExtra.curp} onChange={v => actualizarFichaExtra('curp', v.toUpperCase())} placeholder="18 posiciones" className="uppercase" />
+                  <CampoCompacto label="Edad (auto)" value={fichaExtra.edad} onChange={v => actualizarFichaExtra('edad', v)} placeholder="Se calcula con la fecha de nacimiento" />
+                  <SelectCompacto label="Sexo" value={fichaExtra.sexo} onChange={v => actualizarFichaExtra('sexo', v)} options={SEXOS} />
+                  <SelectCompacto label="Estado Civil" value={fichaExtra.estadoCivil} onChange={v => actualizarFichaExtra('estadoCivil', v)} options={ESTADOS_CIVILES} />
+                  <SelectCompacto label="Estudios" value={fichaExtra.estudios} onChange={v => actualizarFichaExtra('estudios', v)} options={NIVELES_ESTUDIO} />
+                  <CampoCompacto
+                    label="RFC (auto, verifica en INE)"
+                    value={fichaExtra.rfc}
+                    onChange={v => { setRfcTocadoManualmente(true); actualizarFichaExtra('rfc', v.toUpperCase()); }}
+                    placeholder="13 posiciones"
+                    className="uppercase"
+                  />
+                  <CampoCompacto
+                    label="CURP (auto, verifica en INE)"
+                    value={fichaExtra.curp}
+                    onChange={v => { setCurpTocadaManualmente(true); actualizarFichaExtra('curp', v.toUpperCase()); }}
+                    placeholder="18 posiciones"
+                    className="uppercase"
+                  />
                   <CampoCompacto label="Afiliación IMSS" value={fichaExtra.imss} onChange={v => actualizarFichaExtra('imss', v)} placeholder="NSS 11 dígitos" />
                   <CampoCompacto label="Estatura" value={fichaExtra.estatura} onChange={v => actualizarFichaExtra('estatura', v)} placeholder="Ej. 1.75 m" />
                   <CampoCompacto label="Peso Aproximado" value={fichaExtra.peso} onChange={v => actualizarFichaExtra('peso', v)} placeholder="Ej. 78 kg" />
@@ -1060,11 +1169,32 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                 <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Domicilio</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <CampoCompacto label="Calle y Número" value={fichaExtra.calleNumero} onChange={v => actualizarFichaExtra('calleNumero', v)} placeholder="Calle, no. ext. e int." className="col-span-2" />
-                  <CampoCompacto label="Colonia" value={fichaExtra.colonia} onChange={v => actualizarFichaExtra('colonia', v)} placeholder="Colonia / fracc." />
-                  <CampoCompacto label="C.P." value={fichaExtra.cp} onChange={v => actualizarFichaExtra('cp', v)} placeholder="Código postal" />
+                  {coloniasDisponibles.length > 0 ? (
+                    <SelectCompacto
+                      label="Colonia"
+                      value={fichaExtra.colonia}
+                      onChange={v => actualizarFichaExtra('colonia', v)}
+                      options={fichaExtra.colonia && !coloniasDisponibles.includes(fichaExtra.colonia) ? [fichaExtra.colonia, ...coloniasDisponibles] : coloniasDisponibles}
+                      placeholder="Elige la colonia"
+                    />
+                  ) : (
+                    <CampoCompacto label="Colonia" value={fichaExtra.colonia} onChange={v => actualizarFichaExtra('colonia', v)} placeholder="Colonia / fracc." />
+                  )}
+                  <CampoCompacto
+                    label={buscandoCp ? 'C.P. (buscando colonias…)' : 'C.P.'}
+                    value={fichaExtra.cp}
+                    onChange={v => actualizarFichaExtra('cp', v.replace(/\D/g, '').slice(0, 5))}
+                    placeholder="Código postal"
+                  />
                   <CampoCompacto label="Entre las Calles" value={fichaExtra.entreCalles} onChange={v => actualizarFichaExtra('entreCalles', v)} placeholder="Calles aledañas" className="col-span-2" />
                   <CampoCompacto label="Delegación / Municipio" value={fichaExtra.delegacionMunicipio} onChange={v => actualizarFichaExtra('delegacionMunicipio', v)} placeholder="Alcaldía o municipio" />
-                  <CampoCompacto label="Estado" value={fichaExtra.estado} onChange={v => actualizarFichaExtra('estado', v)} placeholder="Estado de México / CDMX" />
+                  <SelectCompacto
+                    label="Estado"
+                    value={fichaExtra.estado}
+                    onChange={v => actualizarFichaExtra('estado', v)}
+                    options={fichaExtra.estado && !ESTADOS_MEXICO.includes(fichaExtra.estado) ? [fichaExtra.estado, ...ESTADOS_MEXICO] : ESTADOS_MEXICO}
+                    placeholder="Elige el estado"
+                  />
                   <CampoCompacto label="Tiempo de Residencia" value={fichaExtra.tiempoResidencia} onChange={v => actualizarFichaExtra('tiempoResidencia', v)} placeholder="Ej. 5 años" />
                   <CampoCompacto label="Tiempo de Radicar en el Estado" value={fichaExtra.tiempoRadicarEstado} onChange={v => actualizarFichaExtra('tiempoRadicarEstado', v)} placeholder="Ej. 10 años" />
                   <CampoCompacto label="Teléfono de Emergencia" value={fichaExtra.telefonoEmergencia} onChange={v => actualizarFichaExtra('telefonoEmergencia', v)} placeholder="Contacto familiar" />
