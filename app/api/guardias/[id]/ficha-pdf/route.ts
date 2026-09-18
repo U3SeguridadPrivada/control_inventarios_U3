@@ -8,6 +8,7 @@ import { generateFichaTecnicaHtml, FichaTecnicaData, FICHA_TEMPLATE_VERSION } fr
 import { desglosarDireccion } from '@/src/lib/fichaTecnicaUtils';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!verifyAuth(req)) return unauthorized();
@@ -67,10 +68,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const isInline = req.nextUrl.searchParams.get('inline') === 'true';
   const forceFresh = req.nextUrl.searchParams.get('fresh') === 'true';
-  // El nombre incluye la versión de la plantilla: si se edita el diseño de
-  // la ficha (fichaTecnicaHtml.ts) y se sube FICHA_TEMPLATE_VERSION, esta
-  // ruta cambia sola y la caché vieja queda huérfana en vez de servirse.
-  const cachedFilePath = path.join(process.cwd(), 'uploads', 'guardias', `${guardiaId}-ficha-tecnica-${FICHA_TEMPLATE_VERSION}.pdf`);
+  // El nombre incluye la versión de la plantilla (si se edita el diseño de
+  // la ficha y sube FICHA_TEMPLATE_VERSION, la caché vieja queda huérfana en
+  // vez de servirse) y un hash del contenido real: así un cambio hecho desde
+  // CUALQUIER editor invalida sola la caché, sin que cada pantalla tenga que
+  // acordarse de avisarle a esta ruta.
+  const huellaContenido = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex').slice(0, 12);
+  const uploadsDirGuardias = path.join(process.cwd(), 'uploads', 'guardias');
+  const cachedFileName = `${guardiaId}-ficha-tecnica-${FICHA_TEMPLATE_VERSION}-${huellaContenido}.pdf`;
+  const cachedFilePath = path.join(uploadsDirGuardias, cachedFileName);
 
   if (!forceFresh && fs.existsSync(cachedFilePath)) {
     try {
@@ -100,8 +106,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   // Guardar en cache para próximas lecturas instantáneas
   try {
-    const uploadsDir = path.join(process.cwd(), 'uploads', 'guardias');
-    fs.mkdirSync(uploadsDir, { recursive: true });
+    fs.mkdirSync(uploadsDirGuardias, { recursive: true });
+    const prefijo = `${guardiaId}-ficha-tecnica-${FICHA_TEMPLATE_VERSION}-`;
+    for (const archivo of fs.readdirSync(uploadsDirGuardias)) {
+      if (archivo.startsWith(prefijo) && archivo !== cachedFileName) {
+        try { fs.unlinkSync(path.join(uploadsDirGuardias, archivo)); } catch {}
+      }
+    }
     fs.writeFileSync(cachedFilePath, Buffer.from(pdfBuffer));
   } catch (e) {
     console.warn('No se pudo guardar PDF en caché:', e);

@@ -8,6 +8,7 @@ import { generateFichaAdministrativaHtml, FichaTecnicaData, FICHA_ADMIN_TEMPLATE
 import { desglosarDireccion } from '@/src/lib/fichaTecnicaUtils';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!verifyAuth(req)) return unauthorized();
@@ -68,8 +69,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const isInline = req.nextUrl.searchParams.get('inline') === 'true';
   const forceRefresh = req.nextUrl.searchParams.get('refresh') === 'true';
 
-  const cachedFileName = `${adminId}-ficha-tecnica-${FICHA_ADMIN_TEMPLATE_VERSION}.pdf`;
-  const cachedFilePath = path.join(process.cwd(), 'uploads', 'administrativos', cachedFileName);
+  // La caché se invalida sola: la llave incluye un hash del contenido real
+  // (data + foto), así que un cambio hecho desde CUALQUIER editor -el modal
+  // rápido, la ficha técnica completa- vuelve obsoleto el archivo viejo sin
+  // que cada pantalla tenga que acordarse de avisarle a esta ruta.
+  const huellaContenido = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex').slice(0, 12);
+  const uploadsDir = path.join(process.cwd(), 'uploads', 'administrativos');
+  const cachedFileName = `${adminId}-ficha-tecnica-${FICHA_ADMIN_TEMPLATE_VERSION}-${huellaContenido}.pdf`;
+  const cachedFilePath = path.join(uploadsDir, cachedFileName);
 
   if (!forceRefresh && fs.existsSync(cachedFilePath)) {
     try {
@@ -92,8 +99,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   });
 
   try {
-    const uploadsDir = path.join(process.cwd(), 'uploads', 'administrativos');
     fs.mkdirSync(uploadsDir, { recursive: true });
+    // Limpia los PDF cacheados de versiones de datos anteriores de este mismo
+    // administrativo para no acumular huérfanos en el disco indefinidamente.
+    const prefijo = `${adminId}-ficha-tecnica-${FICHA_ADMIN_TEMPLATE_VERSION}-`;
+    for (const archivo of fs.readdirSync(uploadsDir)) {
+      if (archivo.startsWith(prefijo) && archivo !== cachedFileName) {
+        try { fs.unlinkSync(path.join(uploadsDir, archivo)); } catch {}
+      }
+    }
     fs.writeFileSync(cachedFilePath, Buffer.from(pdfBuffer));
   } catch (e) {
     console.warn('No se pudo guardar PDF en caché:', e);

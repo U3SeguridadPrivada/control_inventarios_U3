@@ -48,7 +48,6 @@ import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
 import DocumentViewerModal from '@/src/components/DocumentViewerModal';
 import MachoteFichaAdministrativo from '@/src/components/machotes/MachoteFichaAdministrativo';
-import { FichaExtraEditor, FICHA_EXTRA_VACIA, extraerFichaExtra, type FichaExtraValores } from './administrativos/FichaExtraEditor';
 
 interface Props {
   id: number;
@@ -172,7 +171,6 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
   const [editDireccion, setEditDireccion] = useState('');
   const [editSueldoMensual, setEditSueldoMensual] = useState('');
   const [editEstado, setEditEstado] = useState('Activo');
-  const [editFichaExtra, setEditFichaExtra] = useState<FichaExtraValores>(FICHA_EXTRA_VACIA);
 
   // Formulario Subir Papeles
   const [tipoPapel, setTipoPapel] = useState('');
@@ -321,7 +319,6 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
     setEditDireccion(administrativo.direccion || '');
     setEditSueldoMensual(administrativo.sueldo_mensual ? String(administrativo.sueldo_mensual) : '');
     setEditEstado(administrativo.estado || 'Activo');
-    setEditFichaExtra(extraerFichaExtra(administrativo.ficha_tecnica_json));
     setModalEditar(true);
   };
 
@@ -774,17 +771,6 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
                 >
                   <Phone className="w-4 h-4 text-sky-600" /> Llamar Administrativo
                 </a>
-              )}
-
-              {isEditor && (
-                <Link href={`/administrativos/${administrativo.id}/ficha`}>
-                  <Button
-                    size="sm"
-                    className="bg-primary text-primary-foreground text-xs font-bold shadow-sm"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Editar Ficha Técnica
-                  </Button>
-                </Link>
               )}
 
               <Button
@@ -1257,8 +1243,8 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
       )}
 
       {/* ================= MODAL EDITAR DATOS GENERALES ================= */}
-      <Dialog open={modalEditar} onOpenChange={setModalEditar} className="max-w-6xl">
-        <DialogContent className="rounded-2xl">
+      <Dialog open={modalEditar} onOpenChange={setModalEditar}>
+        <DialogContent className="rounded-2xl max-w-lg">
           <form
             onSubmit={e => {
               e.preventDefault();
@@ -1274,7 +1260,6 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
                 direccion: editDireccion,
                 sueldo_mensual: editSueldoMensual ? Number(editSueldoMensual) : null,
                 estado: editEstado,
-                fichaExtra: editFichaExtra,
               });
             }}
           >
@@ -1366,9 +1351,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
               </div>
             </div>
 
-            <FichaExtraEditor nombreCompleto={editNombre} value={editFichaExtra} onChange={setEditFichaExtra} />
-
-            <DialogFooter className="gap-2 mt-3">
+            <DialogFooter className="gap-2">
               <Button type="button" variant="outline" onClick={() => setModalEditar(false)}>
                 Cancelar
               </Button>
