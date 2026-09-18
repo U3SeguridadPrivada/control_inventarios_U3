@@ -531,7 +531,7 @@ export function generateFichaAdministrativaHtml(data: FichaTecnicaData): string 
           <tr>
             <td class="lbl">TIEMPO DE RESIDENCIA</td>
             <td class="val">${(data.tiempoResidencia || '').toUpperCase()}</td>
-            <td class="lbl">TIEMPO DE RADICAR EN EL EDO. DE MÉXICO</td>
+            <td class="lbl">TIEMPO DE RADICAR EN EL ESTADO</td>
             <td class="val">${(data.tiempoRadicarEstado || '').toUpperCase()}</td>
           </tr>
           <tr>

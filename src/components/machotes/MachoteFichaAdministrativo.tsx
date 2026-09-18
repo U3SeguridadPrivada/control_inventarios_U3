@@ -1628,7 +1628,7 @@ export default function MachoteFichaAdministrativo({
                         placeholder="EJ. 5 AÑOS"
                       />
                     </td>
-                    <td className="lbl">TIEMPO DE RADICAR EN EL EDO. DE MÉXICO</td>
+                    <td className="lbl">TIEMPO DE RADICAR EN EL ESTADO</td>
                     <td className="val">
                       <FichaCellInput
                         value={ficha.tiempoRadicarEstado}
