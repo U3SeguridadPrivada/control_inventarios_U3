@@ -43,7 +43,42 @@ export async function PUT(
       direccion,
       sueldo_mensual,
       estado,
+      fichaExtra,
     } = await req.json();
+
+    const existente = db.select().from(personal_administrativo).where(eq(personal_administrativo.id, adminId)).get();
+    if (!existente) {
+      return Response.json({ error: 'Personal no encontrado' }, { status: 404 });
+    }
+
+    let direccionFinal = direccion || null;
+    let fichaTecnicaJson = existente.ficha_tecnica_json;
+
+    if (fichaExtra && typeof fichaExtra === 'object') {
+      let ficha: Record<string, any> = {};
+      try { ficha = existente.ficha_tecnica_json ? JSON.parse(existente.ficha_tecnica_json) : {}; } catch { ficha = {}; }
+
+      for (const campo of CAMPOS_FICHA_BASICA) {
+        const valor = fichaExtra[campo];
+        if (typeof valor === 'string' && valor.trim()) ficha[campo] = valor.trim();
+        else delete ficha[campo];
+      }
+      ficha.nombre = (nombre || existente.nombre || '').trim();
+      ficha.puesto = (puesto || existente.puesto || '').trim();
+      if (numero_empleado) ficha.numeroElemento = String(numero_empleado).trim();
+
+      fichaTecnicaJson = JSON.stringify(ficha);
+
+      if (ficha.calleNumero) {
+        direccionFinal = reconstruirDireccion({
+          calleNumero: ficha.calleNumero,
+          colonia: ficha.colonia,
+          delegacionMunicipio: ficha.delegacionMunicipio,
+          estado: ficha.estado,
+          cp: ficha.cp,
+        });
+      }
+    }
 
     const updated = db.update(personal_administrativo)
       .set({
@@ -55,9 +90,10 @@ export async function PUT(
         fecha_baja: fecha_baja || null,
         telefono: telefono || null,
         email: email || null,
-        direccion: direccion || null,
+        direccion: direccionFinal,
         sueldo_mensual: sueldo_mensual ? Number(sueldo_mensual) : null,
         estado,
+        ficha_tecnica_json: fichaTecnicaJson,
       })
       .where(eq(personal_administrativo.id, adminId))
       .returning()
