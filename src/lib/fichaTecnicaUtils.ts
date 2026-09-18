@@ -1,3 +1,10 @@
+/** Llaves de la ficha básica (datos personales + domicilio) que capturan tanto el alta rápida como los modales de edición de Personal Administrativo. */
+export const CAMPOS_FICHA_BASICA = [
+  'fechaNacimiento', 'edad', 'estadoCivil', 'estudios', 'rfc', 'curp', 'imss', 'sexo', 'estatura', 'peso',
+  'calleNumero', 'colonia', 'entreCalles', 'cp', 'delegacionMunicipio', 'estado', 'tiempoResidencia',
+  'tiempoRadicarEstado', 'telefonoEmergencia', 'celular',
+] as const;
+
 export interface EmpleoAnterior {
   empresa: string;
   periodo: string;

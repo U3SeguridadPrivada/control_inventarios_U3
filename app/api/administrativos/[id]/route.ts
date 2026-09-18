@@ -3,6 +3,7 @@ import { db } from '@/src/db';
 import { personal_administrativo, administrativo_documentos, administrativo_bitacora } from '@/src/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAuth, unauthorized, forbidden } from '@/src/lib/auth';
+import { CAMPOS_FICHA_BASICA, reconstruirDireccion } from '@/src/lib/fichaTecnicaUtils';
 
 export async function GET(
   req: NextRequest,

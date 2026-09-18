@@ -197,6 +197,61 @@ export function extraerDatosDeGuardia(guardia: any): Partial<DatosContrato> {
   };
 }
 
+export function extraerDatosDeAdministrativo(admin: any): Partial<DatosContrato> {
+  if (!admin) return {};
+
+  let ficha: Record<string, any> = {};
+  if (admin.ficha_tecnica_json) {
+    try {
+      ficha = typeof admin.ficha_tecnica_json === 'string'
+        ? JSON.parse(admin.ficha_tecnica_json)
+        : admin.ficha_tecnica_json;
+    } catch (e) {
+      console.error('Error parseando ficha técnica de administrativo:', e);
+    }
+  }
+
+  const nombre = (admin.nombre || ficha.nombre || '').toUpperCase().trim();
+  const puesto = (admin.puesto || ficha.puesto || 'PERSONAL ADMINISTRATIVO').toUpperCase().trim();
+  const rfc = (ficha.rfc || '').toUpperCase().trim();
+  const curp = (ficha.curp || '').toUpperCase().trim();
+  const edad = ficha.edad ? (ficha.edad.toString().toUpperCase().includes('AÑOS') ? ficha.edad : `${ficha.edad} AÑOS`) : '30 AÑOS';
+  const estadoCivil = (ficha.estadoCivil || 'SOLTERO(A)').toUpperCase().trim();
+  const nacionalidad = (ficha.nacionalidad || 'MEXICANA').toUpperCase().trim();
+
+  let dom = admin.direccion || '';
+  if (!dom && (ficha.calleNumero || ficha.colonia)) {
+    const partes = [
+      ficha.calleNumero,
+      ficha.colonia ? `COL. ${ficha.colonia}` : '',
+      ficha.cp ? `CP ${ficha.cp}` : '',
+      ficha.delegacionMunicipio,
+      ficha.estado,
+    ].filter(Boolean);
+    dom = partes.join('; ');
+  }
+  if (!dom) dom = 'CIUDAD DE MÉXICO';
+
+  const fechaAltaFmt = formatearFechaLegal(admin.fecha_alta);
+  const salario = admin.sueldo_mensual ? Number(admin.sueldo_mensual) : 12000;
+
+  return {
+    nombreTrabajador: nombre,
+    puesto: puesto || 'PERSONAL ADMINISTRATIVO',
+    rfcTrabajador: rfc,
+    curpTrabajador: curp,
+    edad,
+    estadoCivil,
+    nacionalidad,
+    domicilioTrabajador: dom,
+    fechaContrato: fechaAltaFmt,
+    fechaInicioVigencia: fechaAltaFmt,
+    fechaInicioAntiguedad: fechaAltaFmt,
+    salarioMensualNumero: salario,
+    periodicidadPago: 'quincenal',
+  };
+}
+
 export const DATOS_CONTRATO_DEFAULT: DatosContrato = {
   puesto: 'TÉCNICO EN SEGURIDAD PRIVADA',
   ciudad: 'Ciudad de México',

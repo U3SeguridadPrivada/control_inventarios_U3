@@ -1137,11 +1137,13 @@ export default function DocumentoReglamentoApp({
   ambitoInicial = 'oficinas',
   protocoloId,
   guardiaId,
+  administrativoId,
   volverUrl,
 }: {
   ambitoInicial?: AmbitoReglamento;
   protocoloId?: number;
   guardiaId?: number;
+  administrativoId?: number;
   volverUrl?: string;
 } = {}) {
   const { isEditor, isAdmin } = useAuth();
@@ -1162,13 +1164,16 @@ export default function DocumentoReglamentoApp({
   const [textoReemplazar, setTextoReemplazar] = useState('');
   const [coincidenciasContadas, setCoincidenciasContadas] = useState(0);
 
-  const queryKey = guardiaId
+  const queryKey = administrativoId
+    ? ['administrativo-contrato', administrativoId]
+    : guardiaId
     ? ['guardia-contrato', guardiaId]
     : protocoloId
     ? ['protocolo-documento', protocoloId]
     : ['reglamento-documento', ambito];
 
   const queryFn = () => {
+    if (administrativoId) return apiFetch<ProtocoloRegistro>(`/api/administrativos/${administrativoId}/contrato`);
     if (guardiaId) return apiFetch<ProtocoloRegistro>(`/api/guardias/${guardiaId}/contrato`);
     if (protocoloId) return apiFetch<ProtocoloRegistro>(`/api/protocolos/${protocoloId}`);
     return apiFetch<ProtocoloRegistro>(`/api/reglamento?ambito=${ambito}`);
@@ -1185,7 +1190,7 @@ export default function DocumentoReglamentoApp({
   const versionCargada = useRef<string | null>(null);
   useEffect(() => {
     if (!registro?.contenido) return;
-    const version = `${guardiaId ? `guardia-${guardiaId}` : protocoloId ?? ambito}:${registro.id}:${registro.actualizado_en ?? ''}`;
+    const version = `${administrativoId ? `admin-${administrativoId}` : guardiaId ? `guardia-${guardiaId}` : protocoloId ?? ambito}:${registro.id}:${registro.actualizado_en ?? ''}`;
     if (versionCargada.current === version) return;
     if (cambiosPendientes) return;
     versionCargada.current = version;
@@ -1196,7 +1201,7 @@ export default function DocumentoReglamentoApp({
     ultimoRegistroRef.current = 0;
     setPuedeDeshacer(false);
     setPuedeRehacer(false);
-  }, [registro, ambito, protocoloId, guardiaId, cambiosPendientes]);
+  }, [registro, ambito, protocoloId, guardiaId, administrativoId, cambiosPendientes]);
 
   // Cambiar de reglamento descarta el borrador en pantalla, nunca lo mezcla con el otro documento.
   const cambiarAmbito = (nuevo: AmbitoReglamento) => {
@@ -1227,6 +1232,12 @@ export default function DocumentoReglamentoApp({
 
   const updateMutation = useMutation({
     mutationFn: (payload: any) => {
+      if (administrativoId) {
+        return apiFetch(`/api/administrativos/${administrativoId}/contrato`, {
+          method: 'PUT',
+          body: JSON.stringify({ contenido: payload.contenido }),
+        });
+      }
       if (guardiaId) {
         return apiFetch(`/api/guardias/${guardiaId}/contrato`, {
           method: 'PUT',
@@ -1255,7 +1266,11 @@ export default function DocumentoReglamentoApp({
     },
     onSuccess: () => {
       setCambiosPendientes(false);
-      if (guardiaId) {
+      if (administrativoId) {
+        queryClient.invalidateQueries({ queryKey: ['administrativo-contrato', administrativoId] });
+        queryClient.invalidateQueries({ queryKey: ['administrativo-documentos', administrativoId] });
+        queryClient.invalidateQueries({ queryKey: ['administrativo', administrativoId] });
+      } else if (guardiaId) {
         queryClient.invalidateQueries({ queryKey: ['guardia-contrato', guardiaId] });
         queryClient.invalidateQueries({ queryKey: ['guardia-documentos', guardiaId] });
         queryClient.invalidateQueries({ queryKey: ['guardia', guardiaId] });
@@ -1264,7 +1279,7 @@ export default function DocumentoReglamentoApp({
       } else {
         queryClient.invalidateQueries({ queryKey: ['reglamento-documento', ambito] });
       }
-      toast.success(guardiaId ? 'Contrato guardado en el expediente del guardia' : 'Documento guardado correctamente');
+      toast.success(administrativoId || guardiaId ? 'Contrato guardado en el expediente' : 'Documento guardado correctamente');
     },
     onError: (err: Error) => {
       toast.error(err.message || 'Error al guardar');
@@ -1273,6 +1288,7 @@ export default function DocumentoReglamentoApp({
 
   const esReglamento = Boolean(
     !guardiaId &&
+      !administrativoId &&
       registro &&
       (registro.categoria === 'Reglamento' ||
         registro.titulo?.toLowerCase().includes('reglamento') ||
@@ -1280,7 +1296,9 @@ export default function DocumentoReglamentoApp({
   );
 
   const ambitoMeta = AMBITOS.find((a) => a.id === ambito) ?? AMBITOS[0];
-  const codigoDocumento = guardiaId
+  const codigoDocumento = administrativoId
+    ? `EXP-CONTRATO-ADM-${administrativoId}`
+    : guardiaId
     ? `EXP-CONTRATO-${guardiaId}`
     : esReglamento
     ? ambitoMeta.codigo
@@ -1309,6 +1327,7 @@ export default function DocumentoReglamentoApp({
 
   const sinPortadaNiIndice = Boolean(
     guardiaId ||
+    administrativoId ||
     (registro?.contenido as any)?.sinPortadaNiIndice ||
     (contenidoLocal as any)?.sinPortadaNiIndice ||
     registro?.categoria === 'Recursos Humanos' ||
@@ -1835,7 +1854,7 @@ export default function DocumentoReglamentoApp({
    * igual que ya se resolvió para la Ficha Técnica.
    */
   const handleImprimir = async () => {
-    if (!guardiaId) {
+    if (!guardiaId && !administrativoId) {
       window.print();
       return;
     }
@@ -1843,7 +1862,10 @@ export default function DocumentoReglamentoApp({
     const toastId = toast.loading('Preparando impresión oficial...');
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : null;
-      const res = await fetch(`/api/guardias/${guardiaId}/contrato-pdf`, {
+      const endpoint = administrativoId
+        ? `/api/administrativos/${administrativoId}/contrato-pdf`
+        : `/api/guardias/${guardiaId}/contrato-pdf`;
+      const res = await fetch(endpoint, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (!res.ok) throw new Error('Error al generar el PDF del contrato');
@@ -2185,9 +2207,9 @@ export default function DocumentoReglamentoApp({
       {/* Cabecera institucional de herramientas (estática, no fija) */}
       <div className="bg-card border border-border rounded-xl p-3 sm:p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 print:hidden">
         <div className="flex items-center gap-3">
-          <Link href={volverUrl || (guardiaId ? `/guardias/${guardiaId}` : esReglamento ? "/" : "/protocolos")}>
+          <Link href={volverUrl || (administrativoId ? `/administrativos/${administrativoId}` : guardiaId ? `/guardias/${guardiaId}` : esReglamento ? "/" : "/protocolos")}>
             <Button variant="ghost" size="sm" className="h-9 px-2 text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="w-4 h-4 mr-1" /> {guardiaId ? 'Volver al Expediente' : esReglamento ? 'Inicio' : 'Protocolos'}
+              <ArrowLeft className="w-4 h-4 mr-1" /> {administrativoId || guardiaId ? 'Volver al Expediente' : esReglamento ? 'Inicio' : 'Protocolos'}
             </Button>
           </Link>
           <div className="h-5 w-px bg-border hidden sm:block" />
@@ -2196,7 +2218,7 @@ export default function DocumentoReglamentoApp({
               <ShieldCheck className="w-5 h-5 text-primary" /> {registro.titulo}
             </h1>
             <p className="text-xs text-muted-foreground hidden sm:block">
-              {guardiaId ? 'Expediente Digital del Elemento · Formato Oficial U3 Seguridad Privada' : `${secciones.length} capítulos y secciones · Formato Oficial U3 Seguridad Privada`}
+              {administrativoId || guardiaId ? 'Expediente Digital del Colaborador · Formato Oficial U3 Seguridad Privada' : `${secciones.length} capítulos y secciones · Formato Oficial U3 Seguridad Privada`}
             </p>
           </div>
         </div>

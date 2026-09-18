@@ -6,7 +6,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
-import { MESES } from '@/src/components/ui/rango-fechas';
 import { Badge } from '@/src/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
 import {
@@ -46,15 +45,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
 import MachoteFichaAdministrativo from '@/src/components/machotes/MachoteFichaAdministrativo';
 import AdministrativoPerfil from './AdministrativoPerfil';
-import { dividirNombreCompleto, calcularEdad, calcularCURP, calcularClaveRFC } from '@/src/lib/rfcCurp';
-import { ESTADOS_MEXICO } from '@/src/lib/direccionMexico';
-
-const SEXOS = ['Masculino', 'Femenino'];
-const ESTADOS_CIVILES = ['Soltero(a)', 'Casado(a)', 'Unión libre', 'Divorciado(a)', 'Viudo(a)'];
-const NIVELES_ESTUDIO = [
-  'Primaria', 'Secundaria', 'Preparatoria / Bachillerato', 'Técnico / Carrera Comercial',
-  'Licenciatura / Universidad', 'Posgrado', 'Sin estudios',
-];
+import { FichaExtraEditor, FICHA_EXTRA_VACIA, extraerFichaExtra, type FichaExtraValores } from './administrativos/FichaExtraEditor';
 
 function imprimirExpediente(administrativo: any, salidas: any[], entradas: any[]) {
   const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -238,58 +229,6 @@ function MenuContextualAdministrativo({
   );
 }
 
-/** Campo de una sola línea para el alta rápida: label diminuto + input bajo,
- *  pensado para que quepan muchos en una cuadrícula sin forzar scroll. */
-function CampoCompacto({
-  label, value, onChange, placeholder, className,
-}: {
-  label: string;
-  value: string;
-  onChange: (val: string) => void;
-  placeholder?: string;
-  className?: string;
-}) {
-  return (
-    <div className={cn('space-y-0.5', className)}>
-      <label className="text-[11px] font-semibold text-muted-foreground truncate block">{label}</label>
-      <Input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="rounded-lg h-9"
-      />
-    </div>
-  );
-}
-
-/** Variante de CampoCompacto respaldada por un catálogo cerrado (sexo, estado civil, estudios, etc.). */
-function SelectCompacto({
-  label, value, onChange, options, placeholder, className,
-}: {
-  label: string;
-  value: string;
-  onChange: (val: string) => void;
-  options: string[];
-  placeholder?: string;
-  className?: string;
-}) {
-  return (
-    <div className={cn('space-y-0.5', className)}>
-      <label className="text-[11px] font-semibold text-muted-foreground truncate block">{label}</label>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-xs"
-      >
-        <option value="">{placeholder || 'Selecciona...'}</option>
-        {options.map(o => (
-          <option key={o} value={o}>{o}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
 export default function AdministrativosApp({ initialAdministrativoId }: { initialAdministrativoId?: number } = {}) {
   const { isEditor, isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -323,80 +262,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
 
   // Datos personales y domicilio del alta rápida: mismas llaves que la Ficha
   // Técnica oficial, para que al abrirla después ya vengan precargados.
-  const FICHA_EXTRA_VACIA = {
-    fechaNacimiento: '', edad: '', estadoCivil: '', estudios: '', rfc: '', curp: '', imss: '',
-    sexo: '', estatura: '', peso: '',
-    calleNumero: '', colonia: '', entreCalles: '', cp: '', delegacionMunicipio: '', estado: '',
-    tiempoResidencia: '', tiempoRadicarEstado: '', telefonoEmergencia: '', celular: '',
-  };
-  const [fichaExtra, setFichaExtra] = useState(FICHA_EXTRA_VACIA);
-  const actualizarFichaExtra = (campo: keyof typeof FICHA_EXTRA_VACIA, valor: string) =>
-    setFichaExtra((f) => ({ ...f, [campo]: valor }));
-
-  // Fecha de nacimiento con el mes en letra ("15 de marzo de 1998"): un
-  // calendario emergente es incómodo para saltar décadas atrás, así que se
-  // captura como tres campos sueltos y se compone al guardar.
-  const [diaNac, setDiaNac] = useState('');
-  const [mesNac, setMesNac] = useState('');
-  const [anioNac, setAnioNac] = useState('');
-  const fechaNacimientoTexto = diaNac && mesNac && anioNac ? `${diaNac} de ${mesNac} de ${anioNac}` : '';
-
-  // Edad: se recalcula sola en cuanto la fecha de nacimiento queda completa.
-  useEffect(() => {
-    const edadCalculada = calcularEdad(diaNac, mesNac, anioNac);
-    if (edadCalculada !== null) {
-      setFichaExtra((f) => (f.edad === String(edadCalculada) ? f : { ...f, edad: String(edadCalculada) }));
-    }
-  }, [diaNac, mesNac, anioNac]);
-
-  // RFC y CURP: se proponen solos con nombre + fecha de nacimiento + sexo + estado,
-  // pero dejan de tocarse en cuanto el usuario los edita a mano (por ejemplo, para
-  // copiar la homoclave real desde la identificación oficial).
-  const [rfcTocadoManualmente, setRfcTocadoManualmente] = useState(false);
-  const [curpTocadaManualmente, setCurpTocadaManualmente] = useState(false);
-
-  useEffect(() => {
-    if (!nombre || !diaNac || !mesNac || !anioNac) return;
-    const { nombres, apellidoPaterno, apellidoMaterno } = dividirNombreCompleto(nombre);
-    const datos = { nombres, apellidoPaterno, apellidoMaterno, dia: diaNac, mes: mesNac, anio: anioNac, sexo: fichaExtra.sexo, estado: fichaExtra.estado };
-
-    if (!rfcTocadoManualmente) {
-      const claveRfc = calcularClaveRFC(datos);
-      if (claveRfc) setFichaExtra((f) => (f.rfc === claveRfc ? f : { ...f, rfc: claveRfc }));
-    }
-    if (!curpTocadaManualmente) {
-      const curp = calcularCURP(datos);
-      if (curp) setFichaExtra((f) => (f.curp === curp ? f : { ...f, curp }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nombre, diaNac, mesNac, anioNac, fichaExtra.sexo, fichaExtra.estado, rfcTocadoManualmente, curpTocadaManualmente]);
-
-  // C.P. -> colonias y estado: se consulta un servicio público en cuanto quedan los 5 dígitos.
-  const [coloniasDisponibles, setColoniasDisponibles] = useState<string[]>([]);
-  const [buscandoCp, setBuscandoCp] = useState(false);
-
-  useEffect(() => {
-    const cp = fichaExtra.cp.trim();
-    if (!/^\d{5}$/.test(cp)) {
-      setColoniasDisponibles([]);
-      return;
-    }
-    let cancelado = false;
-    setBuscandoCp(true);
-    const timer = setTimeout(() => {
-      apiFetch<{ colonias: string[]; estado: string | null }>(`/api/utilidades/cp/${cp}`)
-        .then((res) => {
-          if (cancelado) return;
-          setColoniasDisponibles(res.colonias || []);
-          if (res.estado) {
-            setFichaExtra((f) => (f.estado ? f : { ...f, estado: res.estado! }));
-          }
-        })
-        .catch(() => { if (!cancelado) setColoniasDisponibles([]); })
-        .finally(() => { if (!cancelado) setBuscandoCp(false); });
-    }, 450);
-    return () => { cancelado = true; clearTimeout(timer); setBuscandoCp(false); };
-  }, [fichaExtra.cp]);
+  const [fichaExtra, setFichaExtra] = useState<FichaExtraValores>(FICHA_EXTRA_VACIA);
 
   // Selected Administrativo & Baja States
   const [selectedAdministrativo, setSelectedAdministrativo] = useState<any>(null);
@@ -414,6 +280,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
   const [editDireccion, setEditDireccion] = useState('');
   const [editSueldoMensual, setEditSueldoMensual] = useState('');
   const [editEstado, setEditEstado] = useState('Activo');
+  const [editFichaExtra, setEditFichaExtra] = useState<FichaExtraValores>(FICHA_EXTRA_VACIA);
 
   // Queries
   const { data: administrativos = [], isLoading } = useQuery({
@@ -433,12 +300,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
       setNombre('');
       setTelefono('');
       setFichaExtra(FICHA_EXTRA_VACIA);
-      setDiaNac('');
-      setMesNac('');
-      setAnioNac('');
-      setRfcTocadoManualmente(false);
-      setCurpTocadaManualmente(false);
-      setColoniasDisponibles([]);
     },
     onError: (err: any) => toast.error(err?.message || 'Error al registrar administrativo'),
   });
@@ -489,6 +350,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
     setEditDireccion(administrativo.direccion || '');
     setEditSueldoMensual(administrativo.sueldo_mensual ? String(administrativo.sueldo_mensual) : '');
     setEditEstado(administrativo.estado || 'Activo');
+    setEditFichaExtra(extraerFichaExtra(administrativo.ficha_tecnica_json));
     setSelectedAdministrativo(administrativo);
     setIsEditModalOpen(true);
   };
@@ -1002,7 +864,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                 email,
                 sueldo_mensual: sueldoMensual ? Number(sueldoMensual) : undefined,
                 ...fichaExtra,
-                fechaNacimiento: fechaNacimientoTexto,
               });
             }}
           >
@@ -1102,105 +963,9 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                     className="rounded-lg h-9"
                   />
                 </div>
-                <div className="space-y-0.5 col-span-2">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Fecha de Nacimiento</label>
-                  <div className="grid grid-cols-[1fr_1.6fr_1fr] gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={31}
-                      value={diaNac}
-                      onChange={e => setDiaNac(e.target.value)}
-                      placeholder="Día"
-                      className="rounded-lg h-9"
-                    />
-                    <select
-                      value={mesNac}
-                      onChange={e => setMesNac(e.target.value)}
-                      className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
-                    >
-                      <option value="">Mes</option>
-                      {MESES.map((m) => (
-                        <option key={m} value={m} className="capitalize">{m}</option>
-                      ))}
-                    </select>
-                    <Input
-                      type="number"
-                      min={1940}
-                      max={new Date().getFullYear()}
-                      value={anioNac}
-                      onChange={e => setAnioNac(e.target.value)}
-                      placeholder="Año"
-                      className="rounded-lg h-9"
-                    />
-                  </div>
-                </div>
               </div>
 
-              {/* ---------- Datos Personales y Domicilio: una sola cuadrícula compacta ---------- */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Datos Personales</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <CampoCompacto label="Edad (auto)" value={fichaExtra.edad} onChange={v => actualizarFichaExtra('edad', v)} placeholder="Se calcula con la fecha de nacimiento" />
-                  <SelectCompacto label="Sexo" value={fichaExtra.sexo} onChange={v => actualizarFichaExtra('sexo', v)} options={SEXOS} />
-                  <SelectCompacto label="Estado Civil" value={fichaExtra.estadoCivil} onChange={v => actualizarFichaExtra('estadoCivil', v)} options={ESTADOS_CIVILES} />
-                  <SelectCompacto label="Estudios" value={fichaExtra.estudios} onChange={v => actualizarFichaExtra('estudios', v)} options={NIVELES_ESTUDIO} />
-                  <CampoCompacto
-                    label="RFC (auto, verifica en INE)"
-                    value={fichaExtra.rfc}
-                    onChange={v => { setRfcTocadoManualmente(true); actualizarFichaExtra('rfc', v.toUpperCase()); }}
-                    placeholder="13 posiciones"
-                    className="uppercase"
-                  />
-                  <CampoCompacto
-                    label="CURP (auto, verifica en INE)"
-                    value={fichaExtra.curp}
-                    onChange={v => { setCurpTocadaManualmente(true); actualizarFichaExtra('curp', v.toUpperCase()); }}
-                    placeholder="18 posiciones"
-                    className="uppercase"
-                  />
-                  <CampoCompacto label="Afiliación IMSS" value={fichaExtra.imss} onChange={v => actualizarFichaExtra('imss', v)} placeholder="NSS 11 dígitos" />
-                  <CampoCompacto label="Estatura" value={fichaExtra.estatura} onChange={v => actualizarFichaExtra('estatura', v)} placeholder="Ej. 1.75 m" />
-                  <CampoCompacto label="Peso Aproximado" value={fichaExtra.peso} onChange={v => actualizarFichaExtra('peso', v)} placeholder="Ej. 78 kg" />
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-border">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Domicilio</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <CampoCompacto label="Calle y Número" value={fichaExtra.calleNumero} onChange={v => actualizarFichaExtra('calleNumero', v)} placeholder="Calle, no. ext. e int." className="col-span-2" />
-                  {coloniasDisponibles.length > 0 ? (
-                    <SelectCompacto
-                      label="Colonia"
-                      value={fichaExtra.colonia}
-                      onChange={v => actualizarFichaExtra('colonia', v)}
-                      options={fichaExtra.colonia && !coloniasDisponibles.includes(fichaExtra.colonia) ? [fichaExtra.colonia, ...coloniasDisponibles] : coloniasDisponibles}
-                      placeholder="Elige la colonia"
-                    />
-                  ) : (
-                    <CampoCompacto label="Colonia" value={fichaExtra.colonia} onChange={v => actualizarFichaExtra('colonia', v)} placeholder="Colonia / fracc." />
-                  )}
-                  <CampoCompacto
-                    label={buscandoCp ? 'C.P. (buscando colonias…)' : 'C.P.'}
-                    value={fichaExtra.cp}
-                    onChange={v => actualizarFichaExtra('cp', v.replace(/\D/g, '').slice(0, 5))}
-                    placeholder="Código postal"
-                  />
-                  <CampoCompacto label="Entre las Calles" value={fichaExtra.entreCalles} onChange={v => actualizarFichaExtra('entreCalles', v)} placeholder="Calles aledañas" className="col-span-2" />
-                  <CampoCompacto label="Delegación / Municipio" value={fichaExtra.delegacionMunicipio} onChange={v => actualizarFichaExtra('delegacionMunicipio', v)} placeholder="Alcaldía o municipio" />
-                  <SelectCompacto
-                    label="Estado"
-                    value={fichaExtra.estado}
-                    onChange={v => actualizarFichaExtra('estado', v)}
-                    options={fichaExtra.estado && !ESTADOS_MEXICO.includes(fichaExtra.estado) ? [fichaExtra.estado, ...ESTADOS_MEXICO] : ESTADOS_MEXICO}
-                    placeholder="Elige el estado"
-                  />
-                  <CampoCompacto label="Tiempo de Residencia" value={fichaExtra.tiempoResidencia} onChange={v => actualizarFichaExtra('tiempoResidencia', v)} placeholder="Ej. 5 años" />
-                  <CampoCompacto label="Tiempo de Radicar en el Estado" value={fichaExtra.tiempoRadicarEstado} onChange={v => actualizarFichaExtra('tiempoRadicarEstado', v)} placeholder="Ej. 10 años" />
-                  <CampoCompacto label="Teléfono de Emergencia" value={fichaExtra.telefonoEmergencia} onChange={v => actualizarFichaExtra('telefonoEmergencia', v)} placeholder="Contacto familiar" />
-                  <CampoCompacto label="Celular" value={fichaExtra.celular} onChange={v => actualizarFichaExtra('celular', v)} placeholder="10 dígitos" />
-                </div>
-              </div>
+              <FichaExtraEditor nombreCompleto={nombre} value={fichaExtra} onChange={setFichaExtra} />
             </div>
 
             <DialogFooter className="gap-2">
@@ -1216,8 +981,8 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
       </Dialog>
 
       {/* ================= MODAL EDITAR DATOS DEL GUARDIA ================= */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="rounded-2xl max-w-lg">
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen} className="max-w-6xl">
+        <DialogContent className="rounded-2xl">
           <form
             onSubmit={e => {
               e.preventDefault();
@@ -1234,6 +999,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   direccion: editDireccion,
                   sueldo_mensual: editSueldoMensual ? Number(editSueldoMensual) : null,
                   estado: editEstado,
+                  fichaExtra: editFichaExtra,
                 });
               }
             }}
@@ -1358,21 +1124,11 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   className="rounded-xl"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Estado Operativo</label>
-                <select
-                  value={editEstado}
-                  onChange={e => setEditEstado(e.target.value)}
-                  className="flex h-10 w-full rounded-xl border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-medium"
-                >
-                  <option value="Activo">Activo</option>
-                  <option value="Baja Pendiente">Baja Pendiente</option>
-                  <option value="En Baja">En Baja</option>
-                </select>
-              </div>
             </div>
 
-            <DialogFooter className="gap-2">
+            <FichaExtraEditor nombreCompleto={editNombre} value={editFichaExtra} onChange={setEditFichaExtra} />
+
+            <DialogFooter className="gap-2 mt-3">
               <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} className="rounded-xl">
                 Cancelar
               </Button>

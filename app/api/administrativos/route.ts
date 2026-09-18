@@ -3,7 +3,7 @@ import { db } from '@/src/db';
 import { personal_administrativo } from '@/src/db/schema';
 import { verifyAuth, unauthorized } from '@/src/lib/auth';
 import { desc } from 'drizzle-orm';
-import { reconstruirDireccion } from '@/src/lib/fichaTecnicaUtils';
+import { reconstruirDireccion, CAMPOS_FICHA_BASICA } from '@/src/lib/fichaTecnicaUtils';
 
 export async function GET(req: NextRequest) {
   if (!verifyAuth(req)) return unauthorized();
@@ -14,12 +14,6 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'Error al obtener personal administrativo' }, { status: 500 });
   }
 }
-
-const CAMPOS_FICHA = [
-  'fechaNacimiento', 'edad', 'estadoCivil', 'estudios', 'rfc', 'curp', 'imss', 'sexo', 'estatura', 'peso',
-  'calleNumero', 'colonia', 'entreCalles', 'cp', 'delegacionMunicipio', 'estado', 'tiempoResidencia',
-  'tiempoRadicarEstado', 'telefonoEmergencia', 'celular',
-] as const;
 
 export async function POST(req: NextRequest) {
   const authUser = verifyAuth(req);
@@ -50,7 +44,7 @@ export async function POST(req: NextRequest) {
     };
     if (numero_empleado) ficha.numeroElemento = numero_empleado.trim();
 
-    for (const campo of CAMPOS_FICHA) {
+    for (const campo of CAMPOS_FICHA_BASICA) {
       const valor = body[campo];
       if (typeof valor === 'string' && valor.trim()) ficha[campo] = valor.trim();
     }
