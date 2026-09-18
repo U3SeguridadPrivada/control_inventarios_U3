@@ -57,6 +57,40 @@ CREATE TABLE IF NOT EXISTS guardia_bitacora (
   usuario TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS personal_administrativo (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero_empleado TEXT UNIQUE,
+  nombre TEXT NOT NULL,
+  puesto TEXT NOT NULL,
+  departamento TEXT NOT NULL DEFAULT 'Administración',
+  estado TEXT DEFAULT 'Activo',
+  fecha_alta TEXT NOT NULL,
+  fecha_baja TEXT,
+  telefono TEXT,
+  email TEXT,
+  direccion TEXT,
+  sueldo_mensual REAL,
+  ficha_tecnica_json TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS administrativo_documentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  administrativo_id INTEGER NOT NULL REFERENCES personal_administrativo(id),
+  nombre_documento TEXT NOT NULL,
+  nombre_archivo TEXT NOT NULL,
+  tipo_mimetype TEXT NOT NULL,
+  contenido_json TEXT,
+  fecha_subida TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS administrativo_bitacora (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  administrativo_id INTEGER NOT NULL REFERENCES personal_administrativo(id),
+  tipo TEXT NOT NULL DEFAULT 'nota',
+  asunto TEXT,
+  mensaje TEXT NOT NULL,
+  usuario TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS entradas (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   fecha TEXT NOT NULL,
