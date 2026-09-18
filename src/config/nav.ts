@@ -3,7 +3,7 @@ import {
   Users, UserMinus, ShieldCheck, UserPlus, Lock, LucideIcon,
   Mail, CalendarDays, MapPin, ShoppingCart, Contact2, FileSpreadsheet,
   Landmark, KeyRound, Settings, UserSearch, MessageCircle, ClipboardList,
-  FileStack, BookOpen, Timer,
+  FileStack, BookOpen, Timer, Building2,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -48,6 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: Users,
     items: [
       { id: 'guardias', href: '/guardias', title: 'Gestión de Guardias', shortLabel: 'Guardias', icon: Users },
+      { id: 'administrativos', href: '/administrativos', title: 'Personal de Oficinas', shortLabel: 'Oficinas', icon: Building2 },
       { id: 'checador', href: '/checador', title: 'Checador de Salidas (10 min)', shortLabel: 'Checador', icon: Timer },
       { id: 'reclutamiento', href: '/reclutamiento', title: 'Reclutamiento de Personal', shortLabel: 'Reclutar', icon: UserSearch },
       { id: 'bajas', href: '/bajas', title: 'Procesos de Bajas', shortLabel: 'Bajas', icon: UserMinus },

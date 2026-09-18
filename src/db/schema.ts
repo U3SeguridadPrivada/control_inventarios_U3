@@ -65,6 +65,43 @@ export const guardia_bitacora = sqliteTable('guardia_bitacora', {
   created_at: text('created_at').default(sql`(datetime('now'))`),
 });
 
+export const personal_administrativo = sqliteTable('personal_administrativo', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  numero_empleado: text('numero_empleado').unique(),
+  nombre: text('nombre').notNull(),
+  puesto: text('puesto').notNull(),
+  departamento: text('departamento').notNull().default('Administración'),
+  estado: text('estado').default('Activo'),
+  fecha_alta: text('fecha_alta').notNull(),
+  fecha_baja: text('fecha_baja'),
+  telefono: text('telefono'),
+  email: text('email'),
+  direccion: text('direccion'),
+  sueldo_mensual: real('sueldo_mensual'),
+  ficha_tecnica_json: text('ficha_tecnica_json'),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+});
+
+export const administrativo_documentos = sqliteTable('administrativo_documentos', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  administrativo_id: integer('administrativo_id').notNull().references(() => personal_administrativo.id),
+  nombre_documento: text('nombre_documento').notNull(),
+  nombre_archivo: text('nombre_archivo').notNull(),
+  tipo_mimetype: text('tipo_mimetype').notNull(),
+  contenido_json: text('contenido_json'),
+  fecha_subida: text('fecha_subida').default(sql`(datetime('now'))`),
+});
+
+export const administrativo_bitacora = sqliteTable('administrativo_bitacora', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  administrativo_id: integer('administrativo_id').notNull().references(() => personal_administrativo.id),
+  tipo: text('tipo').notNull().default('nota'),
+  asunto: text('asunto'),
+  mensaje: text('mensaje').notNull(),
+  usuario: text('usuario'),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+});
+
 export const entradas = sqliteTable('entradas', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   fecha: text('fecha').notNull(),

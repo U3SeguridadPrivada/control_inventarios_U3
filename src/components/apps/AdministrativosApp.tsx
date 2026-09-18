@@ -1,0 +1,1348 @@
+'use client';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/src/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
+import { Button } from '@/src/components/ui/button';
+import { Input } from '@/src/components/ui/input';
+import { MESES } from '@/src/components/ui/rango-fechas';
+import { Badge } from '@/src/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
+import {
+  Search,
+  UserPlus,
+  LogOut,
+  Printer,
+  Edit,
+  Trash2,
+  Download,
+  Eye,
+  Phone,
+  MapPin,
+  FileText,
+  Upload,
+  IdCard,
+  Edit3,
+  CheckCircle2,
+  AlertCircle,
+  Calendar,
+  LayoutGrid,
+  List,
+  Shield,
+  User,
+  ExternalLink,
+  RefreshCw,
+  Briefcase,
+  FileCheck,
+  Building2,
+  Clock,
+  Sparkles,
+  ChevronRight,
+  Maximize2
+} from 'lucide-react';
+import { fmtDate, cn } from '@/src/lib/utils';
+import { toast } from 'sonner';
+import { useAuth } from '@/src/context/AuthContext';
+import MachoteFichaAdministrativo from '@/src/components/machotes/MachoteFichaAdministrativo';
+import AdministrativoPerfil from './AdministrativoPerfil';
+
+function imprimirExpediente(administrativo: any, salidas: any[], entradas: any[]) {
+  const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+  const enPosesion = salidas.filter(s => s.estado_asignacion === 'Uniforme en Campo');
+  const saldoMap: Record<string, number> = {};
+  enPosesion.forEach(s => { const key = `${s.articulo}${s.talla ? ` (Talla: ${s.talla})` : ''}`; saldoMap[key] = (saldoMap[key] || 0) + s.cantidad; });
+  const dotacion = salidas.filter(s => s.concepto === 'Uniforme en Campo' || s.concepto === 'Asignación');
+  const reposicion = salidas.filter(s => s.concepto === 'Reposición');
+  const extravios = salidas.filter(s => s.concepto === 'Extravío' || s.concepto === 'Inutilizable');
+  const recuperados = entradas.filter(e => e.motivo === 'Recuperado');
+  const reposicionEntradas = entradas.filter(e => e.motivo === 'Reposición (Entrada Múltiple)');
+  const totalDotaciones = dotacion.reduce((a: number, s: any) => a + s.cantidad, 0);
+  const totalReposiciones = reposicion.reduce((a: number, s: any) => a + s.cantidad, 0);
+  const totalPerdidas = extravios.reduce((a: number, s: any) => a + s.cantidad, 0);
+  const totalEnPosesion = Object.values(saldoMap).reduce((a, v) => a + v, 0);
+  const saldoItemsHtml = Object.entries(saldoMap).length === 0 ? '<p style="color:#6b7280;font-style:italic;font-size:11px;margin-top:8px">Sin artículos en posesión.</p>' : `<ul style="list-style:none;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px;">${Object.entries(saldoMap).map(([art, qty]) => `<li style="font-size:11px;"><strong>${qty}x</strong> ${art}</li>`).join('')}</ul>`;
+  const thBase = `<th style="width:30px">No.</th><th>Fecha</th><th>Artículo</th><th style="text-align:center">Talla</th><th style="text-align:center">Cant.</th>`;
+  const mkHeader = (lastCol: string) => `<thead><tr>${thBase}<th>${lastCol}</th></tr></thead>`;
+  const html = `<!doctype html><html lang="es"><head><meta charset="UTF-8"/><title>Expediente — ${administrativo.nombre}</title>
+  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:28px 36px}
+  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #1d4ed8;padding-bottom:10px;margin-bottom:14px}
+  .header-left h1{font-size:18px;font-weight:900;color:#1d4ed8;letter-spacing:1px;text-transform:uppercase}.header-left p{font-size:10px;color:#6b7280;margin-top:2px}
+  .header-right{text-align:right;font-size:10px;color:#374151}.header-right strong{font-size:12px;display:block;color:#1d4ed8}
+  .doc-title{text-align:center;font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;background:#1d4ed8;color:#fff;padding:5px 0;margin-bottom:14px}
+  .ficha{border:1.5px solid #1d4ed8;border-radius:4px;padding:10px 14px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
+  .ficha-field span{color:#6b7280;font-size:10px;display:block}.ficha-field strong{font-size:12px;color:#111}
+  .section-title{font-size:12px;font-weight:700;color:#1d4ed8;margin:16px 0 6px 0;border-bottom:1px solid #e5e7eb;padding-bottom:4px}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px}thead tr{background:#1d4ed8;color:#fff}
+  th{padding:6px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left}
+  td{padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:11px}tr:nth-child(even) td{background:#f0f4ff}
+  .saldo-box{margin:20px 0;padding:12px;border:2px dashed #1d4ed8;border-radius:6px;background-color:#eff6ff}
+  .saldo-title{font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:8px;text-transform:uppercase}
+  .firmas{display:flex;justify-content:space-around;margin-top:40px}.firma{text-align:center;width:200px}
+  .firma-line{border-bottom:1.5px solid #111;margin-bottom:6px;height:36px}.firma p{font-size:10px;font-weight:700;text-transform:uppercase}.firma small{font-size:9px;color:#6b7280}
+  .pie{margin-top:20px;padding-top:8px;border-top:1px solid #d1d5db;font-size:9px;color:#9ca3af;text-align:center}</style>
+  </head><body>
+  <div class="header"><div class="header-left"><h1>U3 Seguridad Privada</h1><p>Control de Uniformes y Dotaciones · Uso Interno</p></div>
+  <div class="header-right"><strong>EXPEDIENTE DE ELEMENTO</strong>Ciudad de México, México.<br/>Fecha:<br/>${fecha}</div></div>
+  <div class="doc-title">ENTREGA DE UNIFORME Y/O EQUIPO DE TRABAJO</div>
+  <div class="ficha">
+    <div class="ficha-field"><span>Nombre Completo</span><strong>${administrativo.nombre}</strong></div>
+    <div class="ficha-field"><span>Número de Elemento</span><strong>${administrativo.numero_empleado}</strong></div>
+    <div class="ficha-field"><span>Fecha de Alta</span><strong>${fmtDate(administrativo.fecha_alta)}</strong></div>
+    <div class="ficha-field"><span>Estatus</span><strong>${administrativo.estado}</strong></div>
+  </div>
+  <div class="section-title">I. Dotación inicial</div>
+  ${dotacion.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Estado')}<tbody>${dotacion.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.estado_fisico||'Nuevo'}</td></tr>`).join('')}</tbody></table>`}
+  <div class="section-title">II. Equipo repuesto</div>
+  ${reposicion.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Estado devuelto → Entregado')}<tbody>${reposicion.map((item: any, idx: number) => { const matched = reposicionEntradas.find((e: any) => e.articulo === item.articulo && e.fecha === item.fecha); const devuelto = matched?.estado || '—'; return `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>Devolvió: <strong>${devuelto}</strong> → Recibió: <strong>${item.estado_fisico||'Nuevo'}</strong></td></tr>`; }).join('')}</tbody></table>`}
+  <div class="section-title">III. Pérdidas y extravíos</div>
+  ${extravios.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Tipo')}<tbody>${extravios.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.concepto||'Extravío'}</td></tr>`).join('')}</tbody></table>`}
+  ${recuperados.length === 0 ? '' : `<div class="section-title">IV. Equipo recuperado</div><table>${mkHeader('Estado al recuperar')}<tbody>${recuperados.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.estado||'—'}</td></tr>`).join('')}</tbody></table>`}
+  <div class="saldo-box">
+    <div class="saldo-title">Saldo Actual en Posesión</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div style="text-align:center;background:#dbeafe;border-radius:6px;padding:8px;"><div style="font-size:20px;font-weight:900;color:#1d4ed8;">${totalDotaciones}</div><div style="font-size:9px;color:#1e40af;text-transform:uppercase;font-weight:700;">Piezas dotadas</div></div>
+      <div style="text-align:center;background:#ede9fe;border-radius:6px;padding:8px;"><div style="font-size:20px;font-weight:900;color:#7c3aed;">${totalReposiciones}</div><div style="font-size:9px;color:#6d28d9;text-transform:uppercase;font-weight:700;">Piezas repuestas</div></div>
+      <div style="text-align:center;background:#fee2e2;border-radius:6px;padding:8px;"><div style="font-size:20px;font-weight:900;color:#dc2626;">${totalPerdidas}</div><div style="font-size:9px;color:#b91c1c;text-transform:uppercase;font-weight:700;">Pérdidas</div></div>
+      <div style="text-align:center;background:#d1fae5;border-radius:6px;padding:8px;"><div style="font-size:20px;font-weight:900;color:#059669;">${totalEnPosesion}</div><div style="font-size:9px;color:#047857;text-transform:uppercase;font-weight:700;">En posesión</div></div>
+    </div>${saldoItemsHtml}
+  </div>
+  <div class="firmas"><div class="firma"><div class="firma-line"></div><p>Firma del Elemento</p><small>${administrativo.nombre}</small><br/><small>${administrativo.numero_empleado}</small></div>
+  <div class="firma"><div class="firma-line"></div><p>Responsable de Almacén</p><small>U3 Seguridad Privada</small></div></div>
+  <div class="pie">Documento generado automáticamente · U3 Seguridad Privada · Uso administrativo interno.</div>
+  </body></html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank', 'width=900,height=720');
+  if (!win) { alert('Permite ventanas emergentes para imprimir'); return; }
+  win.addEventListener('load', () => { win.focus(); win.print(); setTimeout(() => URL.revokeObjectURL(url), 2000); });
+}
+
+async function descargarFichaPdf(administrativoId: number, numeroElemento: string) {
+  const toastId = toast.loading('Generando ficha técnica oficial...');
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : null;
+    const res = await fetch(`/api/administrativos/${administrativoId}/ficha-pdf?download=true`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (!res.ok) throw new Error('Error al generar la ficha');
+    const blob = new Blob([await res.arrayBuffer()], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ficha_tecnica_${numeroElemento}.pdf`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    }, 1000);
+    toast.success('Ficha técnica PDF descargada con éxito', { id: toastId });
+  } catch {
+    toast.error('No se pudo generar la ficha técnica en PDF', { id: toastId });
+  }
+}
+
+function abrirPdfEnNuevaVentana(administrativoId: number) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : '';
+  const url = `/api/administrativos/${administrativoId}/ficha-pdf?inline=true${token ? `&token=${token}` : ''}`;
+  window.open(url, '_blank');
+}
+
+interface MenuContextualAdministrativo {
+  x: number;
+  y: number;
+  administrativo: any;
+}
+
+function MenuContextualAdministrativo({
+  ctx,
+  isAdmin,
+  onCerrar,
+  onVerPerfil,
+  onEditar,
+  onDarBaja,
+  onEliminar,
+}: {
+  ctx: MenuContextualAdministrativo;
+  isAdmin: boolean;
+  onCerrar: () => void;
+  onVerPerfil: (g: any) => void;
+  onEditar: (g: any) => void;
+  onDarBaja: (g: any) => void;
+  onEliminar: (g: any) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const cerrarFuera = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onCerrar();
+    };
+    const cerrarEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
+    window.addEventListener('mousedown', cerrarFuera);
+    window.addEventListener('keydown', cerrarEsc);
+    window.addEventListener('scroll', onCerrar, true);
+    return () => {
+      window.removeEventListener('mousedown', cerrarFuera);
+      window.removeEventListener('keydown', cerrarEsc);
+      window.removeEventListener('scroll', onCerrar, true);
+    };
+  }, [onCerrar]);
+
+  // Evita que el menú se salga de la pantalla en los bordes
+  const left = Math.min(ctx.x, window.innerWidth - 220);
+  const top = Math.min(ctx.y, window.innerHeight - 220);
+
+  const item = (icon: React.ReactNode, label: string, onClick: () => void, danger?: boolean) => (
+    <button
+      type="button"
+      onClick={() => { onClick(); onCerrar(); }}
+      className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg text-left transition-colors ${
+        danger ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40' : 'text-foreground hover:bg-muted'
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-[100] bg-card border border-border rounded-xl shadow-2xl p-1.5 min-w-[210px] animate-in fade-in zoom-in-95 duration-100"
+      style={{ left, top }}
+    >
+      <div className="px-2.5 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground truncate border-b border-border/60 mb-1">
+        {ctx.administrativo.nombre}
+      </div>
+      {item(<User className="w-3.5 h-3.5" />, 'Ver Perfil', () => onVerPerfil(ctx.administrativo))}
+      {item(<Edit className="w-3.5 h-3.5" />, 'Editar Datos', () => onEditar(ctx.administrativo))}
+      {ctx.administrativo.estado === 'Activo' && item(<LogOut className="w-3.5 h-3.5" />, 'Dar de Baja', () => onDarBaja(ctx.administrativo))}
+      {isAdmin && (
+        <>
+          <div className="my-1 h-px bg-border/60" />
+          {item(<Trash2 className="w-3.5 h-3.5" />, 'Eliminar Permanentemente', () => onEliminar(ctx.administrativo), true)}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Campo de una sola línea para el alta rápida: label diminuto + input bajo,
+ *  pensado para que quepan muchos en una cuadrícula sin forzar scroll. */
+function CampoCompacto({
+  label, value, onChange, placeholder, className,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn('space-y-0.5', className)}>
+      <label className="text-[11px] font-semibold text-muted-foreground truncate block">{label}</label>
+      <Input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="rounded-lg h-9"
+      />
+    </div>
+  );
+}
+
+export default function AdministrativosApp({ initialAdministrativoId }: { initialAdministrativoId?: number } = {}) {
+  const { isEditor, isAdmin } = useAuth();
+  const queryClient = useQueryClient();
+  const [selectedAdministrativoId, setSelectedAdministrativoId] = useState<number | null>(initialAdministrativoId || null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterEstado, setFilterEstado] = useState<'Todos' | 'Activo' | 'Baja Pendiente' | 'En Baja'>('Todos');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+
+  // Modal States
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBajaModalOpen, setIsBajaModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  // Menú contextual (clic derecho)
+  const [ctxMenu, setCtxMenu] = useState<MenuContextualAdministrativo | null>(null);
+  const abrirMenuContextual = (e: React.MouseEvent, administrativo: any) => {
+    if (!isEditor) return;
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY, administrativo });
+  };
+
+  // Registration States
+  const [numeroElemento, setNumeroElemento] = useState('');
+  const [nombre, setNombre] = useState('');
+  const [puesto, setPuesto] = useState('Asistente Administrativo');
+  const [departamento, setDepartamento] = useState('Administración');
+  const [fechaAlta, setFechaAlta] = useState(new Date().toISOString().split('T')[0]);
+  const [telefono, setTelefono] = useState('');
+  const [email, setEmail] = useState('');
+  const [sueldoMensual, setSueldoMensual] = useState('');
+
+  // Datos personales y domicilio del alta rápida: mismas llaves que la Ficha
+  // Técnica oficial, para que al abrirla después ya vengan precargados.
+  const FICHA_EXTRA_VACIA = {
+    fechaNacimiento: '', edad: '', estadoCivil: '', estudios: '', rfc: '', curp: '', imss: '',
+    sexo: '', estatura: '', peso: '',
+    calleNumero: '', colonia: '', entreCalles: '', cp: '', delegacionMunicipio: '', estado: '',
+    tiempoResidencia: '', tiempoRadicarEstado: '', telefonoEmergencia: '', celular: '',
+  };
+  const [fichaExtra, setFichaExtra] = useState(FICHA_EXTRA_VACIA);
+  const actualizarFichaExtra = (campo: keyof typeof FICHA_EXTRA_VACIA, valor: string) =>
+    setFichaExtra((f) => ({ ...f, [campo]: valor }));
+
+  // Fecha de nacimiento con el mes en letra ("15 de marzo de 1998"): un
+  // calendario emergente es incómodo para saltar décadas atrás, así que se
+  // captura como tres campos sueltos y se compone al guardar.
+  const [diaNac, setDiaNac] = useState('');
+  const [mesNac, setMesNac] = useState('');
+  const [anioNac, setAnioNac] = useState('');
+  const fechaNacimientoTexto = diaNac && mesNac && anioNac ? `${diaNac} de ${mesNac} de ${anioNac}` : '';
+
+  // Selected Administrativo & Baja States
+  const [selectedAdministrativo, setSelectedAdministrativo] = useState<any>(null);
+  const [fechaBaja, setFechaBaja] = useState(new Date().toISOString().split('T')[0]);
+
+  // Editing States
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editNumeroElemento, setEditNumeroElemento] = useState('');
+  const [editNombre, setEditNombre] = useState('');
+  const [editPuesto, setEditPuesto] = useState('');
+  const [editDepartamento, setEditDepartamento] = useState('Administración');
+  const [editFechaAlta, setEditFechaAlta] = useState('');
+  const [editTelefono, setEditTelefono] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editDireccion, setEditDireccion] = useState('');
+  const [editSueldoMensual, setEditSueldoMensual] = useState('');
+  const [editEstado, setEditEstado] = useState('Activo');
+
+  // Queries
+  const { data: administrativos = [], isLoading } = useQuery({
+    queryKey: ['administrativos'],
+    queryFn: () => apiFetch<any[]>('/api/administrativos'),
+  });
+
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: (payload: any) => apiFetch('/api/administrativos', { method: 'POST', body: JSON.stringify(payload) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['administrativos'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] });
+      toast.success('Administrativo registrado con éxito');
+      setIsModalOpen(false);
+      setNumeroElemento('');
+      setNombre('');
+      setTelefono('');
+      setFichaExtra(FICHA_EXTRA_VACIA);
+      setDiaNac('');
+      setMesNac('');
+      setAnioNac('');
+    },
+    onError: () => toast.error('Error al registrar (¿Número duplicado?)'),
+  });
+
+  const editMutation = useMutation({
+    mutationFn: (payload: any) => apiFetch(`/api/administrativos/${payload.id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['administrativos'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] });
+      toast.success('Datos del administrativo actualizados');
+      setIsEditModalOpen(false);
+    },
+    onError: (err: any) => toast.error(err.message || 'Error al actualizar administrativo'),
+  });
+
+  const bajaMutation = useMutation({
+    mutationFn: (payload: { id: number, fecha: string }) =>
+      apiFetch(`/api/administrativos/${payload.id}/baja`, { method: 'POST', body: JSON.stringify({ fecha: payload.fecha }) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['administrativos'] });
+      queryClient.invalidateQueries({ queryKey: ['bajas'] });
+      toast.success('Proceso de baja iniciado');
+      setIsBajaModalOpen(false);
+    },
+    onError: () => toast.error('Error al procesar la baja'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiFetch(`/api/administrativos/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['administrativos'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] });
+      toast.success('Administrativo eliminado permanentemente');
+      setIsDeleteModalOpen(false);
+      setSelectedAdministrativo(null);
+    },
+    onError: (err: any) => toast.error(err.message || 'Error al eliminar administrativo'),
+  });
+
+  const startEdit = (administrativo: any) => {
+    setEditNombre(administrativo.nombre);
+    setEditNumeroElemento(administrativo.numero_empleado || '');
+    setEditPuesto(administrativo.puesto || '');
+    setEditDepartamento(administrativo.departamento || 'Administración');
+    setEditFechaAlta(administrativo.fecha_alta ? administrativo.fecha_alta.split('T')[0] : '');
+    setEditTelefono(administrativo.telefono || '');
+    setEditEmail(administrativo.email || '');
+    setEditDireccion(administrativo.direccion || '');
+    setEditSueldoMensual(administrativo.sueldo_mensual ? String(administrativo.sueldo_mensual) : '');
+    setEditEstado(administrativo.estado || 'Activo');
+    setSelectedAdministrativo(administrativo);
+    setIsEditModalOpen(true);
+  };
+
+  const router = useRouter();
+
+  const openPerfil = (administrativo: any, action?: 'datos' | 'ficha' | 'editFicha') => {
+    if (action === 'editFicha') {
+      router.push(`/administrativos/${administrativo.id}?editFicha=1`);
+    } else if (action === 'ficha') {
+      router.push(`/administrativos/${administrativo.id}?tab=ficha`);
+    } else {
+      router.push(`/administrativos/${administrativo.id}`);
+    }
+  };
+
+  const filteredData = useMemo(() => {
+    return administrativos.filter((g: any) => {
+      const term = searchTerm.toLowerCase();
+      const matchSearch =
+        (g.nombre || '').toLowerCase().includes(term) ||
+        (g.numero_empleado || '').toLowerCase().includes(term) ||
+        (g.telefono || '').toLowerCase().includes(term);
+
+      const matchEstado =
+        filterEstado === 'Todos' || g.estado === filterEstado;
+
+      return matchSearch && matchEstado;
+    });
+  }, [administrativos, searchTerm, filterEstado]);
+
+  // Si hay un administrativo seleccionado, desplegar la vista de perfil completo estilo CRM
+  if (selectedAdministrativoId) {
+    return <AdministrativoPerfil id={selectedAdministrativoId} onVolver={() => setSelectedAdministrativoId(null)} />;
+  }
+
+  // Auth token for inline PDF preview
+  const authToken = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : '';
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+      {/* Top Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card/60 backdrop-blur-sm p-5 rounded-2xl border border-border shadow-sm">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
+              <Building2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-foreground">
+                Personal Administrativo de Oficinas
+              </h1>
+              <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
+                Directorio corporativo, perfiles oficiales, expedientes con documentos y cédulas técnicas en PDF.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Toggle View Mode */}
+          <div className="inline-flex items-center rounded-xl bg-muted/60 p-1 border border-border">
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'cards'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title="Vista en Tarjetas de Perfil"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" /> Tarjetas
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'table'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title="Vista en Tabla Compacta"
+            >
+              <List className="w-3.5 h-3.5" /> Tabla
+            </button>
+          </div>
+
+          {isEditor && (
+            <Button
+              onClick={() => setIsModalOpen(true)}
+              className="shadow-sm font-semibold rounded-xl"
+            >
+              <UserPlus className="w-4 h-4 mr-2" /> Nuevo Administrativo
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 max-w-md w-full relative">
+          <Search className="w-4 h-4 absolute left-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Buscar por nombre, número de elemento o teléfono..."
+            className="pl-10 h-10 rounded-xl bg-card"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        {/* Status Pill Filters */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scroll-touch">
+          {(['Todos', 'Activo', 'Baja Pendiente', 'En Baja'] as const).map(est => {
+            const count = est === 'Todos' ? administrativos.length : administrativos.filter((g: any) => g.estado === est).length;
+            const isSelected = filterEstado === est;
+            return (
+              <button
+                key={est}
+                type="button"
+                onClick={() => setFilterEstado(est)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border ${
+                  isSelected
+                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                    : 'bg-card text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground'
+                }`}
+              >
+                <span>{est}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isSelected ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Content: Cards or Table */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+          <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+          <p className="text-sm font-medium text-muted-foreground">Cargando catálogo de administrativos...</p>
+        </div>
+      ) : filteredData.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 bg-card border border-border border-dashed rounded-2xl text-center p-6">
+          <User className="w-12 h-12 text-muted-foreground/40 mb-3" />
+          <h3 className="text-base font-bold text-foreground">No se encontraron administrativos</h3>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-sm">
+            {searchTerm
+              ? 'No hay resultados que coincidan con la búsqueda. Intenta con otro nombre o número.'
+              : 'Aún no hay administrativos registrados con este filtro.'}
+          </p>
+          {isEditor && (
+            <Button onClick={() => setIsModalOpen(true)} size="sm" className="mt-4">
+              <UserPlus className="w-4 h-4 mr-1.5" /> Registrar Primer Administrativo
+            </Button>
+          )}
+        </div>
+      ) : viewMode === 'cards' ? (
+        /* ================= CARDS VIEW (Tarjetas del perfil del administrativo) ================= */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          {filteredData.map((item: any) => {
+            let hasFicha = false;
+            let fotoUrl: string | null = null;
+            if (item.ficha_tecnica_json) {
+              try {
+                const parsed = JSON.parse(item.ficha_tecnica_json);
+                hasFicha = true;
+                fotoUrl = parsed.fotoUrl || null;
+              } catch {}
+            }
+
+            const initials = item.nombre
+              ? item.nombre
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((w: string) => w[0])
+                  .join('')
+                  .toUpperCase()
+              : 'G';
+
+            const isActivo = item.estado === 'Activo';
+            const isBajaPendiente = item.estado === 'Baja Pendiente';
+            const isEnBaja = item.estado === 'En Baja';
+
+            return (
+              <div
+                key={item.id}
+                onContextMenu={(e) => abrirMenuContextual(e, item)}
+                className="group relative bg-card hover:bg-card/90 border border-border/80 hover:border-primary/50 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+              >
+                <div>
+                  {/* Card Top: Photo/Initials + Badges */}
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3">
+                      {/* Avatar / Photo */}
+                      <div className="relative flex-shrink-0">
+                        {fotoUrl ? (
+                          <img
+                            src={fotoUrl}
+                            alt={item.nombre}
+                            className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl object-cover border-2 border-primary/20 shadow-sm group-hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-muted border-2 border-primary/20 flex items-center justify-center text-primary font-black text-lg tracking-wider shadow-sm group-hover:scale-105 transition-transform">
+                            {initials}
+                          </div>
+                        )}
+                        <span
+                          className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-card ${
+                            isActivo ? 'bg-emerald-500 ring-2 ring-emerald-500/20' : isBajaPendiente ? 'bg-amber-500' : 'bg-red-500'
+                          }`}
+                          title={`Estado: ${item.estado}`}
+                        />
+                      </div>
+
+                      {/* Header Info */}
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                            {item.numero_empleado || 'Sin folio'}
+                          </span>
+                        </div>
+                        <h2
+                          onClick={() => openPerfil(item, 'datos')}
+                          className="font-bold text-foreground text-base mt-1 line-clamp-1 group-hover:text-primary cursor-pointer transition-colors"
+                          title={item.nombre}
+                        >
+                          {item.nombre}
+                        </h2>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-xs font-semibold text-primary">
+                          <Briefcase className="w-3.5 h-3.5 shrink-0" />
+                          <span>{item.puesto || 'Administrativo'}</span>
+                          <span className="text-muted-foreground/60">•</span>
+                          <span className="text-muted-foreground font-normal text-[11px]">{item.departamento || 'Oficinas'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <div>
+                      <Badge
+                        variant={isActivo ? 'success' : isBajaPendiente ? 'destructive' : 'secondary'}
+                        className="text-[11px] font-semibold tracking-wide"
+                      >
+                        {item.estado}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Contact & General Details */}
+                  <div className="space-y-2 py-2 border-t border-border/60 text-xs text-muted-foreground">
+                    {item.telefono ? (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 text-primary/80 flex-shrink-0" />
+                        <a
+                          href={`tel:${item.telefono}`}
+                          className="hover:text-primary transition-colors truncate"
+                          title="Llamar al administrativo"
+                        >
+                          {item.telefono}
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-muted-foreground/60 italic">
+                        <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>Sin teléfono registrado</span>
+                      </div>
+                    )}
+
+                    {item.direccion ? (
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-3.5 h-3.5 text-primary/80 flex-shrink-0 mt-0.5" />
+                        <span className="line-clamp-1" title={item.direccion}>
+                          {item.direccion}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-muted-foreground/60 italic">
+                        <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>Sin dirección registrada</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 text-primary/80 flex-shrink-0" />
+                      <span>Alta: {fmtDate(item.fecha_alta)}</span>
+                    </div>
+                  </div>
+
+                  {/* Ficha Técnica Status Pill */}
+                  <div className="mt-2.5">
+                    {hasFicha ? (
+                      <div
+                        onClick={() => openPerfil(item, 'ficha')}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-medium cursor-pointer hover:bg-emerald-500/20 transition-colors w-full"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                        <span className="truncate">Ficha Técnica en PDF Guardada</span>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => openPerfil(item, 'editFicha')}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 text-[11px] font-medium cursor-pointer hover:bg-amber-500/20 transition-colors w-full"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                        <span className="truncate">Ficha Técnica pendiente de llenar</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card Footer Actions */}
+                <div className="pt-4 mt-3 border-t border-border/60 flex items-center justify-between gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="flex-1 h-9 rounded-xl font-semibold text-xs shadow-sm"
+                    onClick={() => openPerfil(item, 'datos')}
+                  >
+                    <User className="w-3.5 h-3.5 mr-1.5" /> Ver Perfil
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-2.5 rounded-xl text-xs"
+                    onClick={() => openPerfil(item, 'ficha')}
+                    title="Ver Ficha Técnica en PDF"
+                  >
+                    <IdCard className="w-4 h-4 text-primary" />
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-2.5 rounded-xl text-xs"
+                    onClick={() => descargarFichaPdf(item.id, item.numero_empleado)}
+                    title="Descargar Ficha Técnica en PDF"
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+
+                  {isEditor && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 px-2.5 rounded-xl text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => startEdit(item)}
+                      title="Editar Datos Generales"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* ================= TABLE VIEW ================= */
+        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Número</TableHead>
+                <TableHead>Nombre del Administrativo</TableHead>
+                <TableHead>Puesto / Depto</TableHead>
+                <TableHead>Contacto</TableHead>
+                <TableHead>Fecha Alta</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Ficha Técnica</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredData.map((item: any) => {
+                const hasFicha = !!item.ficha_tecnica_json;
+                return (
+                  <TableRow key={item.id} onContextMenu={(e) => abrirMenuContextual(e, item)} className="hover:bg-muted/30">
+                    <TableCell className="font-mono font-bold text-primary">
+                      {item.numero_empleado || 'Sin folio'}
+                    </TableCell>
+                    <TableCell>
+                      <div
+                        onClick={() => openPerfil(item, 'datos')}
+                        className="font-medium text-foreground hover:text-primary cursor-pointer transition-colors"
+                      >
+                        {item.nombre}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs">
+                        <span className="font-semibold text-foreground block">{item.puesto || 'Administrativo'}</span>
+                        <span className="text-muted-foreground text-[11px]">{item.departamento || 'Oficinas'}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs text-muted-foreground flex flex-col gap-0.5">
+                        {item.telefono && <span>📞 {item.telefono}</span>}
+                        {item.direccion && <span className="truncate max-w-[200px]" title={item.direccion}>📍 {item.direccion}</span>}
+                        {!item.telefono && !item.direccion && <span className="italic">—</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs">{fmtDate(item.fecha_alta)}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={item.estado === 'Activo' ? 'success' : item.estado === 'En Baja' || item.estado === 'Baja Pendiente' ? 'destructive' : 'secondary'}
+                        className="text-xs"
+                      >
+                        {item.estado}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {hasFicha ? (
+                        <span className="inline-flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> PDF Listo
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-xs text-amber-600 dark:text-amber-400">
+                          <AlertCircle className="w-3.5 h-3.5 mr-1" /> Pendiente
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end items-center gap-1.5">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 rounded-lg text-xs"
+                          onClick={() => openPerfil(item, 'datos')}
+                        >
+                          <Eye className="w-3.5 h-3.5 mr-1" /> Perfil
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 rounded-lg text-xs text-primary font-medium"
+                          onClick={() => openPerfil(item, 'ficha')}
+                          title="Ficha Técnica en PDF"
+                        >
+                          <IdCard className="w-3.5 h-3.5 mr-1" /> Ficha
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 rounded-lg text-muted-foreground"
+                          onClick={() => descargarFichaPdf(item.id, item.numero_empleado)}
+                          title="Descargar PDF"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </Button>
+                        {isEditor && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 rounded-lg text-muted-foreground"
+                            onClick={() => startEdit(item)}
+                            title="Editar Datos"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* ================= MENÚ CONTEXTUAL (CLIC DERECHO) ================= */}
+      {ctxMenu && (
+        <MenuContextualAdministrativo
+          ctx={ctxMenu}
+          isAdmin={isAdmin}
+          onCerrar={() => setCtxMenu(null)}
+          onVerPerfil={(g) => openPerfil(g, 'datos')}
+          onEditar={(g) => startEdit(g)}
+          onDarBaja={(g) => { setSelectedAdministrativo(g); setFechaBaja(new Date().toISOString().split('T')[0]); setIsBajaModalOpen(true); }}
+          onEliminar={(g) => { setSelectedAdministrativo(g); setIsDeleteModalOpen(true); }}
+        />
+      )}
+
+
+      {/* ================= MODAL REGISTRAR NUEVO GUARDIA ================= */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen} className="max-w-6xl">
+        <DialogContent className="rounded-2xl">
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              createMutation.mutate({
+                numero_empleado: numeroElemento,
+                nombre,
+                puesto,
+                departamento,
+                fecha_alta: fechaAlta,
+                telefono,
+                email,
+                sueldo_mensual: sueldoMensual ? Number(sueldoMensual) : undefined,
+                ...fichaExtra,
+                fechaNacimiento: fechaNacimientoTexto,
+              });
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-primary" /> Registrar Nuevo Administrativo
+              </DialogTitle>
+              <DialogDescription>
+                Añade los datos iniciales del elemento para habilitar su expediente, dotaciones y ficha técnica.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-3 space-y-3">
+              {/* ---------- Datos básicos ---------- */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="space-y-0.5 col-span-2">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Nombre Completo</label>
+                  <Input
+                    value={nombre}
+                    onChange={e => setNombre(e.target.value)}
+                    placeholder="Nombre y apellidos"
+                    required
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">No. Empleado (opcional)</label>
+                  <Input
+                    value={numeroElemento}
+                    onChange={e => setNumeroElemento(e.target.value)}
+                    placeholder="Ej. ADM-001"
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Puesto</label>
+                  <Input
+                    value={puesto}
+                    onChange={e => setPuesto(e.target.value)}
+                    placeholder="Ej. Coordinador de RH"
+                    required
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Departamento</label>
+                  <select
+                    value={departamento}
+                    onChange={e => setDepartamento(e.target.value)}
+                    className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-xs"
+                  >
+                    <option value="Administración">Administración</option>
+                    <option value="Recursos Humanos">Recursos Humanos</option>
+                    <option value="Contabilidad y Finanzas">Contabilidad y Finanzas</option>
+                    <option value="Operaciones y Logística">Operaciones y Logística</option>
+                    <option value="Dirección General">Dirección General</option>
+                    <option value="Sistemas / TI">Sistemas / TI</option>
+                    <option value="Ventas">Ventas</option>
+                  </select>
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Fecha de Alta</label>
+                  <Input
+                    type="date"
+                    value={fechaAlta}
+                    onChange={e => setFechaAlta(e.target.value)}
+                    required
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Teléfono de Contacto</label>
+                  <Input
+                    value={telefono}
+                    onChange={e => setTelefono(e.target.value)}
+                    placeholder="Ej. 5512345678"
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Correo Institucional / Personal</label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="ejemplo@u3seguridadprivada.com"
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Sueldo Mensual ($)</label>
+                  <Input
+                    type="number"
+                    value={sueldoMensual}
+                    onChange={e => setSueldoMensual(e.target.value)}
+                    placeholder="Ej. 15000"
+                    className="rounded-lg h-9"
+                  />
+                </div>
+                <div className="space-y-0.5 col-span-2">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Fecha de Nacimiento</label>
+                  <div className="grid grid-cols-[1fr_1.6fr_1fr] gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={diaNac}
+                      onChange={e => setDiaNac(e.target.value)}
+                      placeholder="Día"
+                      className="rounded-lg h-9"
+                    />
+                    <select
+                      value={mesNac}
+                      onChange={e => setMesNac(e.target.value)}
+                      className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+                    >
+                      <option value="">Mes</option>
+                      {MESES.map((m) => (
+                        <option key={m} value={m} className="capitalize">{m}</option>
+                      ))}
+                    </select>
+                    <Input
+                      type="number"
+                      min={1940}
+                      max={new Date().getFullYear()}
+                      value={anioNac}
+                      onChange={e => setAnioNac(e.target.value)}
+                      placeholder="Año"
+                      className="rounded-lg h-9"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ---------- Datos Personales y Domicilio: una sola cuadrícula compacta ---------- */}
+              <div className="pt-2 border-t border-border">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Datos Personales</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <CampoCompacto label="Edad" value={fichaExtra.edad} onChange={v => actualizarFichaExtra('edad', v)} placeholder="Ej. 35" />
+                  <CampoCompacto label="Sexo" value={fichaExtra.sexo} onChange={v => actualizarFichaExtra('sexo', v)} placeholder="Masculino / Femenino" />
+                  <CampoCompacto label="Estado Civil" value={fichaExtra.estadoCivil} onChange={v => actualizarFichaExtra('estadoCivil', v)} placeholder="Soltero / Casado" />
+                  <CampoCompacto label="Estudios" value={fichaExtra.estudios} onChange={v => actualizarFichaExtra('estudios', v)} placeholder="Nivel académico" />
+                  <CampoCompacto label="RFC" value={fichaExtra.rfc} onChange={v => actualizarFichaExtra('rfc', v.toUpperCase())} placeholder="13 posiciones" className="uppercase" />
+                  <CampoCompacto label="CURP" value={fichaExtra.curp} onChange={v => actualizarFichaExtra('curp', v.toUpperCase())} placeholder="18 posiciones" className="uppercase" />
+                  <CampoCompacto label="Afiliación IMSS" value={fichaExtra.imss} onChange={v => actualizarFichaExtra('imss', v)} placeholder="NSS 11 dígitos" />
+                  <CampoCompacto label="Estatura" value={fichaExtra.estatura} onChange={v => actualizarFichaExtra('estatura', v)} placeholder="Ej. 1.75 m" />
+                  <CampoCompacto label="Peso Aproximado" value={fichaExtra.peso} onChange={v => actualizarFichaExtra('peso', v)} placeholder="Ej. 78 kg" />
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-border">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Domicilio</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <CampoCompacto label="Calle y Número" value={fichaExtra.calleNumero} onChange={v => actualizarFichaExtra('calleNumero', v)} placeholder="Calle, no. ext. e int." className="col-span-2" />
+                  <CampoCompacto label="Colonia" value={fichaExtra.colonia} onChange={v => actualizarFichaExtra('colonia', v)} placeholder="Colonia / fracc." />
+                  <CampoCompacto label="C.P." value={fichaExtra.cp} onChange={v => actualizarFichaExtra('cp', v)} placeholder="Código postal" />
+                  <CampoCompacto label="Entre las Calles" value={fichaExtra.entreCalles} onChange={v => actualizarFichaExtra('entreCalles', v)} placeholder="Calles aledañas" className="col-span-2" />
+                  <CampoCompacto label="Delegación / Municipio" value={fichaExtra.delegacionMunicipio} onChange={v => actualizarFichaExtra('delegacionMunicipio', v)} placeholder="Alcaldía o municipio" />
+                  <CampoCompacto label="Estado" value={fichaExtra.estado} onChange={v => actualizarFichaExtra('estado', v)} placeholder="Estado de México / CDMX" />
+                  <CampoCompacto label="Tiempo de Residencia" value={fichaExtra.tiempoResidencia} onChange={v => actualizarFichaExtra('tiempoResidencia', v)} placeholder="Ej. 5 años" />
+                  <CampoCompacto label="Tiempo de Radicar en el Estado" value={fichaExtra.tiempoRadicarEstado} onChange={v => actualizarFichaExtra('tiempoRadicarEstado', v)} placeholder="Ej. 10 años" />
+                  <CampoCompacto label="Teléfono de Emergencia" value={fichaExtra.telefonoEmergencia} onChange={v => actualizarFichaExtra('telefonoEmergencia', v)} placeholder="Contacto familiar" />
+                  <CampoCompacto label="Celular" value={fichaExtra.celular} onChange={v => actualizarFichaExtra('celular', v)} placeholder="10 dígitos" />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending} className="rounded-xl font-bold">
+                {createMutation.isPending ? 'Guardando...' : 'Guardar Administrativo'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= MODAL EDITAR DATOS DEL GUARDIA ================= */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="rounded-2xl max-w-lg">
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              if (selectedAdministrativo) {
+                editMutation.mutate({
+                  id: selectedAdministrativo.id,
+                  numero_empleado: editNumeroElemento,
+                  nombre: editNombre,
+                  puesto: editPuesto,
+                  departamento: editDepartamento,
+                  fecha_alta: editFechaAlta,
+                  telefono: editTelefono,
+                  email: editEmail,
+                  direccion: editDireccion,
+                  sueldo_mensual: editSueldoMensual ? Number(editSueldoMensual) : null,
+                  estado: editEstado,
+                });
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit className="w-5 h-5 text-primary" /> Editar Datos del Administrativo
+              </DialogTitle>
+              <DialogDescription>
+                Modifica los datos del colaborador <b>{selectedAdministrativo?.nombre}</b>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-3.5 py-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Número de Empleado</label>
+                  <Input
+                    value={editNumeroElemento}
+                    onChange={e => setEditNumeroElemento(e.target.value)}
+                    className="rounded-xl font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
+                  <Input
+                    type="date"
+                    value={editFechaAlta}
+                    onChange={e => setEditFechaAlta(e.target.value)}
+                    required
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Nombre Completo</label>
+                <Input
+                  value={editNombre}
+                  onChange={e => setEditNombre(e.target.value)}
+                  required
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Puesto</label>
+                  <Input
+                    value={editPuesto}
+                    onChange={e => setEditPuesto(e.target.value)}
+                    required
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Departamento</label>
+                  <select
+                    value={editDepartamento}
+                    onChange={e => setEditDepartamento(e.target.value)}
+                    className="w-full h-10 rounded-xl border border-input bg-background px-3 text-xs"
+                  >
+                    <option value="Administración">Administración</option>
+                    <option value="Recursos Humanos">Recursos Humanos</option>
+                    <option value="Contabilidad y Finanzas">Contabilidad y Finanzas</option>
+                    <option value="Operaciones y Logística">Operaciones y Logística</option>
+                    <option value="Dirección General">Dirección General</option>
+                    <option value="Sistemas / TI">Sistemas / TI</option>
+                    <option value="Ventas">Ventas</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Teléfono</label>
+                  <Input
+                    value={editTelefono}
+                    onChange={e => setEditTelefono(e.target.value)}
+                    placeholder="Ej. 5512345678"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Correo Electrónico</label>
+                  <Input
+                    type="email"
+                    value={editEmail}
+                    onChange={e => setEditEmail(e.target.value)}
+                    placeholder="ejemplo@u3.com"
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Sueldo Mensual ($)</label>
+                  <Input
+                    type="number"
+                    value={editSueldoMensual}
+                    onChange={e => setEditSueldoMensual(e.target.value)}
+                    placeholder="Ej. 18000"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Estado</label>
+                  <select
+                    value={editEstado}
+                    onChange={e => setEditEstado(e.target.value)}
+                    className="w-full h-10 rounded-xl border border-input bg-background px-3 text-xs"
+                  >
+                    <option value="Activo">Activo</option>
+                    <option value="Baja Pendiente">Baja Pendiente</option>
+                    <option value="En Baja">En Baja</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Dirección de Domicilio</label>
+                <Input
+                  value={editDireccion}
+                  onChange={e => setEditDireccion(e.target.value)}
+                  placeholder="Calle, Número, Colonia, Alcaldía o Municipio"
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Estado Operativo</label>
+                <select
+                  value={editEstado}
+                  onChange={e => setEditEstado(e.target.value)}
+                  className="flex h-10 w-full rounded-xl border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-medium"
+                >
+                  <option value="Activo">Activo</option>
+                  <option value="Baja Pendiente">Baja Pendiente</option>
+                  <option value="En Baja">En Baja</option>
+                </select>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={editMutation.isPending} className="rounded-xl font-bold">
+                {editMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= MODAL PROCESAR BAJA ================= */}
+      <Dialog open={isBajaModalOpen} onOpenChange={setIsBajaModalOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              if (selectedAdministrativo) {
+                bajaMutation.mutate({ id: selectedAdministrativo.id, fecha: fechaBaja });
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <LogOut className="w-5 h-5" /> Iniciar Proceso de Baja
+              </DialogTitle>
+              <DialogDescription>
+                Para el elemento <b>{selectedAdministrativo?.nombre}</b> (#{selectedAdministrativo?.numero_empleado}).
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-4 space-y-4">
+              <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-xl text-xs leading-relaxed">
+                El administrativo cambiará a estado <b>Baja Pendiente</b> para permitir la devolución del equipo y uniformes en posesión en el módulo de Bajas.
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Fecha Efectiva de Baja</label>
+                <Input
+                  type="date"
+                  value={fechaBaja}
+                  onChange={e => setFechaBaja(e.target.value)}
+                  required
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsBajaModalOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={bajaMutation.isPending}
+                className="rounded-xl font-bold"
+              >
+                {bajaMutation.isPending ? 'Procesando...' : 'Confirmar Baja'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= MODAL ELIMINAR GUARDIA PERMANENTEMENTE ================= */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" /> Eliminar Administrativo Permanentemente
+            </DialogTitle>
+            <DialogDescription>
+              Para el elemento <b>{selectedAdministrativo?.nombre}</b> (#{selectedAdministrativo?.numero_empleado}).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-xl text-xs leading-relaxed space-y-1.5">
+              <p><b>Esta acción no se puede deshacer.</b> Se borrará el perfil, expediente, documentos, bitácora y fichas técnicas del administrativo.</p>
+              <p>El historial de uniformes, movimientos financieros, incidencias en el calendario y reclutamiento asociado se conserva, pero quedará sin vincular a este administrativo.</p>
+              <p>Si solo necesitas desactivarlo conservando su historial, usa <b>Dar de Baja</b> en vez de esto.</p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsDeleteModalOpen(false)} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => selectedAdministrativo && deleteMutation.mutate(selectedAdministrativo.id)}
+              className="rounded-xl font-bold"
+            >
+              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar Permanentemente'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
