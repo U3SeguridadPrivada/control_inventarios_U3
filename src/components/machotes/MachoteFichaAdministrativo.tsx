@@ -1255,7 +1255,7 @@ export default function MachoteFichaAdministrativo({
                       letterSpacing: '0.5px',
                     }}
                   >
-                    CÉDULA OFICIAL DE IDENTIFICACIÓN Y REGISTRO DEL PERSONAL OPERATIVO
+                    CÉDULA OFICIAL DE IDENTIFICACIÓN Y REGISTRO DEL PERSONAL ADMINISTRATIVO, OPERATIVO Y DIRECTIVO
                   </div>
                 </div>
                 {/* Espacio para balancear el logotipo de la izquierda */}

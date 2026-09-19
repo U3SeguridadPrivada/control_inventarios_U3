@@ -420,7 +420,7 @@ export function generateFichaAdministrativaHtml(data: FichaTecnicaData): string 
         <div class="header-center">
           <div class="header-empresa">U3 SEGURIDAD PRIVADA S.A. DE C.V.</div>
           <div class="header-title">FICHA TÉCNICA</div>
-          <div class="header-subtitle">Cédula Oficial de Identificación y Registro del Personal Administrativo y Directivo</div>
+          <div class="header-subtitle">Cédula Oficial de Identificación y Registro del Personal Administrativo, Operativo y Directivo</div>
         </div>
         <div style="width: 22mm; flex-shrink: 0;"></div>
       </div>
