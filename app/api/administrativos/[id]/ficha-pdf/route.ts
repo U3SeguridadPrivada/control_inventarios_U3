@@ -51,6 +51,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (!data.numeroElemento) {
         data.numeroElemento = persona.numero_empleado ?? undefined;
       }
+      // Casi todo el personal es mexicano y radica en México: se rellena solo
+      // si el campo sigue vacío, pero cualquier valor que capture el editor
+      // (p.ej. otra nacionalidad) tiene prioridad y se conserva tal cual.
+      if (!data.lugarNacimiento) data.lugarNacimiento = 'MÉXICO';
+      if (!data.nacionalidad) data.nacionalidad = 'MEXICANA';
       if (!data.colonia && !data.delegacionMunicipio && data.calleNumero && (data.calleNumero.includes(';') || /,\s*col/i.test(data.calleNumero))) {
         const desglose = desglosarDireccion(data.calleNumero);
         data.calleNumero = desglose.calleNumero;
