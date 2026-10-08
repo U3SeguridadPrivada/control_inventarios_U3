@@ -556,6 +556,7 @@ function initDb(): DrizzleDB {
     `ALTER TABLE clientes ADD COLUMN latitud TEXT;`,
     `ALTER TABLE clientes ADD COLUMN longitud TEXT;`,
     `ALTER TABLE clientes ADD COLUMN lote TEXT;`,
+    `ALTER TABLE barridos ADD COLUMN ids_json TEXT;`,
     `ALTER TABLE checador_salidas ADD COLUMN numero_descanso INTEGER NOT NULL DEFAULT 1;`,
     `ALTER TABLE checador_salidas ADD COLUMN foto_evidencia TEXT;`,
     `ALTER TABLE checador_salidas ADD COLUMN foto_regreso TEXT;`,

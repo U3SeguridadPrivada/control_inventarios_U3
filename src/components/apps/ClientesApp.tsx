@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
 import { cn } from '@/src/lib/utils';
 import {
-  ETAPAS, COLOR_ETAPA, COLOR_PRIORIDAD, PLANTILLAS_CORREO, PLANTILLAS_WHATSAPP, type Etapa,
+  ETAPAS, COLOR_ETAPA, COLOR_PRIORIDAD, PLANTILLAS_CORREO, PLANTILLAS_WHATSAPP, ORIGEN_PADRON, type Etapa,
 } from '@/src/lib/pipeline';
 
 export interface Prospecto {
@@ -101,6 +101,14 @@ interface TandaStats {
 
 const FORM_INICIAL = { nombre: '', tipo: 'Prospecto', empresa: '', email: '', telefono: '', direccion: '', notas: '' };
 
+/** SQLite guarda `created_at` en UTC sin zona ("2026-10-08 18:30:00"): se lee como UTC. */
+function fechaBarrido(creado: string): string {
+  const fecha = new Date(`${creado.replace(' ', 'T')}Z`);
+  return Number.isNaN(fecha.getTime())
+    ? creado
+    : fecha.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
 export default function ClientesApp() {
   const router = useRouter();
   const { user, isEditor, isAdmin, puedeVer } = useAuth();
@@ -116,6 +124,8 @@ export default function ClientesApp() {
   const [seleccion, setSeleccion] = useState<number[]>([]);
   const [modalNuevo, setModalNuevo] = useState(false);
   const [modalBarrido, setModalBarrido] = useState(false);
+  // "Barrido a mi tanda" abre el mismo diálogo, pero ya limitado a lo asignado al asesor.
+  const [barridoSoloMios, setBarridoSoloMios] = useState(false);
   const [modalReparto, setModalReparto] = useState(false);
   const [modalTanda, setModalTanda] = useState(false);
   const [form, setForm] = useState(FORM_INICIAL);
@@ -151,6 +161,8 @@ export default function ClientesApp() {
     refetchInterval: (q) => (q.state.data?.recientes?.[0]?.estado === 'en_proceso' ? 3000 : false),
   });
   const barridoActivo = estadoBarrido?.recientes?.find((b) => b.estado === 'en_proceso');
+  const ultimoBarrido = estadoBarrido?.recientes?.[0];
+  const barridoConProblema = Boolean(ultimoBarrido && (ultimoBarrido.fallidos > 0 || ['error', 'interrumpido'].includes(ultimoBarrido.estado)));
 
   // Estadísticas de la tanda activa del asesor
   const { data: tandaData } = useQuery({
@@ -229,7 +241,7 @@ export default function ClientesApp() {
             >
               <MapPin className="w-4 h-4 mr-2 text-sky-500" /> Ver Mapa CDMX
             </a>
-            <Button variant="outline" onClick={() => setModalBarrido(true)}>
+            <Button variant="outline" onClick={() => { setBarridoSoloMios(false); setModalBarrido(true); }}>
               <Radar className="w-4 h-4 mr-2" /> Barrido
             </Button>
             {isAdmin && (
@@ -262,7 +274,7 @@ export default function ClientesApp() {
               <ListPlus className="w-4 h-4 mr-1.5" /> Sacar Nueva Tanda (200)
             </Button>
             {tandaStats && tandaStats.nuevos > 0 && (
-              <Button size="sm" variant="outline" onClick={() => setModalBarrido(true)}>
+              <Button size="sm" variant="outline" onClick={() => { setBarridoSoloMios(true); setModalBarrido(true); }}>
                 <Radar className="w-4 h-4 mr-1.5 text-sky-500" /> Barrido a mi tanda ({tandaStats.nuevos})
               </Button>
             )}
@@ -329,6 +341,28 @@ export default function ClientesApp() {
             </span>
           </div>
           <Barra porcentaje={((barridoActivo.enviados + barridoActivo.fallidos) / barridoActivo.objetivo) * 100} />
+        </div>
+      )}
+
+      {/* --- Resultado del último barrido: sin esto un barrido fallido desaparece sin avisar --- */}
+      {!barridoActivo && ultimoBarrido && (
+        <div className={cn(
+          'rounded-xl border p-3 text-sm space-y-1',
+          barridoConProblema ? 'border-amber-500/40 bg-amber-500/10' : 'border-border bg-card',
+        )}>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <span className="font-medium">
+              Último barrido por {ultimoBarrido.canal === 'correo' ? 'correo' : 'WhatsApp'}
+              {ultimoBarrido.estado === 'interrumpido' && ' (interrumpido)'}
+              {ultimoBarrido.estado === 'error' && ' (con error)'}
+            </span>
+            <span className="tabular-nums text-muted-foreground">
+              {ultimoBarrido.enviados} enviados
+              {ultimoBarrido.fallidos > 0 && ` · ${ultimoBarrido.fallidos} fallidos`}
+              {' · '}{fechaBarrido(ultimoBarrido.created_at)}
+            </span>
+          </div>
+          {ultimoBarrido.detalle && <p className="text-xs text-muted-foreground">{ultimoBarrido.detalle}</p>}
         </div>
       )}
 
@@ -425,7 +459,7 @@ export default function ClientesApp() {
         </Select>
         <Select value={origen} onChange={(e) => cambiarFiltro(() => setOrigen(e.target.value))} className="sm:w-36">
           <option value="Todos">Origen</option>
-          <option value="DENUE">Padrón CDMX</option>
+          <option value={ORIGEN_PADRON}>Padrón CDMX</option>
           <option value="Manual">Manual</option>
         </Select>
       </div>
@@ -533,7 +567,10 @@ export default function ClientesApp() {
       )}
 
       {modalReparto && <ModalReparto asesores={asesores} onCerrar={() => setModalReparto(false)} onListo={invalidar} />}
-      {modalBarrido && <ModalBarrido lotes={cobertura.map((c) => c.lote)} onCerrar={() => setModalBarrido(false)} onListo={invalidar} />}
+      {modalBarrido && (
+        <ModalBarrido lotes={cobertura.map((c) => c.lote)} soloMiosInicial={barridoSoloMios}
+          onCerrar={() => setModalBarrido(false)} onListo={invalidar} />
+      )}
       {modalTanda && <ModalNuevaTanda asesores={asesores} onCerrar={() => setModalTanda(false)} onListo={invalidar} />}
 
       <FormDialog
@@ -699,15 +736,15 @@ function Barra({ porcentaje }: { porcentaje: number }) {
  * Envía de verdad, así que la pantalla dice cuántos son y a quiénes antes de
  * arrancar, y el envío no se puede repetir mientras uno siga corriendo.
  */
-function ModalBarrido({ lotes, onCerrar, onListo }: {
-  lotes: string[]; onCerrar: () => void; onListo: () => void;
+function ModalBarrido({ lotes, soloMiosInicial, onCerrar, onListo }: {
+  lotes: string[]; soloMiosInicial: boolean; onCerrar: () => void; onListo: () => void;
 }) {
   const [canal, setCanal] = useState<'correo' | 'whatsapp'>('correo');
   const [plantilla, setPlantilla] = useState('presentacion');
   const [cantidad, setCantidad] = useState('100');
   const [lote, setLote] = useState('');
   const [prioridad, setPrioridad] = useState('');
-  const [soloMios, setSoloMios] = useState(false);
+  const [soloMios, setSoloMios] = useState(soloMiosInicial);
   const [confirmando, setConfirmando] = useState(false);
 
   const consulta = new URLSearchParams({

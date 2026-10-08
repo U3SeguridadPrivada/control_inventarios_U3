@@ -237,7 +237,7 @@ export const clientes = sqliteTable('clientes', {
   ultimo_contacto: text('ultimo_contacto'),
   proximo_seguimiento: text('proximo_seguimiento'),
   motivo_perdida: text('motivo_perdida'),
-  // --- Procedencia del registro; 'DENUE' viene del directorio del INEGI ---
+  // --- Procedencia del registro; 'Padrón CDMX' (antes 'DENUE') viene del directorio del INEGI ---
   origen: text('origen').default('Manual'),
   id_denue: text('id_denue'),
   giro: text('giro'),
@@ -282,8 +282,10 @@ export const barridos = sqliteTable('barridos', {
   objetivo: integer('objetivo').notNull(),
   enviados: integer('enviados').notNull().default(0),
   fallidos: integer('fallidos').notNull().default(0),
-  estado: text('estado').notNull().default('en_proceso'), // 'en_proceso' | 'terminado' | 'error'
+  estado: text('estado').notNull().default('en_proceso'), // 'en_proceso' | 'terminado' | 'error' | 'interrumpido'
   detalle: text('detalle'),
+  /** Ids de los prospectos que tomó el barrido: permite devolverlos a la fila si se corta. */
+  ids_json: text('ids_json'),
   created_at: text('created_at').default(sql`(datetime('now'))`),
   terminado_at: text('terminado_at'),
 });

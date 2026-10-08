@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/src/db';
 import { clientes } from '@/src/db/schema';
-import { asc, or, eq, ne, isNotNull } from 'drizzle-orm';
+import { asc, or, eq, ne, isNull, isNotNull, notInArray } from 'drizzle-orm';
 import { verifyAuth, unauthorized } from '@/src/lib/auth';
+import { ORIGENES_PADRON } from '@/src/lib/pipeline';
 
 /**
  * Lista ligera para los selectores de cliente del Cotizador y de Ventas.
@@ -19,9 +20,10 @@ export async function GET(req: NextRequest) {
 
   const todos = req.nextUrl.searchParams.get('todos') === '1';
   // Todo lo capturado a mano entra siempre: alguien lo dio de alta a propósito.
-  // Lo único que se filtra es el prospecto frío que llegó por lote del DENUE.
+  // Lo único que se filtra es el prospecto frío que llegó por lote del padrón.
   const trabajados = or(
-    ne(clientes.origen, 'DENUE'),
+    isNull(clientes.origen),
+    notInArray(clientes.origen, ORIGENES_PADRON),
     eq(clientes.tipo, 'Cliente'),
     ne(clientes.etapa, 'Nuevo'),
     isNotNull(clientes.ultimo_contacto),

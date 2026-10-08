@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import { db } from '@/src/db';
 import { site_config, users } from '@/src/db/schema';
 import { eq } from 'drizzle-orm';
+import { COMPANY } from '@/src/lib/company';
 
 // URL pública del logo U3 para el encabezado de los correos. Se referencia por
 // URL (no como adjunto) para que NO aparezca como archivo adjunto en el cliente.
@@ -101,8 +102,8 @@ export function plantillaCorreo(cuerpoHtml: string, firma?: string, logoSrc: str
                 <tr>
                   <td style="font-size:11px;color:#475569;line-height:1.6;padding-bottom:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
                     <strong style="color:#0f172a;letter-spacing:0.3px;">U3 SEGURIDAD PRIVADA, S.A. DE C.V.</strong><br>
-                    Av. Paseo de la Reforma #456, Col. Juárez, C.P. 06600, CDMX<br>
-                    Tel: 55-8902-1234 &middot; <a href="mailto:contacto@u3seguridad.com" style="color:#1e3a5f;text-decoration:none;font-weight:500;">contacto@u3seguridad.com</a> &middot; <a href="https://www.u3seguridadprivada.com" target="_blank" style="color:#1e3a5f;text-decoration:none;font-weight:500;">www.u3seguridadprivada.com</a>
+                    ${COMPANY.domicilio}<br>
+                    Tel: ${COMPANY.telefono} &middot; <a href="https://${COMPANY.web}" target="_blank" style="color:#1e3a5f;text-decoration:none;font-weight:500;">${COMPANY.web}</a>
                   </td>
                 </tr>
                 <tr>
@@ -140,6 +141,17 @@ export function transporterDeUsuario(u: { correo_smtp_host: string | null; corre
     host: u.correo_smtp_host, port: u.correo_smtp_puerto ?? 465, secure: u.correo_ssl === 1,
     auth: { user: u.correo_usuario, pass: u.correo_password },
   });
+}
+
+/**
+ * ¿Hay por dónde enviar correo a nombre de este usuario? Su buzón propio o, si
+ * no lo tiene, el SMTP del sitio. Sirve para avisar antes de arrancar un envío
+ * masivo que de otro modo fallaría uno por uno.
+ */
+export function puedeEnviarCorreo(usuarioId: number): boolean {
+  const u = db.select().from(users).where(eq(users.id, usuarioId)).get();
+  if (u?.correo_smtp_host && u.correo_usuario && u.correo_password) return true;
+  return smtpDelSitioConfigurado();
 }
 
 // Envía un correo HTML con la plantilla corporativa. Si se indica remitenteId,

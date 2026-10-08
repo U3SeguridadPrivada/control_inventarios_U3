@@ -225,6 +225,11 @@
     to { opacity: 1; transform: none; }
   }
 
+  /* Leaflet pinta sus capas con z-index de 400 a 1000. Sin aislarlas, el mapa queda por
+     encima de los diálogos (z-50) y del encabezado fijo: el cuadro "Nuevo servicio" se
+     abría detrás del mapa. `isolation` las encierra en el propio contenedor. */
+  .leaflet-container { isolation: isolate; }
+
   /* Trama diagonal sutil para barras de "plan" y estados pendientes. */
   .bg-hatch {
     background-image: repeating-linear-gradient(135deg, currentColor 0 1.5px, transparent 1.5px 6px);

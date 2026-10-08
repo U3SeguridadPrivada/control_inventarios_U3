@@ -181,5 +181,5 @@ if (asesores.length) {
   for (const [nombre, n] of porAsesor) console.log(`  ${nombre.padEnd(20)} ${String(n).padStart(6)}`);
 }
 
-const total = sqlite.prepare("SELECT COUNT(*) AS n FROM clientes WHERE origen = 'DENUE'").get().n;
-console.log(`\n[importar] Cartera DENUE en el sistema: ${total.toLocaleString('es-MX')} prospectos.`);
+const total = sqlite.prepare("SELECT COUNT(*) AS n FROM clientes WHERE origen IN ('Padrón CDMX', 'DENUE')").get().n;
+console.log(`\n[importar] Cartera del padrón en el sistema: ${total.toLocaleString('es-MX')} prospectos.`);

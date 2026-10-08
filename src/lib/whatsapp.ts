@@ -37,6 +37,29 @@ export function tocarChat(telefono: string, opts?: { incrementarNoLeidos?: boole
   }).returning().get();
 }
 
+/**
+ * Motivo que devuelve la API de Meta/Kapso en el cuerpo del error. Sin esto el
+ * asesor solo ve "respondió 400" y no sabe si falló el número, el token o que
+ * Meta no deja escribir texto libre a quien no ha respondido en 24 horas.
+ */
+function motivoDeApi(cuerpo: string): string {
+  try {
+    const e = JSON.parse(cuerpo)?.error;
+    if (typeof e === 'string' && e.trim()) return e.trim().slice(0, 200);
+    const partes = [e?.message, e?.error_data?.details].filter((x): x is string => typeof x === 'string' && x.trim() !== '');
+    if (partes.length) return `${e?.code ? `(#${e.code}) ` : ''}${partes.join(' — ')}`.slice(0, 200);
+  } catch { /* el cuerpo no era JSON */ }
+  return cuerpo.replace(/\s+/g, ' ').trim().slice(0, 160);
+}
+
+/** ¿El proveedor activo tiene sus credenciales? No prueba que sean válidas, solo que existen. */
+export function whatsappConfigurado(): boolean {
+  const provider = (process.env.WHATSAPP_PROVIDER || 'kapso').toLowerCase();
+  if (provider === 'meta') return Boolean(process.env.META_PHONE_NUMBER_ID && process.env.META_ACCESS_TOKEN);
+  if (provider === 'kapso') return Boolean(process.env.KAPSO_PHONE_NUMBER_ID && process.env.KAPSO_API_KEY);
+  return Boolean(process.env.WASENDER_API_KEY);
+}
+
 // Envía un mensaje de texto vía WASender API
 export async function enviarMensajeWASender(to: string, messageText: string): Promise<{ ok: boolean; error?: string }> {
   let url = process.env.WASENDER_API_URL || 'https://www.wasenderapi.com/api/send-message';
@@ -116,7 +139,7 @@ export async function enviarMensajeMeta(to: string, messageText: string): Promis
     if (!res.ok) {
       const errText = await res.text();
       console.error(`Error de Meta Cloud API (Status ${res.status}):`, errText);
-      return { ok: false, error: `Meta respondió ${res.status}` };
+      return { ok: false, error: `Meta respondió ${res.status}: ${motivoDeApi(errText)}` };
     }
     return { ok: true };
   } catch (err: any) {
@@ -157,7 +180,7 @@ export async function enviarMensajeKapso(to: string, messageText: string): Promi
     if (!res.ok) {
       const errText = await res.text();
       console.error(`Error de Kapso API (Status ${res.status}):`, errText);
-      return { ok: false, error: `Kapso respondió ${res.status}` };
+      return { ok: false, error: `Kapso respondió ${res.status}: ${motivoDeApi(errText)}` };
     }
     return { ok: true };
   } catch (err: any) {

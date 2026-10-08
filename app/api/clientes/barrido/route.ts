@@ -5,13 +5,16 @@ import { eq, desc } from 'drizzle-orm';
 import { verifyAuth, unauthorized, forbidden } from '@/src/lib/auth';
 import { accesoDeUsuario } from '@/src/lib/accesoUsuario';
 import { puedeVerModulo } from '@/src/lib/permisosModulos';
-import { iniciarBarrido, disponiblesParaBarrido, MAX_POR_BARRIDO } from '@/src/lib/barrido';
+import { iniciarBarrido, disponiblesParaBarrido, cerrarBarridosHuerfanos, MAX_POR_BARRIDO } from '@/src/lib/barrido';
 
 /** Estado del barrido en curso (o del último) para la barra de progreso. */
 export async function GET(req: NextRequest) {
   const authUser = verifyAuth(req);
   if (!authUser) return unauthorized();
   if (!puedeVerModulo('clientes', accesoDeUsuario(authUser.id))) return forbidden();
+
+  // Un barrido que quedó "en proceso" por un reinicio no debe verse como activo.
+  cerrarBarridosHuerfanos();
 
   const recientes = db.select({
     id: barridos.id,

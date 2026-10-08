@@ -4,6 +4,14 @@ import { COMPANY } from '@/src/lib/company';
 export const ETAPAS = ['Nuevo', 'Contactado', 'Interesado', 'Cotizado', 'Ganado', 'Perdido'] as const;
 export type Etapa = (typeof ETAPAS)[number];
 
+/**
+ * Origen con el que `importar-prospectos` marca a los prospectos del padrón del
+ * INEGI. Antes se guardaba como 'DENUE'; el filtro y la lista de clientes deben
+ * reconocer ambos o los registros viejos quedan fuera.
+ */
+export const ORIGEN_PADRON = 'Padrón CDMX';
+export const ORIGENES_PADRON = [ORIGEN_PADRON, 'DENUE'];
+
 /** Etapas que ya no requieren seguimiento activo. */
 export const ETAPAS_CERRADAS: Etapa[] = ['Ganado', 'Perdido'];
 
