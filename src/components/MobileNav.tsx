@@ -6,6 +6,7 @@ import { LogOut, MoreHorizontal, X, Download, Bell, BellOff } from 'lucide-react
 import { useAuth } from '@/src/context/AuthContext';
 import { NAV_MOBILE_PRIMARY, NAV_MOBILE_PRIMARY_IDS, NAV_GROUPS, NAV_BOTTOM, NAV_TOP, getActiveItemId, type NavItem } from '@/src/config/nav';
 import { cn } from '@/src/lib/utils';
+import { Avatar } from '@/src/components/ui/avatar';
 import { usePwaInstall } from '@/src/lib/pwa';
 import { getNotificationPermission, requestNotificationPermission, sendDeviceNotification } from '@/src/lib/deviceNotifications';
 import { toast } from 'sonner';
@@ -21,8 +22,8 @@ function TabButton({
         active ? 'text-primary' : 'text-muted-foreground'
       )}
     >
-      {children}
-      <span className="text-[10px] font-medium leading-none truncate max-w-full px-1">{label}</span>
+      <span className={cn('flex h-7 w-12 items-center justify-center rounded-full transition-colors', active && 'bg-primary/10')}>{children}</span>
+      <span className={cn('text-[10px] leading-none truncate max-w-full px-1', active ? 'font-semibold' : 'font-medium')}>{label}</span>
     </button>
   );
 }
@@ -35,7 +36,7 @@ function SheetLink({ item, active, onNavigate }: { item: NavItem; active: boolea
       onClick={onNavigate}
       className={cn(
         'flex items-center gap-3 rounded-xl px-3 min-h-[48px] transition-colors',
-        active ? 'bg-primary/10 text-primary font-medium' : 'text-foreground active:bg-muted'
+        active ? 'bg-primary text-primary-foreground font-medium' : 'text-foreground active:bg-muted'
       )}
     >
       <Icon className="w-5 h-5 flex-shrink-0" strokeWidth={active ? 2.25 : 1.9} />
@@ -112,8 +113,10 @@ export default function MobileNav() {
                 active ? 'text-primary' : 'text-muted-foreground'
               )}
             >
-              <Icon className="w-[22px] h-[22px]" strokeWidth={active ? 2.3 : 1.9} />
-              <span className="text-[10px] font-medium leading-none truncate max-w-full px-1">{item.shortLabel}</span>
+              <span className={cn('flex h-7 w-12 items-center justify-center rounded-full transition-colors', active && 'bg-primary/10')}>
+                <Icon className="w-[21px] h-[21px]" strokeWidth={active ? 2.3 : 1.9} />
+              </span>
+              <span className={cn('text-[10px] leading-none truncate max-w-full px-1', active ? 'font-semibold' : 'font-medium')}>{item.shortLabel}</span>
             </Link>
           );
         })}
@@ -131,11 +134,14 @@ export default function MobileNav() {
       {sheetOpen && (
         <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Menú">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm" onClick={() => setSheetOpen(false)} />
-          <div className="absolute inset-x-0 bottom-0 max-h-[85svh] flex flex-col rounded-t-2xl bg-card shadow-2xl animate-in slide-in-from-bottom duration-200">
+          <div className="absolute inset-x-0 bottom-0 max-h-[85svh] flex flex-col rounded-t-2xl bg-card shadow-2xl u3-panel">
             <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-2 border-b border-border">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold truncate">{user?.username}</p>
-                <p className="text-[11px] text-muted-foreground">Menú completo</p>
+              <div className="flex min-w-0 items-center gap-2.5">
+                <Avatar name={user?.username} size="sm" />
+                <div className="min-w-0 leading-tight">
+                  <p className="text-sm font-semibold truncate">{user?.username}</p>
+                  <p className="text-[11px] text-muted-foreground">Menú completo</p>
+                </div>
               </div>
               <button
                 onClick={() => setSheetOpen(false)}

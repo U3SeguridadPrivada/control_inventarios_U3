@@ -75,43 +75,15 @@ export async function GET(req: NextRequest) {
   return Response.json(resultado);
 }
 
-// Elimina todos los mensajes, chats y datos transactional/master del ERP
+// El borrado de chats no modifica el inventario ni otros registros del ERP.
 export async function DELETE(req: NextRequest) {
   const authUser = verifyAuth(req);
   if (!authUser) return unauthorized();
   if (authUser.role !== 'admin') return forbidden();
-
+  const cuerpo = await req.json().catch(() => ({}));
+  if (cuerpo?.confirmar !== 'BORRAR CHATS') return Response.json({ error: 'Confirma con BORRAR CHATS. Solo se eliminarán las conversaciones y chats.' }, { status: 400 });
   try {
-    // Desactivar temporalmente llaves foráneas para evitar conflictos al vaciar tablas
-    db.run(sql`PRAGMA foreign_keys = OFF`);
-
-    db.delete(whatsapp_conversaciones).run();
-    db.delete(whatsapp_chats).run();
-    db.delete(candidatos).run();
-    db.delete(guardia_documentos).run();
-    db.delete(entradas).run();
-    db.delete(salidas).run();
-    db.delete(uniformes_campo).run();
-    db.delete(bajas).run();
-    db.delete(eventos_calendario).run();
-    db.delete(servicios).run();
-    db.delete(servicio_guardias).run();
-    db.delete(incidencias).run();
-    db.delete(cotizaciones).run();
-    db.delete(ventas).run();
-    db.delete(cuentas_bancarias).run();
-    db.delete(movimientos_financieros).run();
-    db.delete(password_resets).run();
-    db.delete(vacantes).run();
-    db.delete(movimiento_evidencias).run();
-    db.delete(clientes).run();
-    db.delete(guardias).run();
-
-    db.run(sql`PRAGMA foreign_keys = ON`);
-
-    return Response.json({ success: true, message: 'La base de datos ha sido limpiada por completo (guardias, clientes, candidatos, cotizaciones, transacciones y chats eliminados).' });
-  } catch (error: any) {
-    try { db.run(sql`PRAGMA foreign_keys = ON`); } catch(e){}
-    return Response.json({ error: 'Error al limpiar la base de datos', details: error.message }, { status: 500 });
-  }
+    db.transaction(tx => { tx.delete(whatsapp_conversaciones).run(); tx.delete(whatsapp_chats).run(); });
+    return Response.json({ success: true, message: 'Chats y conversaciones eliminados.' });
+  } catch { return Response.json({ error: 'No se pudieron eliminar los chats' }, { status: 500 }); }
 }

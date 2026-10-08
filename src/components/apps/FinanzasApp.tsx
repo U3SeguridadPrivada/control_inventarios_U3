@@ -177,7 +177,7 @@ function Banda({ titulo, children, primera }: { titulo: string; children: React.
 function Campo({ label, ayuda, children, className = '' }: { label: string; ayuda?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <div className={`space-y-1.5 ${className}`}>
-      <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+      <label className="field-label flex items-center gap-1.5">
         {label}
         {ayuda && <span className="text-[10px] font-normal text-muted-foreground">{ayuda}</span>}
       </label>
@@ -1687,7 +1687,7 @@ export default function FinanzasApp() {
           </div>
           {puedeEditar && evidMov && (
             <div className="border-t border-border pt-3">
-              <label className="text-sm font-medium mb-2 block">Agregar evidencia</label>
+              <label className="field-label mb-2 block">Agregar evidencia</label>
               <Input type="file" multiple accept="image/*,application/pdf" disabled={subirEvidenciasMutation.isPending} onChange={(e) => {
                 const files = Array.from(e.target.files || []);
                 if (files.length) { subirEvidenciasMutation.mutate(files); e.target.value = ''; }
@@ -1721,19 +1721,19 @@ export default function FinanzasApp() {
           <form onSubmit={(e) => { e.preventDefault(); createCuentaMutation.mutate({ ...cuentaForm, saldo_actual: Number(cuentaForm.saldo_actual) }); }}>
             <DialogHeader><DialogTitle>Nueva cuenta bancaria</DialogTitle><DialogDescription>Datos generales de la cuenta.</DialogDescription></DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="space-y-2"><label className="text-sm font-medium">Banco</label><Input value={cuentaForm.banco} onChange={(e) => setCuentaForm((f) => ({ ...f, banco: e.target.value }))} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Alias</label><Input value={cuentaForm.alias} onChange={(e) => setCuentaForm((f) => ({ ...f, alias: e.target.value }))} placeholder="Ej. Cuenta operativa" required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Número de cuenta</label><Input value={cuentaForm.numero_cuenta} onChange={(e) => setCuentaForm((f) => ({ ...f, numero_cuenta: e.target.value }))} /></div>
+              <div className="space-y-2"><label className="field-label">Banco</label><Input value={cuentaForm.banco} onChange={(e) => setCuentaForm((f) => ({ ...f, banco: e.target.value }))} required /></div>
+              <div className="space-y-2"><label className="field-label">Alias</label><Input value={cuentaForm.alias} onChange={(e) => setCuentaForm((f) => ({ ...f, alias: e.target.value }))} placeholder="Ej. Cuenta operativa" required /></div>
+              <div className="space-y-2"><label className="field-label">Número de cuenta</label><Input value={cuentaForm.numero_cuenta} onChange={(e) => setCuentaForm((f) => ({ ...f, numero_cuenta: e.target.value }))} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Tipo</label>
+                  <label className="field-label">Tipo</label>
                   <Select value={cuentaForm.tipo} onChange={(e) => setCuentaForm((f) => ({ ...f, tipo: e.target.value }))}>
                     <option value="Cheques">Cheques</option>
                     <option value="Ahorro">Ahorro</option>
                     <option value="Crédito">Crédito</option>
                   </Select>
                 </div>
-                <div className="space-y-2"><label className="text-sm font-medium">Saldo inicial</label><Input type="number" step="0.01" value={cuentaForm.saldo_actual} onChange={(e) => setCuentaForm((f) => ({ ...f, saldo_actual: e.target.value }))} /></div>
+                <div className="space-y-2"><label className="field-label">Saldo inicial</label><Input type="number" step="0.01" value={cuentaForm.saldo_actual} onChange={(e) => setCuentaForm((f) => ({ ...f, saldo_actual: e.target.value }))} /></div>
               </div>
             </div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setCuentaModalOpen(false)}>Cancelar</Button><Button type="submit" disabled={createCuentaMutation.isPending}>Crear cuenta</Button></DialogFooter>

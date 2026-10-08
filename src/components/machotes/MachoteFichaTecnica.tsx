@@ -16,7 +16,7 @@ import {
   Loader2,
   CheckCircle2,
   X,
-  Sparkles,
+  Columns3,
   ShieldCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -285,6 +285,12 @@ export default function MachoteFichaTecnica({
         // completar con ESTADO_VACIO, campos como empleos (un arreglo) llegan
         // undefined y truenan el .map() al pintar la tabla.
         let f: FichaState = { ...ESTADO_VACIO, ...res.ficha, empleos: res.ficha.empleos?.length ? res.ficha.empleos : ESTADO_VACIO.empleos };
+        // El alta captura la entidad de nacimiento (la misma que lleva la CURP): se usa como lugar de
+        // nacimiento mientras nadie haya escrito otro (el 'MÉXICO' de la plantilla no cuenta como escrito).
+        const entidadNacimiento = (res.ficha as any).entidadNacimiento;
+        if (entidadNacimiento && (!res.ficha.lugarNacimiento || res.ficha.lugarNacimiento === 'MÉXICO')) {
+          f = { ...f, lugarNacimiento: String(entidadNacimiento).toUpperCase() };
+        }
         // El alta rápida guarda los datos personales y de domicilio en
         // ficha_tecnica_json, pero el nombre y el número de elemento viven en
         // la tabla guardias — sin esto la ficha se ve con el nombre en blanco.
@@ -1550,7 +1556,7 @@ export default function MachoteFichaTecnica({
                     }}
                     title="Separar automáticamente la calle, colonia, municipio y estado en sus casilleros"
                   >
-                    <Sparkles className="w-3 h-3" /> Separar en casilleros
+                    <Columns3 className="w-3 h-3" /> Separar en casilleros
                   </Button>
                 )}
               </div>

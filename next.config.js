@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Permite comprobar la app con una caché separada del servidor local en uso.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // exceljs se queda fuera del bundle igual que better-sqlite3: trae binarios y
   // carga dinámica que el empaquetado rompe, y solo se usa en el servidor.
   serverExternalPackages: ["better-sqlite3", "exceljs"],

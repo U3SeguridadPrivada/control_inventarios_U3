@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import {
   Mail, MessageCircle, Phone, StickyNote, Building2, MapPin, Globe, Users2, Send,
   History, AlertTriangle, ExternalLink, ArrowLeft, FileSpreadsheet, Download, Plus,
-  Edit2, Clock, Calendar, Sparkles, CheckCircle2, ShieldCheck, UserCheck,
+  Edit2, Clock, Calendar, CheckCircle2, ShieldCheck, UserCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
@@ -664,13 +664,13 @@ export default function ProspectoPerfil({ id }: { id: number }) {
 
               {canal === 'correo' && (
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Asunto del Correo</label>
+                  <label className="field-label">Asunto del Correo</label>
                   <Input value={asunto} onChange={(e) => setAsunto(e.target.value)} placeholder="Asunto..." />
                 </div>
               )}
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Cuerpo del Mensaje</label>
+                <label className="field-label">Cuerpo del Mensaje</label>
                 <Textarea
                   value={cuerpo}
                   onChange={(e) => setCuerpo(e.target.value)}
@@ -857,7 +857,7 @@ export default function ProspectoPerfil({ id }: { id: number }) {
 
           <div className="grid gap-3 py-2 text-sm">
             <div className="space-y-1">
-              <label className="text-xs font-medium">Nombre del Establecimiento</label>
+              <label className="field-label">Nombre del Establecimiento</label>
               <Input
                 value={editForm.nombre}
                 onChange={(e) => setEditForm((f) => ({ ...f, nombre: e.target.value }))}
@@ -866,7 +866,7 @@ export default function ProspectoPerfil({ id }: { id: number }) {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium">Razón Social</label>
+              <label className="field-label">Razón Social</label>
               <Input
                 value={editForm.empresa}
                 onChange={(e) => setEditForm((f) => ({ ...f, empresa: e.target.value }))}
@@ -876,7 +876,7 @@ export default function ProspectoPerfil({ id }: { id: number }) {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-medium">Teléfono / WhatsApp (10 dígitos)</label>
+                <label className="field-label">Teléfono / WhatsApp (10 dígitos)</label>
                 <Input
                   value={editForm.telefono}
                   onChange={(e) => setEditForm((f) => ({ ...f, telefono: e.target.value }))}
@@ -884,7 +884,7 @@ export default function ProspectoPerfil({ id }: { id: number }) {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium">Correo Electrónico</label>
+                <label className="field-label">Correo Electrónico</label>
                 <Input
                   type="email"
                   value={editForm.email}
@@ -895,7 +895,7 @@ export default function ProspectoPerfil({ id }: { id: number }) {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium">Sitio Web</label>
+              <label className="field-label">Sitio Web</label>
               <Input
                 value={editForm.sitio_web}
                 onChange={(e) => setEditForm((f) => ({ ...f, sitio_web: e.target.value }))}
@@ -904,7 +904,7 @@ export default function ProspectoPerfil({ id }: { id: number }) {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium">Dirección en CDMX</label>
+              <label className="field-label">Dirección en CDMX</label>
               <Input
                 value={editForm.direccion}
                 onChange={(e) => setEditForm((f) => ({ ...f, direccion: e.target.value }))}
@@ -913,7 +913,7 @@ export default function ProspectoPerfil({ id }: { id: number }) {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium">Notas u Observaciones del Cliente</label>
+              <label className="field-label">Notas u Observaciones del Cliente</label>
               <Textarea
                 value={editForm.notas}
                 onChange={(e) => setEditForm((f) => ({ ...f, notas: e.target.value }))}

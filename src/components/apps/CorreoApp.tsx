@@ -1223,19 +1223,19 @@ function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose:
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Nombre completo</label>
+                <label className="field-label">Nombre completo</label>
                 <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej. Sarai Castillo" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Puesto / Cargo</label>
+                <label className="field-label">Puesto / Cargo</label>
                 <Input value={form.puesto} onChange={(e) => setForm((f) => ({ ...f, puesto: e.target.value }))} placeholder="Ej. Directora General" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Teléfono directo</label>
+                <label className="field-label">Teléfono directo</label>
                 <Input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} placeholder="Ej. 55-1234-5678" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Correo corporativo</label>
+                <label className="field-label">Correo corporativo</label>
                 <Input type="email" value={form.correo} onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))} placeholder="correo@u3seguridadprivada.com" />
               </div>
             </div>
@@ -1289,7 +1289,7 @@ function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose:
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600">Correo / Usuario</label>
+                  <label className="field-label">Correo / Usuario</label>
                   <Input 
                     value={form.correo_usuario} 
                     onChange={(e) => setForm((f) => ({ ...f, correo_usuario: e.target.value }))} 
@@ -1298,7 +1298,7 @@ function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose:
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600">Contraseña de aplicación</label>
+                  <label className="field-label">Contraseña de aplicación</label>
                   <div className="relative">
                     <Input 
                       type={showPassword ? 'text' : 'password'} 
@@ -1323,7 +1323,7 @@ function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose:
               {/* Servidores IMAP y SMTP */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600">Servidor IMAP (Entrada)</label>
+                  <label className="field-label">Servidor IMAP (Entrada)</label>
                   <div className="flex gap-2">
                     <Input 
                       className="flex-1 min-w-0" 
@@ -1342,7 +1342,7 @@ function PerfilCorreoDialog({ open, onClose, perfil }: { open: boolean; onClose:
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600">Servidor SMTP (Salida)</label>
+                  <label className="field-label">Servidor SMTP (Salida)</label>
                   <div className="flex gap-2">
                     <Input 
                       className="flex-1 min-w-0" 

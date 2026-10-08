@@ -8,10 +8,12 @@ import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Textarea } from '@/src/components/ui/textarea';
 import { Select } from '@/src/components/ui/select';
+import { Field, FieldGrid, FormSection, InputGroup } from '@/src/components/ui/field';
+import { FormDialog } from '@/src/components/ui/form-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
 import {
   Search, UserPlus, Trash2, Mail, Phone, Building2, Shuffle, ChevronLeft, ChevronRight,
-  Radar, Loader2, CheckCircle2, MapPin, Target, Sparkles, Flame, Trophy,
+  Radar, Loader2, CheckCircle2, MapPin, Target, ListPlus, Flame, Trophy,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
@@ -217,7 +219,7 @@ export default function ClientesApp() {
         {isEditor && (
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => setModalTanda(true)} className="bg-primary text-primary-foreground hover:bg-primary/90 font-medium">
-              <Sparkles className="w-4 h-4 mr-2" /> Sacar Tanda (200)
+              <ListPlus className="w-4 h-4 mr-2" /> Sacar Tanda (200)
             </Button>
             <a
               href="/mapa-prospectos.html"
@@ -241,7 +243,7 @@ export default function ClientesApp() {
       </div>
 
       {/* --- Tarjeta de Tanda Activa de Trabajo con Barra de Progreso --- */}
-      <div className="rounded-xl border border-primary/30 bg-gradient-to-r from-primary/5 via-card to-card p-4 shadow-sm space-y-3">
+      <div className="rounded-xl border border-border bg-card p-4 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
@@ -257,7 +259,7 @@ export default function ClientesApp() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" onClick={() => setModalTanda(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <Sparkles className="w-4 h-4 mr-1.5" /> Sacar Nueva Tanda (200)
+              <ListPlus className="w-4 h-4 mr-1.5" /> Sacar Nueva Tanda (200)
             </Button>
             {tandaStats && tandaStats.nuevos > 0 && (
               <Button size="sm" variant="outline" onClick={() => setModalBarrido(true)}>
@@ -272,38 +274,32 @@ export default function ClientesApp() {
           <div className="space-y-2 pt-1">
             <div className="h-3 w-full rounded-full bg-muted overflow-hidden relative">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-500 transition-all duration-700"
+                className="h-full rounded-full bg-primary transition-all duration-700"
                 style={{ width: `${Math.max(tandaStats.porcentaje, 2)}%` }}
               />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs pt-1">
-              <div className="bg-slate-100 dark:bg-slate-800/60 p-2 rounded-lg text-center">
-                <span className="block font-bold text-slate-800 dark:text-slate-200 text-sm tabular-nums">{tandaStats.nuevos}</span>
-                <span className="text-muted-foreground text-[11px]">⏳ Pendientes</span>
-              </div>
-              <div className="bg-blue-50 dark:bg-blue-950/40 p-2 rounded-lg text-center">
-                <span className="block font-bold text-blue-600 dark:text-blue-400 text-sm tabular-nums">{tandaStats.contactados}</span>
-                <span className="text-muted-foreground text-[11px]">📩 Contactados</span>
-              </div>
-              <div className="bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg text-center">
-                <span className="block font-bold text-amber-600 dark:text-amber-400 text-sm tabular-nums">{tandaStats.interesados}</span>
-                <span className="text-muted-foreground text-[11px]">🔥 Interesados</span>
-              </div>
-              <div className="bg-violet-50 dark:bg-violet-950/40 p-2 rounded-lg text-center">
-                <span className="block font-bold text-violet-600 dark:text-violet-400 text-sm tabular-nums">{tandaStats.cotizados}</span>
-                <span className="text-muted-foreground text-[11px]">📄 Cotizados</span>
-              </div>
-              <div className="bg-emerald-50 dark:bg-emerald-950/40 p-2 rounded-lg text-center">
-                <span className="block font-bold text-emerald-600 dark:text-emerald-400 text-sm tabular-nums">{tandaStats.ganados}</span>
-                <span className="text-muted-foreground text-[11px]">🏆 Ganados</span>
-              </div>
+              {[
+                { label: 'Pendientes', valor: tandaStats.nuevos, punto: 'bg-slate-400' },
+                { label: 'Contactados', valor: tandaStats.contactados, punto: 'bg-sky-500' },
+                { label: 'Interesados', valor: tandaStats.interesados, punto: 'bg-amber-500' },
+                { label: 'Cotizados', valor: tandaStats.cotizados, punto: 'bg-violet-500' },
+                { label: 'Ganados', valor: tandaStats.ganados, punto: 'bg-emerald-500' },
+              ].map((t) => (
+                <div key={t.label} className="rounded-lg bg-muted/70 p-2 text-center">
+                  <span className="block text-sm font-bold tabular-nums text-foreground">{t.valor}</span>
+                  <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <span className={`h-1.5 w-1.5 rounded-full ${t.punto}`} /> {t.label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         ) : (
           <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <span>No tienes prospectos asignados en este momento. Elige tu giro objetivo (Condominios, Hoteles, Fábricas, etc.) y saca tu primera tanda de 200.</span>
             <Button size="sm" variant="secondary" onClick={() => setModalTanda(true)}>
-              <Sparkles className="w-3.5 h-3.5 mr-1 text-primary" /> Comenzar tanda
+              <ListPlus className="w-3.5 h-3.5 mr-1 text-primary" /> Comenzar tanda
             </Button>
           </div>
         )}
@@ -386,7 +382,7 @@ export default function ClientesApp() {
               asignado === 'Todos' ? 'bg-background shadow-sm text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            🌐 Padrón General CDMX (42k)
+            Padrón general CDMX (42k)
           </button>
           <button
             type="button"
@@ -396,12 +392,12 @@ export default function ClientesApp() {
               asignado === 'sin' ? 'bg-background shadow-sm text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            ⏳ Sin Asignar (Reserva)
+            Sin asignar (reserva)
           </button>
         </div>
         <div className="text-xs text-muted-foreground font-medium">
           {asignado === 'mios' ? (
-            <span className="text-emerald-600 dark:text-emerald-400">🎯 Enfocado en tus {tandaStats?.total ?? 0} prospectos asignados</span>
+            <span className="inline-flex items-center gap-1.5 text-emerald-700"><Target className="h-3.5 w-3.5" /> Enfocado en tus {tandaStats?.total ?? 0} prospectos asignados</span>
           ) : (
             <span>Explorando el universo completo de Ciudad de México</span>
           )}
@@ -540,35 +536,64 @@ export default function ClientesApp() {
       {modalBarrido && <ModalBarrido lotes={cobertura.map((c) => c.lote)} onCerrar={() => setModalBarrido(false)} onListo={invalidar} />}
       {modalTanda && <ModalNuevaTanda asesores={asesores} onCerrar={() => setModalTanda(false)} onListo={invalidar} />}
 
-      <Dialog open={modalNuevo} onOpenChange={setModalNuevo}>
-        <DialogContent>
-          <form onSubmit={(e) => { e.preventDefault(); crear.mutate(form); }}>
-            <DialogHeader>
-              <DialogTitle>Nuevo cliente o prospecto</DialogTitle>
-              <DialogDescription>Alta manual en el sistema comercial.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2"><label className="text-sm font-medium">Nombre</label><Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} required /></div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tipo</label>
+      <FormDialog
+        open={modalNuevo}
+        onOpenChange={setModalNuevo}
+        size="lg"
+        icon={UserPlus}
+        title="Nuevo cliente o prospecto"
+        description="Alta manual en el sistema comercial."
+        submitLabel="Crear"
+        submittingLabel="Creando..."
+        submitting={crear.isPending}
+        footerNote={<span><span className="text-destructive">*</span> Campo obligatorio</span>}
+        onSubmit={() => crear.mutate(form)}
+      >
+        <div className="space-y-6">
+          <FormSection title="Datos generales" icon={Building2}>
+            <FieldGrid cols={2}>
+              <Field label="Nombre" required span={2}>
+                <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} required placeholder="Nombre del establecimiento o contacto" />
+              </Field>
+              <Field label="Tipo">
                 <Select value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}>
                   <option value="Prospecto">Prospecto</option>
                   <option value="Cliente">Cliente</option>
                 </Select>
-              </div>
-              <div className="space-y-2"><label className="text-sm font-medium">Empresa</label><Input value={form.empresa} onChange={(e) => setForm((f) => ({ ...f, empresa: e.target.value }))} /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Correo</label><Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Teléfono</label><Input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Dirección</label><Input value={form.direccion} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Notas</label><Textarea value={form.notas} onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))} rows={3} /></div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setModalNuevo(false)}>Cancelar</Button>
-              <Button type="submit" disabled={crear.isPending}>Crear</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+              </Field>
+              <Field label="Empresa">
+                <Input value={form.empresa} onChange={(e) => setForm((f) => ({ ...f, empresa: e.target.value }))} placeholder="Razón social o nombre comercial" />
+              </Field>
+            </FieldGrid>
+          </FormSection>
+
+          <FormSection title="Contacto" icon={Phone}>
+            <FieldGrid cols={2}>
+              <Field label="Correo">
+                <InputGroup icon={Mail}>
+                  <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="correo@empresa.com" />
+                </InputGroup>
+              </Field>
+              <Field label="Teléfono">
+                <InputGroup icon={Phone}>
+                  <Input type="tel" inputMode="tel" value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} placeholder="5512345678" />
+                </InputGroup>
+              </Field>
+              <Field label="Dirección" span={2}>
+                <InputGroup icon={MapPin}>
+                  <Input value={form.direccion} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} placeholder="Calle, número, colonia, alcaldía" />
+                </InputGroup>
+              </Field>
+            </FieldGrid>
+          </FormSection>
+
+          <FormSection title="Notas">
+            <Field label="Observaciones">
+              <Textarea value={form.notas} onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))} rows={3} placeholder="Giro, horario de atención, quién decide la contratación..." />
+            </Field>
+          </FormSection>
+        </div>
+      </FormDialog>
     </div>
   );
 }
@@ -621,7 +646,7 @@ function ModalReparto({ asesores, onCerrar, onListo }: {
         </DialogHeader>
         <div className="grid gap-4 py-2">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Asesores</label>
+            <label className="field-label">Asesores</label>
             <div className="grid sm:grid-cols-2 gap-1.5">
               {asesores.map((a) => (
                 <label key={a.id} className="flex items-center gap-2 text-sm rounded-md border border-border px-2.5 py-1.5 cursor-pointer hover:bg-muted/50">
@@ -634,11 +659,11 @@ function ModalReparto({ asesores, onCerrar, onListo }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Cuántos repartir</label>
+              <label className="field-label">Cuántos repartir</label>
               <Input type="number" min="1" max="2000" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Prioridad</label>
+              <label className="field-label">Prioridad</label>
               <Select value={prioridad} onChange={(e) => setPrioridad(e.target.value)}>
                 <option value="Todas">Todas</option>
                 <option value="A">Solo A</option>
@@ -837,16 +862,16 @@ function ModalNuevaTanda({ asesores, onCerrar, onListo }: {
   });
 
   const CATEGORIAS_OPCIONES = [
-    { id: 'condominios', label: 'Condominios y Bienes Raíces', icon: '🏢' },
-    { id: 'hoteles', label: 'Hoteles y Hospedaje', icon: '🏨' },
-    { id: 'fabricas', label: 'Fábricas, Naves y Bodegas', icon: '🏭' },
-    { id: 'hospitales', label: 'Hospitales y Clínicas Privadas', icon: '🏥' },
-    { id: 'escuelas', label: 'Escuelas, Colegios y Universidades', icon: '🎓' },
-    { id: 'bancos', label: 'Bancos, Financieras y Joyerías', icon: '🏦' },
-    { id: 'construccion', label: 'Constructoras y Obras', icon: '🏗️' },
-    { id: 'restaurantes', label: 'Restaurantes, Plazas y Salones', icon: '🍽️' },
-    { id: 'corporativos', label: 'Corporativos y Despachos', icon: '💼' },
-    { id: 'todas', label: 'Cualquier giro (Padrón General CDMX)', icon: '🌐' },
+    { id: 'condominios', label: 'Condominios y Bienes Raíces' },
+    { id: 'hoteles', label: 'Hoteles y Hospedaje' },
+    { id: 'fabricas', label: 'Fábricas, Naves y Bodegas' },
+    { id: 'hospitales', label: 'Hospitales y Clínicas Privadas' },
+    { id: 'escuelas', label: 'Escuelas, Colegios y Universidades' },
+    { id: 'bancos', label: 'Bancos, Financieras y Joyerías' },
+    { id: 'construccion', label: 'Constructoras y Obras' },
+    { id: 'restaurantes', label: 'Restaurantes, Plazas y Salones' },
+    { id: 'corporativos', label: 'Corporativos y Despachos' },
+    { id: 'todas', label: 'Cualquier giro (Padrón General CDMX)' },
   ];
 
   const ALCALDIAS_CDMX = [
@@ -861,7 +886,7 @@ function ModalNuevaTanda({ asesores, onCerrar, onListo }: {
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" /> Sacar Nueva Tanda de Prospectos
+            <ListPlus className="w-5 h-5 text-primary" /> Sacar Nueva Tanda de Prospectos
           </DialogTitle>
           <DialogDescription>
             Extrae un lote enfocado (por ejemplo 200 negocios) según el giro y zona que quieras atacar. Al completar tu tanda podrás sacar la siguiente.
@@ -870,17 +895,17 @@ function ModalNuevaTanda({ asesores, onCerrar, onListo }: {
 
         <div className="grid gap-4 py-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Giro o Nicho de Negocio</label>
+            <label className="field-label">Giro o Nicho de Negocio</label>
             <Select value={categoria} onChange={(e) => setCategoria(e.target.value)}>
               {CATEGORIAS_OPCIONES.map((c) => (
-                <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                <option key={c.id} value={c.id}>{c.label}</option>
               ))}
             </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Alcaldía (CDMX)</label>
+              <label className="field-label">Alcaldía (CDMX)</label>
               <Select value={alcaldia} onChange={(e) => setAlcaldia(e.target.value)}>
                 {ALCALDIAS_CDMX.map((a) => (
                   <option key={a} value={a}>{a === 'Todas' ? 'Todas las 16' : a}</option>
@@ -888,7 +913,7 @@ function ModalNuevaTanda({ asesores, onCerrar, onListo }: {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Canal de Contacto</label>
+              <label className="field-label">Canal de Contacto</label>
               <Select value={canal} onChange={(e) => setCanal(e.target.value)}>
                 <option value="todos">Cualquiera</option>
                 <option value="ambos">Con WhatsApp y Correo</option>
@@ -900,7 +925,7 @@ function ModalNuevaTanda({ asesores, onCerrar, onListo }: {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Tamaño de la tanda</label>
+              <label className="field-label">Tamaño de la tanda</label>
               <Select value={cantidad} onChange={(e) => setCantidad(e.target.value)}>
                 <option value="50">50 prospectos (Micro tanda)</option>
                 <option value="100">100 prospectos</option>
@@ -910,7 +935,7 @@ function ModalNuevaTanda({ asesores, onCerrar, onListo }: {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Prioridad mínima</label>
+              <label className="field-label">Prioridad mínima</label>
               <Select value={prioridad} onChange={(e) => setPrioridad(e.target.value)}>
                 <option value="Todas">Todas las prioridades</option>
                 <option value="A">Solo A (Corporativos / Top)</option>
@@ -921,7 +946,7 @@ function ModalNuevaTanda({ asesores, onCerrar, onListo }: {
 
           {isAdmin && (
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Asignar esta tanda a:</label>
+              <label className="field-label">Asignar esta tanda a:</label>
               <Select value={asesorId} onChange={(e) => setAsesorId(e.target.value)}>
                 {asesores.map((a) => (
                   <option key={a.id} value={a.id}>{a.username}{a.id === user?.id ? ' (Tú)' : ''}</option>

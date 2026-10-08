@@ -1,4 +1,5 @@
 'use client';
+import { fechaMexico } from '@/src/lib/fecha';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -7,7 +8,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Badge } from '@/src/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
+import { Select } from '@/src/components/ui/select';
+import { SegmentedTabs } from '@/src/components/ui/tabs';
+import { ProgressRing } from '@/src/components/ui/progress-ring';
+import { InfoGrid, InfoItem } from '@/src/components/ui/info-grid';
+import { iniciales } from '@/src/components/ui/avatar';
+import { Field, FieldGrid, FormSection, InputGroup, Callout } from '@/src/components/ui/field';
+import { FormDialog, ConfirmDialog } from '@/src/components/ui/form-dialog';
+import {
+  TarjetaPerfil, TituloTarjeta, PildoraCifra, FilaIndicador, MiniCalendario, LineaTiempo,
+  RosterGuardias, CasillaDocumento, TarjetaDocumento, useAnchoMinimo, type EventoLinea,
+} from './guardia/PerfilWidgets';
 import {
   ArrowLeft,
   Phone,
@@ -38,16 +49,23 @@ import {
   Plus,
   Edit2,
   FileCheck,
-  Sparkles,
   Check,
   Clock,
-  Pencil
+  Pencil,
+  ChevronRight,
+  Shirt,
+  FolderOpen,
+  Activity,
+  CloudUpload
 } from 'lucide-react';
 import { fmtDate } from '@/src/lib/utils';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
 import DocumentViewerModal from '@/src/components/DocumentViewerModal';
 import MachoteFichaTecnica from '@/src/components/machotes/MachoteFichaTecnica';
+import { IdentidadPersonal } from '@/src/components/forms/IdentidadPersonal';
+import { FICHA_EXTRA_VACIA, extraerFichaExtra, type FichaExtraValores } from './administrativos/FichaExtraEditor';
+import { unirNombreCompleto } from '@/src/lib/rfcCurp';
 
 interface Props {
   id: number;
@@ -57,14 +75,15 @@ interface Props {
 }
 
 function imprimirExpediente(guardia: any, salidas: any[], entradas: any[]) {
+  salidas = salidas.filter(s => !s.anulado); entradas = entradas.filter(e => !e.anulado);
   const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
-  const enPosesion = salidas.filter(s => s.estado_asignacion === 'Uniforme en Campo');
+  const enPosesion = salidas.filter(s => !s.anulado).filter(s => s.estado_asignacion === 'Uniforme en Campo');
   const saldoMap: Record<string, number> = {};
   enPosesion.forEach(s => { const key = `${s.articulo}${s.talla ? ` (Talla: ${s.talla})` : ''}`; saldoMap[key] = (saldoMap[key] || 0) + s.cantidad; });
   const dotacion = salidas.filter(s => s.concepto === 'Uniforme en Campo' || s.concepto === 'Asignación');
   const reposicion = salidas.filter(s => s.concepto === 'Reposición');
-  const extravios = salidas.filter(s => s.concepto === 'Extravío' || s.concepto === 'Inutilizable');
-  const recuperados = entradas.filter(e => e.motivo === 'Recuperado');
+  const extravios = salidas.filter(s => s.estado_asignacion === 'Extraviado' || s.concepto === 'Extravío');
+  const recuperados = entradas.filter(e => !e.anulado).filter(e => e.motivo === 'Recuperado');
   const reposicionEntradas = entradas.filter(e => e.motivo === 'Reposición (Entrada Múltiple)');
   const totalDotaciones = dotacion.reduce((a: number, s: any) => a + s.cantidad, 0);
   const totalReposiciones = reposicion.reduce((a: number, s: any) => a + s.cantidad, 0);
@@ -103,9 +122,9 @@ function imprimirExpediente(guardia: any, salidas: any[], entradas: any[]) {
   <div class="section-title">I. Dotación inicial</div>
   ${dotacion.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Estado')}<tbody>${dotacion.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.estado_fisico||'Nuevo'}</td></tr>`).join('')}</tbody></table>`}
   <div class="section-title">II. Equipo repuesto</div>
-  ${reposicion.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Estado devuelto → Entregado')}<tbody>${reposicion.map((item: any, idx: number) => { const matched = reposicionEntradas.find((e: any) => e.articulo === item.articulo && e.fecha === item.fecha); const devuelto = matched?.estado || '—'; return `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>Devolvió: <strong>${devuelto}</strong> → Recibió: <strong>${item.estado_fisico||'Nuevo'}</strong></td></tr>`; }).join('')}</tbody></table>`}
+  ${reposicion.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Estado devuelto → Entregado')}<tbody>${reposicion.map((item: any, idx: number) => { const matched = item.operacion_id && item.salida_origen_id ? reposicionEntradas.find((e: any) => e.operacion_id === item.operacion_id && e.salida_origen_id === item.salida_origen_id) : undefined; const devuelto = matched?.estado || '—'; return `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>Devolvió: <strong>${devuelto}</strong> → Recibió: <strong>${item.estado_fisico||'Nuevo'}</strong></td></tr>`; }).join('')}</tbody></table>`}
   <div class="section-title">III. Pérdidas y extravíos</div>
-  ${extravios.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Tipo')}<tbody>${extravios.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.concepto||'Extravío'}</td></tr>`).join('')}</tbody></table>`}
+  ${extravios.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Tipo')}<tbody>${extravios.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.estado_asignacion === 'Extraviado' ? 'Extravío' : (item.concepto||'Extravío')}</td></tr>`).join('')}</tbody></table>`}
   ${recuperados.length === 0 ? '' : `<div class="section-title">IV. Equipo recuperado</div><table>${mkHeader('Estado al recuperar')}<tbody>${recuperados.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.estado||'—'}</td></tr>`).join('')}</tbody></table>`}
   <div class="saldo-box">
     <div class="saldo-title">Saldo Actual en Posesión</div>
@@ -159,9 +178,12 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
   const [editingFicha, setEditingFicha] = useState(false);
   const [viewerDoc, setViewerDoc] = useState<{ title: string; url: string; downloadName: string } | null>(null);
   const [pdfVersion, setPdfVersion] = useState(Date.now());
+  const [tab, setTab] = useState<'expediente' | 'uniformes' | 'actividad'>('expediente');
+  // La lista lateral de personal hace su propia consulta: solo se monta si hay ancho para mostrarla.
+  const hayEspacioParaLista = useAnchoMinimo(1700);
 
   // Formulario Editar Datos Generales
-  const [editNombre, setEditNombre] = useState('');
+  const [editFichaExtra, setEditFichaExtra] = useState<FichaExtraValores>(FICHA_EXTRA_VACIA);
   const [editNumeroElemento, setEditNumeroElemento] = useState('');
   const [editFechaAlta, setEditFechaAlta] = useState('');
   const [editTelefono, setEditTelefono] = useState('');
@@ -211,8 +233,8 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
   }, [guardia?.ficha_tecnica_json]);
 
   // Saldo de Uniformes en Posesión
-  const salidas = expedienteRes?.salidas || [];
-  const entradas = expedienteRes?.entradas || [];
+  const salidas = (expedienteRes?.salidas || []).filter((s: any) => !s.anulado);
+  const entradas = (expedienteRes?.entradas || []).filter((e: any) => !e.anulado);
 
   const enPosesion = useMemo(() => {
     return salidas.filter((s: any) => s.estado_asignacion === 'Uniforme en Campo');
@@ -237,7 +259,7 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
 
   const totalDotaciones = salidas.filter((s: any) => s.concepto === 'Uniforme en Campo' || s.concepto === 'Asignación').reduce((a: number, s: any) => a + s.cantidad, 0);
   const totalReposiciones = salidas.filter((s: any) => s.concepto === 'Reposición').reduce((a: number, s: any) => a + s.cantidad, 0);
-  const totalPerdidas = salidas.filter((s: any) => s.concepto === 'Extravío' || s.concepto === 'Inutilizable').reduce((a: number, s: any) => a + s.cantidad, 0);
+  const totalPerdidas = salidas.filter((s: any) => s.estado_asignacion === 'Extraviado' || s.concepto === 'Extravío').reduce((a: number, s: any) => a + s.cantidad, 0);
 
   // Mutations
   const editMutation = useMutation({
@@ -305,7 +327,7 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
   // Helpers
   const abrirEditar = () => {
     if (!guardia) return;
-    setEditNombre(guardia.nombre || '');
+    setEditFichaExtra(extraerFichaExtra(guardia.ficha_tecnica_json, guardia.nombre || ''));
     setEditNumeroElemento(guardia.numero_elemento || '');
     setEditFechaAlta(guardia.fecha_alta ? guardia.fecha_alta.split('T')[0] : '');
     setEditTelefono(guardia.telefono || '');
@@ -440,760 +462,469 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
   const fotoUrl = fichaData?.fotoUrl || null;
   const waUrl = guardia.telefono ? `https://wa.me/52${guardia.telefono.replace(/\D/g, '')}` : null;
   const mapsUrl = guardia.direccion ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(guardia.direccion)}` : null;
+  const puesto = fichaData?.puesto || 'Guardia de seguridad privada';
+
+  // Expediente: cuatro papeles clave mas la ficha tecnica.
+  const DOCS_CLAVE = ['Contrato de Trabajo', 'Identificación Oficial (INE)', 'Comprobante de Domicilio', 'CURP'];
+  const docSubido = (tipo: string) =>
+    documentos.some((d: any) => d.nombre_documento.toLowerCase().includes(tipo.toLowerCase().slice(0, 8)));
+  const docsListos = DOCS_CLAVE.filter(docSubido).length;
+  const fichaLista = !!guardia.ficha_tecnica_json;
+  const pctExpediente = Math.round(((docsListos + (fichaLista ? 1 : 0)) / (DOCS_CLAVE.length + 1)) * 100);
+
+  // Historial unificado del expediente (alta, papeles, uniformes y bitacora).
+  const eventos: EventoLinea[] = [
+    { id: 'alta', fecha: guardia.fecha_alta, tipo: 'alta' as const, titulo: 'Alta en el sistema', detalle: `Elemento ${guardia.numero_elemento || 'sin número asignado'}` },
+    ...documentos.map((d: any): EventoLinea => ({ id: `doc-${d.id}`, fecha: d.fecha_subida, tipo: 'documento', titulo: d.nombre_documento, detalle: 'Documento agregado al expediente' })),
+    ...salidas.map((s: any, i: number): EventoLinea => {
+      const extravio = s.estado_asignacion === 'Extraviado' || s.concepto === 'Extravío';
+      const reposicion = s.concepto === 'Reposición';
+      return {
+        id: `sal-${s.id ?? i}`,
+        fecha: s.fecha,
+        tipo: extravio ? 'extravio' : reposicion ? 'reposicion' : 'entrega',
+        titulo: `${s.cantidad}× ${s.articulo}${s.talla ? ` (${s.talla})` : ''}`,
+        detalle: extravio ? 'Extravío de equipo' : reposicion ? 'Reposición de equipo' : 'Entrega de equipo',
+      };
+    }),
+    ...entradas.map((e: any, i: number): EventoLinea => ({
+      id: `ent-${e.id ?? i}`,
+      fecha: e.fecha,
+      tipo: 'devolucion',
+      titulo: `${e.cantidad}× ${e.articulo}${e.talla ? ` (${e.talla})` : ''}`,
+      detalle: e.motivo || 'Devolución de equipo',
+    })),
+    ...bitacora.map((b: any): EventoLinea => ({
+      id: `bit-${b.id}`,
+      fecha: b.created_at,
+      tipo: b.tipo === 'llamada' ? 'llamada' : 'nota',
+      titulo: b.mensaje,
+      detalle: b.usuario ? `Por ${b.usuario}` : undefined,
+    })),
+  ].filter((ev) => !!ev.fecha);
+
+  const actividadPorDia: Record<string, number> = {};
+  eventos.filter((ev) => ev.tipo !== 'alta').forEach((ev) => {
+    const dia = String(ev.fecha).slice(0, 10);
+    actividadPorDia[dia] = (actividadPorDia[dia] || 0) + 1;
+  });
+  const diaAlta = guardia.fecha_alta ? String(guardia.fecha_alta).slice(0, 10) : null;
+
+  const puntoEstado = isActivo ? 'bg-emerald-300' : isBajaPendiente ? 'bg-amber-300' : 'bg-slate-300';
+  const botonLienzo = 'h-10 rounded-full border-transparent bg-card px-4 shadow-soft hover:bg-white';
 
   return (
-    <div className="space-y-4 pb-12 animate-in fade-in duration-300">
-      {/* --- BARRA SUPERIOR DE NAVEGACIÓN Y ACCIONES (Estilo CRM) --- */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border shadow-sm">
-        <div className="flex items-center gap-2 flex-wrap text-sm">
-          <Button
-            variant="ghost"
-            size="sm"
+    <>
+    <div className="rounded-[28px] bg-canvas p-3 sm:p-5 lg:p-6">
+      {/* ----- Barra superior del lienzo: volver, titulo y acciones ----- */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3.5">
+          <button
+            type="button"
             onClick={handleVolver}
-            className="text-muted-foreground hover:text-foreground -ml-1 text-xs font-semibold gap-1.5"
+            aria-label="Volver a la lista de guardias"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card text-foreground shadow-soft transition-colors hover:bg-white"
           >
-            <ArrowLeft className="w-4 h-4" /> Volver a mi lista
-          </Button>
-          <span className="text-muted-foreground/50">|</span>
-          <span className="font-mono text-xs text-muted-foreground font-semibold">ID #{guardia.id}</span>
-          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-            {guardia.numero_elemento}
-          </span>
-          <Badge
-            variant={isActivo ? 'success' : isBajaPendiente ? 'destructive' : 'secondary'}
-            className="text-xs font-semibold"
-          >
-            {guardia.estado}
-          </Badge>
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div className="min-w-0">
+            <nav aria-label="Ruta de navegación" className="flex items-center gap-1 text-xs text-slate-500">
+              <Link href="/guardias" className="transition-colors hover:text-foreground">Guardias</Link>
+              <ChevronRight aria-hidden className="h-3 w-3 text-slate-400" />
+              <span className="truncate font-semibold text-foreground/80">{guardia.nombre}</span>
+            </nav>
+            <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-[28px]">Perfil del guardia</h1>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {isEditor && (
-            <Button size="sm" variant="outline" onClick={abrirEditar} className="text-xs">
-              <Edit2 className="w-3.5 h-3.5 mr-1.5" /> Editar datos
+            <Button variant="outline" className={botonLienzo} onClick={abrirEditar}>
+              <Edit2 className="h-3.5 w-3.5" /> Editar datos
             </Button>
           )}
-          <Link href={`/guardias/${guardia.id}/contrato`}>
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-xs font-semibold border-amber-300 bg-amber-50/70 text-amber-900 hover:bg-amber-100 hover:text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950 shadow-xs"
-              title="Abrir y editar contrato laboral en hojas oficiales"
-            >
-              <FileCheck className="w-3.5 h-3.5 mr-1.5 text-amber-600" /> Contrato Laboral
-            </Button>
-          </Link>
-          <Link href={`/guardias/${guardia.id}/ficha`}>
-            <Button
-              size="sm"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-xs"
-              title="Abrir y editar ficha técnica oficial con la interfaz de expediente"
-            >
-              <IdCard className="w-3.5 h-3.5 mr-1.5" /> Ficha Técnica
-            </Button>
-          </Link>
+          <Button variant="outline" className={botonLienzo} onClick={() => router.push(`/guardias/${guardia.id}/contrato`)} title="Abrir y editar el contrato laboral en hojas oficiales">
+            <FileCheck className="h-3.5 w-3.5 text-amber-600" /> Contrato laboral
+          </Button>
+          <Button variant="dark" className="h-10 rounded-full px-4" onClick={() => router.push(`/guardias/${guardia.id}/ficha`)} title="Abrir y editar la ficha técnica oficial">
+            <IdCard className="h-3.5 w-3.5" /> Ficha técnica
+          </Button>
         </div>
       </div>
 
-      {/* --- GRID PRINCIPAL (2 COLUMNAS CRM) --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* ================= COLUMNA IZQUIERDA: FICHA Y DATOS DEL GUARDIA (5 cols) ================= */}
-        <div className="lg:col-span-5 space-y-4">
-          {/* Tarjeta de Identidad y Foto Oficial */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
-            <div>
-              {/* Badges superiores */}
-              <div className="flex items-center gap-2 flex-wrap mb-3">
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                  Operativo {guardia.estado}
-                </span>
-                <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground font-medium ml-auto flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-primary" /> Alta: {fmtDate(guardia.fecha_alta)}
-                </span>
-              </div>
+      <div className="mt-5 flex gap-5">
+        {hayEspacioParaLista && (
+          <RosterGuardias actualId={guardia.id} className="flex max-h-[calc(100svh-13rem)] w-[250px] shrink-0 self-start" />
+        )}
 
-              {/* Foto Oficial y Nombre */}
-              <div className="flex items-center gap-4 mb-3">
-                <div className="relative flex-shrink-0 group">
+        <div className="grid min-w-0 flex-1 grid-cols-1 items-start gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
+          {/* ===================== COLUMNA IZQUIERDA ===================== */}
+          <div className="grid content-start gap-5 md:grid-cols-2 xl:grid-cols-1">
+            {/* Tarjeta de identidad */}
+            <section className="relative overflow-hidden rounded-[28px] bg-primary p-5 text-white shadow-soft md:col-span-2 xl:col-span-1">
+              <img src="/logo_b.png" alt="" aria-hidden className="pointer-events-none absolute -right-10 -top-8 h-56 w-56 object-contain opacity-[0.08] brightness-0 invert" />
+              <div className="relative flex items-start gap-4">
+                <div className="relative shrink-0">
                   {fotoUrl ? (
-                    <img
-                      src={fotoUrl}
-                      alt={guardia.nombre}
-                      className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl object-cover border-2 border-primary/20 shadow-md"
-                    />
+                    <img src={fotoUrl} alt={guardia.nombre} className="h-[132px] w-[104px] rounded-[20px] object-cover ring-2 ring-white/30" />
                   ) : (
-                    <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-muted border-2 border-primary/20 flex items-center justify-center text-primary font-black text-2xl tracking-wider shadow-sm">
-                      {guardia.nombre
-                        ? guardia.nombre
-                            .split(' ')
-                            .filter(Boolean)
-                            .slice(0, 2)
-                            .map((w: string) => w[0])
-                            .join('')
-                            .toUpperCase()
-                        : 'G'}
+                    <div className="flex h-[132px] w-[104px] items-center justify-center rounded-[20px] bg-white/15 text-3xl font-bold tracking-wide ring-2 ring-white/20">
+                      {iniciales(guardia.nombre)}
                     </div>
                   )}
                   {isEditor && (
                     <button
+                      type="button"
                       onClick={abrirEditorFicha}
-                      className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-primary text-primary-foreground shadow hover:scale-105 transition-transform"
-                      title="Cambiar o subir fotografía en Ficha Técnica"
+                      className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-primary shadow-md transition-transform hover:scale-105"
+                      title="Cambiar o subir fotografía en la ficha técnica"
+                      aria-label="Cambiar fotografía"
                     >
-                      <Camera className="w-3 h-3" />
+                      <Camera className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
-
-                <div className="min-w-0 flex-1">
-                  <h1 className="text-xl font-bold tracking-tight text-foreground leading-snug">
-                    {guardia.nombre}
-                  </h1>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 font-semibold">
-                    <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
-                    {fichaData?.puesto || 'Guardia de Seguridad Privada'}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground/80 mt-0.5">
-                    U3 Seguridad Privada · Elemento Operativo
-                  </p>
+                <div className="min-w-0 flex-1 pt-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Elemento operativo</p>
+                  <h2 className="mt-1 break-words text-[21px] font-bold leading-tight tracking-tight">{guardia.nombre}</h2>
+                  <p className="mt-1 text-sm text-white/80">{puesto}</p>
                 </div>
               </div>
-            </div>
-
-            {/* Padrón y Resumen de Estado */}
-            <div className="rounded-lg bg-muted/40 p-3 text-xs space-y-1">
-              <div className="font-semibold text-foreground flex items-center gap-1.5">
-                <Building2 className="w-4 h-4 text-primary shrink-0" />
-                <span>Asignación Operativa: {guardia.estado === 'Activo' ? 'Servicio Activo en Campo' : guardia.estado}</span>
-              </div>
-              <div className="text-muted-foreground pl-5.5">
-                Número de Credencial: <span className="font-mono font-bold text-foreground">{guardia.numero_elemento}</span>
-              </div>
-            </div>
-
-            {/* Canales Directos (Teléfono / WhatsApp / Domicilio) */}
-            <div className="space-y-2.5 pt-1 text-sm border-t border-border">
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-1">
-                Canales Directos
-              </div>
-
-              {/* Teléfono y WhatsApp */}
-              <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-muted/30 border border-border/50">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span className="font-medium text-xs break-all">
-                    {guardia.telefono || <span className="text-muted-foreground italic">Sin teléfono registrado</span>}
+              <div className="relative mt-5 flex items-end justify-between gap-3">
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex h-7 items-center rounded-full bg-white/15 px-2.5 text-[11px] font-semibold">
+                    {guardia.numero_elemento ? `No. ${guardia.numero_elemento}` : 'Sin número'}
+                  </span>
+                  <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-white/15 px-2.5 text-[11px] font-semibold">
+                    <Calendar className="h-3.5 w-3.5" /> Alta {fmtDate(guardia.fecha_alta)}
+                  </span>
+                  <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-white/15 px-2.5 text-[11px] font-semibold">
+                    <span className={`h-2 w-2 rounded-full ${puntoEstado}`} /> {guardia.estado}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {guardia.telefono && (
-                    <a
-                      href={`tel:${guardia.telefono}`}
-                      title="Llamar directamente"
-                      className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                    </a>
-                  )}
-                  {waUrl && (
-                    <a
-                      href={waUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Abrir WhatsApp directo"
-                      className="inline-flex items-center gap-1 bg-emerald-500 text-white text-[11px] font-semibold px-2.5 py-1 rounded-md hover:bg-emerald-600 transition-colors shadow-sm"
-                    >
-                      <MessageCircle className="w-3 h-3" /> WhatsApp
-                    </a>
-                  )}
-                  {!guardia.telefono && isEditor && (
-                    <Button variant="ghost" size="sm" onClick={abrirEditar} className="text-xs h-7 text-primary">
-                      + Agregar
-                    </Button>
-                  )}
+                <div className="flex shrink-0 flex-col items-center gap-1">
+                  <ProgressRing value={pctExpediente} size={48} stroke={4} tone="light" trackClassName="stroke-white/25">
+                    <span className="text-[11px] font-bold">{pctExpediente}%</span>
+                  </ProgressRing>
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-white/70">Expediente</span>
                 </div>
               </div>
+            </section>
 
-              {/* Domicilio con Google Maps */}
-              <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 space-y-1">
-                <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs font-medium text-foreground block">
-                      {guardia.direccion || <span className="text-muted-foreground italic">Sin dirección de domicilio registrada</span>}
-                    </span>
-                    {mapsUrl && (
-                      <a
-                        href={mapsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-semibold mt-1"
-                      >
-                        Ver en Google Maps <ExternalLink className="w-3 h-3" />
-                      </a>
+            {/* Indicadores */}
+            <TarjetaPerfil className="space-y-2 p-3">
+              <FilaIndicador label="Uniformes" hint="En posesión · dotadas">
+                <PildoraCifra icon={Shirt}>{totalEnPosesion}</PildoraCifra>
+                <PildoraCifra tone="light" icon={Check}>{totalDotaciones}</PildoraCifra>
+              </FilaIndicador>
+              <FilaIndicador label="Reposiciones" hint="Repuestas · pérdidas">
+                <PildoraCifra tone="light">{totalReposiciones}</PildoraCifra>
+                <PildoraCifra tone={totalPerdidas > 0 ? 'danger' : 'light'} icon={totalPerdidas > 0 ? AlertCircle : undefined}>{totalPerdidas}</PildoraCifra>
+              </FilaIndicador>
+              <FilaIndicador label="Expediente" hint="Papeles clave · ficha">
+                <PildoraCifra>{docsListos}/{DOCS_CLAVE.length}</PildoraCifra>
+                <PildoraCifra tone={fichaLista ? 'success' : 'warning'} icon={fichaLista ? Check : AlertCircle}>{fichaLista ? 'Ficha' : 'Pendiente'}</PildoraCifra>
+              </FilaIndicador>
+            </TarjetaPerfil>
+
+            {/* Calendario de actividad */}
+            <TarjetaPerfil className="p-5">
+              <MiniCalendario actividad={actividadPorDia} alta={diaAlta} />
+            </TarjetaPerfil>
+          </div>
+
+          {/* ===================== COLUMNA DERECHA ===================== */}
+          <div className="min-w-0 space-y-5">
+            {/* Datos del elemento */}
+            <TarjetaPerfil className="p-5 sm:p-6">
+              <TituloTarjeta
+                icon={UserCheck}
+                title="Datos del elemento"
+                subtitle="Contacto y filiación oficial"
+                action={
+                  isEditor ? (
+                    <Button variant="soft" size="sm" className="rounded-full" onClick={abrirEditorFicha}>
+                      <Edit3 className="h-3.5 w-3.5" /> {fichaData ? 'Editar ficha' : 'Completar ficha'}
+                    </Button>
+                  ) : undefined
+                }
+              />
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {waUrl && (
+                  <a href={waUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-emerald-50 px-3.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/15 transition-colors hover:bg-emerald-100">
+                    <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                  </a>
+                )}
+                {guardia.telefono && (
+                  <a href={`tel:${guardia.telefono}`} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-muted px-3.5 text-xs font-semibold text-foreground transition-colors hover:bg-slate-200">
+                    <Phone className="h-3.5 w-3.5" /> Llamar
+                  </a>
+                )}
+                {mapsUrl && (
+                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-muted px-3.5 text-xs font-semibold text-foreground transition-colors hover:bg-slate-200">
+                    <MapPin className="h-3.5 w-3.5" /> Ver domicilio <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                  </a>
+                )}
+                {!guardia.telefono && isEditor && (
+                  <button type="button" onClick={abrirEditar} className="inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-xs font-semibold text-primary ring-1 ring-inset ring-primary/25 transition-colors hover:bg-primary/5">
+                    <Plus className="h-3.5 w-3.5" /> Agregar teléfono
+                  </button>
+                )}
+              </div>
+
+              <InfoGrid cols={3} className="mt-5">
+                <InfoItem label="Teléfono">{guardia.telefono}</InfoItem>
+                <InfoItem label="Domicilio" span>{guardia.direccion}</InfoItem>
+                {fichaData && (
+                  <>
+                    <InfoItem label="CURP" mono>{fichaData.curp}</InfoItem>
+                    <InfoItem label="RFC" mono>{fichaData.rfc}</InfoItem>
+                    <InfoItem label="NSS / IMSS" mono>{fichaData.imss}</InfoItem>
+                    <InfoItem label="Edad">{fichaData.edad ? conUnidad(fichaData.edad, /\s*años?\.?\s*$/i, 'años') : undefined}</InfoItem>
+                    <InfoItem label="Fecha de nacimiento">{fichaData.fechaNacimiento}</InfoItem>
+                    <InfoItem label="Lugar de nacimiento">{fichaData.entidadNacimiento}</InfoItem>
+                    <InfoItem label="Sexo">{fichaData.sexo}</InfoItem>
+                    <InfoItem label="Escolaridad">{fichaData.estudios}</InfoItem>
+                    <InfoItem label="Estatura">{fichaData.estatura ? conUnidad(fichaData.estatura, /\s*m(?:ts?|etros?)?\.?\s*$/i, 'm') : undefined}</InfoItem>
+                    <InfoItem label="Peso">{fichaData.peso ? conUnidad(fichaData.peso, /\s*k(?:g|ilos?)\.?\s*$/i, 'kg') : undefined}</InfoItem>
+                  </>
+                )}
+              </InfoGrid>
+
+              {!fichaData && (
+                <Callout tone="warning" className="mt-5" title="Falta la filiación oficial">
+                  Aún no se capturan CURP, RFC, IMSS ni medidas. Captúralos en «Editar datos»: con la fecha de nacimiento, el sexo y el lugar de nacimiento la CURP y el RFC se calculan solos. También se pueden registrar en la ficha técnica.
+                </Callout>
+              )}
+            </TarjetaPerfil>
+
+            {/* Expediente, uniformes y actividad */}
+            <TarjetaPerfil className="p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <SegmentedTabs
+                  ariaLabel="Secciones del perfil"
+                  value={tab}
+                  onChange={setTab}
+                  items={[
+                    { value: 'expediente', label: 'Expediente', icon: FolderOpen, count: documentos.length },
+                    { value: 'uniformes', label: 'Uniformes y equipo', icon: Shirt, count: totalEnPosesion },
+                    { value: 'actividad', label: 'Actividad', icon: Activity, count: Math.max(eventos.length - 1, 0) },
+                  ]}
+                />
+                {tab === 'expediente' && isEditor && (
+                  <Button variant="dark" size="sm" className="h-9 rounded-full px-4" onClick={() => setModalSubirPapel(true)}>
+                    <Upload className="h-3.5 w-3.5" /> Subir papel
+                  </Button>
+                )}
+                {tab === 'uniformes' && (
+                  <Button variant="outline" size="sm" className="h-9 rounded-full px-4" onClick={() => imprimirExpediente(guardia, salidas, entradas)} disabled={isLoadingExpediente}>
+                    <Printer className="h-3.5 w-3.5" /> Imprimir acta
+                  </Button>
+                )}
+              </div>
+
+              {tab === 'expediente' && (
+                <div className="mt-5 space-y-6">
+                  {/* Ficha tecnica oficial */}
+                  <div className="flex flex-col gap-3 rounded-2xl bg-muted/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <button type="button" onClick={abrirVisorFichaPdf} title="Abrir el visor de la ficha técnica" className="flex min-w-0 items-center gap-3 text-left">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white"><IdCard className="h-5 w-5" /></span>
+                      <span className="min-w-0 leading-tight">
+                        <span className="block truncate text-[13px] font-bold text-foreground">Ficha técnica oficial</span>
+                        <span className="block truncate text-xs text-muted-foreground">Ficha_Tecnica_{guardia.numero_elemento || guardia.id}.pdf</span>
+                      </span>
+                    </button>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant={fichaLista ? 'success' : 'warning'} dot>{fichaLista ? 'Guardada' : 'Pendiente'}</Badge>
+                      <Button size="sm" variant="dark" className="h-8 rounded-full px-3.5" onClick={abrirVisorFichaPdf}>
+                        <Eye className="h-3.5 w-3.5" /> Abrir
+                      </Button>
+                      <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" onClick={descargarFichaDirecta} title="Descargar PDF" aria-label="Descargar ficha técnica">
+                        <Download className="h-3.5 w-3.5" />
+                      </Button>
+                      {isEditor && (
+                        <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" onClick={() => router.push(`/guardias/${guardia.id}/ficha`)} title="Editar la ficha y regenerar el PDF" aria-label="Editar ficha técnica">
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {isEditor && fichaLista && (
+                        <Button size="icon" variant="outline" className="h-8 w-8 rounded-full text-destructive hover:bg-red-50 hover:text-destructive" onClick={() => setConfirmarEliminar({ tipo: 'ficha' })} title="Eliminar por completo la ficha técnica" aria-label="Eliminar ficha técnica">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Papeles clave */}
+                  <div>
+                    <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Papeles clave</h3>
+                    <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+                      {DOCS_CLAVE.map((tipo) => (
+                        <CasillaDocumento
+                          key={tipo}
+                          label={tipo}
+                          listo={docSubido(tipo)}
+                          onClick={tipo === 'Contrato de Trabajo' ? () => router.push(`/guardias/${guardia.id}/contrato`) : undefined}
+                          title={tipo === 'Contrato de Trabajo' ? 'Ver o editar el contrato laboral oficial' : undefined}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Papeles digitalizados */}
+                  <div>
+                    <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Papeles digitalizados ({documentos.length})</h3>
+                    {isLoadingDocumentos ? (
+                      <p className="animate-pulse py-6 text-center text-xs text-muted-foreground">Cargando papeles escaneados...</p>
+                    ) : documentos.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-border py-9 text-center">
+                        <FileText className="mx-auto h-7 w-7 text-muted-foreground/60" />
+                        <p className="mt-2 text-sm font-semibold text-foreground">Aún no hay papeles digitalizados</p>
+                        <p className="mx-auto mt-0.5 max-w-xs text-xs text-muted-foreground">Sube el contrato firmado, la credencial del INE o los comprobantes de este guardia.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
+                        {documentos.map((doc: any) => {
+                          const isFicha = doc.nombre_documento?.toLowerCase().includes('ficha') || doc.nombre_archivo?.toLowerCase().includes('ficha');
+                          const isContrato = doc.nombre_documento?.toLowerCase().includes('contrato') || doc.nombre_archivo?.toLowerCase().includes('contrato');
+                          const abrir = () => (isContrato ? abrirVisorContrato() : abrirVisorDocumento(doc));
+                          return (
+                            <TarjetaDocumento
+                              key={doc.id}
+                              nombre={doc.nombre_documento}
+                              fecha={doc.fecha_subida}
+                              tono={isContrato ? 'warning' : 'primary'}
+                              onAbrir={abrir}
+                              acciones={
+                                <>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-primary hover:bg-primary/10" onClick={abrir} title="Abrir en el visor" aria-label="Abrir en el visor">
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </Button>
+                                  {isContrato && (
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-amber-700 hover:bg-amber-100" onClick={() => router.push(`/guardias/${guardia.id}/contrato`)} title="Editar el contrato laboral en hojas oficiales" aria-label="Editar contrato laboral">
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                  {isFicha && (
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-amber-700 hover:bg-amber-100" onClick={abrirEditorFicha} title="Editar ficha técnica" aria-label="Editar ficha técnica">
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                  {isEditor && (
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-destructive hover:bg-red-50 hover:text-destructive" onClick={() => setConfirmarEliminar({ tipo: 'documento', doc })} title="Eliminar papel" aria-label="Eliminar papel">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                </>
+                              }
+                            />
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Tarjeta de Control y Filiación Oficial (Datos Personales) */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <UserCheck className="w-4 h-4 text-primary" /> Control y Filiación Oficial
-              </h2>
-              {isEditor && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={abrirEditorFicha}
-                  className="text-xs h-7 text-primary font-semibold"
-                >
-                  <Edit3 className="w-3 h-3 mr-1" /> {fichaData ? 'Editar' : 'Completar'}
-                </Button>
-              )}
-            </div>
-
-            {fichaData ? (
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-2 rounded bg-muted/20 border border-border/40">
-                  <span className="text-muted-foreground block text-[11px]">CURP:</span>
-                  <span className="font-mono font-bold text-foreground">{fichaData.curp || '—'}</span>
-                </div>
-                <div className="p-2 rounded bg-muted/20 border border-border/40">
-                  <span className="text-muted-foreground block text-[11px]">RFC:</span>
-                  <span className="font-mono font-bold text-foreground">{fichaData.rfc || '—'}</span>
-                </div>
-                <div className="p-2 rounded bg-muted/20 border border-border/40">
-                  <span className="text-muted-foreground block text-[11px]">NSS / IMSS:</span>
-                  <span className="font-mono font-bold text-foreground">{fichaData.imss || '—'}</span>
-                </div>
-                <div className="p-2 rounded bg-muted/20 border border-border/40">
-                  <span className="text-muted-foreground block text-[11px]">Edad:</span>
-                  <span className="font-semibold text-foreground">{conUnidad(fichaData.edad, /\s*años?\.?\s*$/i, 'años')}</span>
-                </div>
-                <div className="p-2 rounded bg-muted/20 border border-border/40">
-                  <span className="text-muted-foreground block text-[11px]">F. Nacimiento:</span>
-                  <span className="font-semibold text-foreground">{fichaData.fechaNacimiento || '—'}</span>
-                </div>
-                <div className="p-2 rounded bg-muted/20 border border-border/40">
-                  <span className="text-muted-foreground block text-[11px]">Escolaridad:</span>
-                  <span className="font-semibold text-foreground">{fichaData.estudios || '—'}</span>
-                </div>
-                <div className="p-2 rounded bg-muted/20 border border-border/40">
-                  <span className="text-muted-foreground block text-[11px]">Estatura:</span>
-                  <span className="font-semibold text-foreground">{conUnidad(fichaData.estatura, /\s*m(?:ts?|etros?)?\.?\s*$/i, 'm')}</span>
-                </div>
-                <div className="p-2 rounded bg-muted/20 border border-border/40">
-                  <span className="text-muted-foreground block text-[11px]">Peso:</span>
-                  <span className="font-semibold text-foreground">{conUnidad(fichaData.peso, /\s*k(?:g|ilos?)\.?\s*$/i, 'kg')}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 border border-border border-dashed rounded-xl text-center space-y-2">
-                <AlertCircle className="w-6 h-6 text-amber-500 mx-auto" />
-                <p className="text-xs text-muted-foreground">
-                  Aún no se han capturado los datos de filiación oficial (CURP, RFC, IMSS, medidas).
-                </p>
-                {isEditor && (
-                  <Link href={`/guardias/${guardia.id}/ficha`}>
-                    <Button size="sm" className="text-xs font-semibold rounded-lg">
-                      <Sparkles className="w-3.5 h-3.5 mr-1" /> Llenar Ficha Técnica Ahora
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ================= COLUMNA DERECHA (7 cols) ================= */}
-        <div className="lg:col-span-7 space-y-4">
-          {/* 1. Tarjeta: Acciones Inmediatas (Estilo CRM) */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-3">
-            <div>
-              <h2 className="text-sm font-bold text-foreground">Acciones Inmediatas</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Contacta al guardia o gestiona su expediente formal en un clic.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              {waUrl && (
-                <a
-                  href={waUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-semibold transition-colors"
-                >
-                  <MessageCircle className="w-4 h-4 text-emerald-600" /> Enviar WhatsApp
-                </a>
               )}
 
-              {guardia.telefono && (
-                <a
-                  href={`tel:${guardia.telefono}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-sky-500/30 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 text-xs font-semibold transition-colors"
-                >
-                  <Phone className="w-4 h-4 text-sky-600" /> Llamar Guardia
-                </a>
-              )}
-
-              {isEditor && (
-                <Link href={`/guardias/${guardia.id}/ficha`}>
-                  <Button
-                    size="sm"
-                    className="bg-primary text-primary-foreground text-xs font-bold shadow-sm"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Editar Ficha Técnica
-                  </Button>
-                </Link>
-              )}
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => imprimirExpediente(guardia, salidas, entradas)}
-                disabled={isLoadingExpediente}
-                className="text-xs"
-              >
-                <Printer className="w-3.5 h-3.5 mr-1.5" /> Imprimir Hoja Uniformes
-              </Button>
-            </div>
-          </div>
-
-          {/* 2. Tarjeta: Ficha Técnica Oficial (PDF) con Visualizador PDF al hacer clic */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileCheck className="w-4 h-4 text-primary" />
-                <h2 className="text-sm font-bold text-foreground">Ficha Técnica Oficial (PDF)</h2>
-              </div>
-              {guardia.ficha_tecnica_json ? (
-                <span className="inline-flex items-center text-[11px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-2.5 py-0.5 rounded-full">
-                  <CheckCircle2 className="w-3 h-3 mr-1" /> Archivo Guardado en Expediente
-                </span>
-              ) : (
-                <span className="inline-flex items-center text-[11px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 px-2.5 py-0.5 rounded-full">
-                  <AlertCircle className="w-3 h-3 mr-1" /> Pendiente de capturar
-                </span>
-              )}
-            </div>
-
-            {/* Caja de documento con acción para abrir el visor PDF */}
-            <div className="p-4 rounded-xl border border-primary/20 bg-primary/[0.02] hover:bg-primary/[0.05] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div
-                onClick={abrirVisorFichaPdf}
-                className="flex items-center gap-3 cursor-pointer min-w-0 flex-1"
-                title="Haga clic para abrir el visualizador PDF de la ficha técnica"
-              >
-                <div className="p-2.5 rounded-xl bg-primary/10 text-primary flex-shrink-0">
-                  <IdCard className="w-6 h-6" />
-                </div>
-                <div className="truncate">
-                  <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 truncate">
-                    Ficha_Tecnica_{guardia.numero_elemento}.pdf
-                    <span className="text-[10px] font-semibold text-primary uppercase px-1.5 py-0.2 rounded bg-primary/10">PDF Oficial</span>
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Haga clic aquí para abrir el visualizador de la ficha técnica completa
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={abrirVisorFichaPdf}
-                  className="h-8 text-xs font-bold"
-                  title="Abrir ventana del visualizador PDF"
-                >
-                  <Eye className="w-3.5 h-3.5 mr-1" /> Abrir Visor PDF
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={descargarFichaDirecta}
-                  className="h-8 text-xs font-semibold"
-                  title="Descargar archivo PDF"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                </Button>
-                {isEditor && (
-                  <Link href={`/guardias/${guardia.id}/ficha`}>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-xs font-semibold"
-                      title="Editar datos de la ficha y regenerar PDF"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </Button>
-                  </Link>
-                )}
-                {isEditor && guardia.ficha_tecnica_json && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setConfirmarEliminar({ tipo: 'ficha' })}
-                    className="h-8 text-xs font-semibold text-destructive hover:bg-destructive/10"
-                    title="Eliminar por completo la ficha técnica de este guardia"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Tarjeta: Papeles Digitalizados & Contrato (Expediente Digital) */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-primary" />
-                <h2 className="text-sm font-bold text-foreground">
-                  Papeles Digitalizados y Contrato ({documentos.length})
-                </h2>
-              </div>
-              {isEditor && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setModalSubirPapel(true)}
-                  className="text-xs h-8 font-semibold"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Subir Papel
-                </Button>
-              )}
-            </div>
-
-            {/* Checklist de Documentos Clave */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              {[
-                'Contrato de Trabajo',
-                'Identificación Oficial (INE)',
-                'Comprobante de Domicilio',
-                'CURP',
-              ].map(docTipo => {
-                const subido = documentos.some((d: any) =>
-                  d.nombre_documento.toLowerCase().includes(docTipo.toLowerCase().slice(0, 8))
-                );
-                const esContrato = docTipo === 'Contrato de Trabajo';
-                return (
-                  <div
-                    key={docTipo}
-                    onClick={() => {
-                      if (esContrato) {
-                        router.push(`/guardias/${guardia.id}/contrato`);
-                      }
-                    }}
-                    className={`p-2 rounded-lg border text-[11px] font-medium flex items-center gap-1.5 ${
-                      esContrato ? 'cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-all ' : ''
-                    } ${
-                      subido
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                        : 'bg-muted/20 border-border text-muted-foreground'
-                    }`}
-                    title={esContrato ? 'Haga clic para ver o editar el Contrato Laboral oficial' : undefined}
-                  >
-                    {subido ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Clock className="w-3.5 h-3.5 text-muted-foreground/60" />}
-                    <span className="truncate">{docTipo}</span>
-                    {esContrato && <ExternalLink className="w-3 h-3 ml-auto opacity-70" />}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Lista de Papeles Escaneados */}
-            {isLoadingDocumentos ? (
-              <p className="text-xs text-muted-foreground text-center py-4 animate-pulse">Cargando papeles escaneados...</p>
-            ) : documentos.length === 0 ? (
-              <div className="text-center border border-border border-dashed rounded-xl py-8 text-muted-foreground">
-                <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
-                <p className="text-xs font-semibold text-foreground">Aún no hay papeles digitalizados</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Sube el contrato firmado, credencial del INE o comprobantes de este guardia.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {documentos.map((doc: any) => {
-                  const isPdf = doc.tipo_mimetype === 'application/pdf';
-                  const isFicha =
-                    doc.nombre_documento?.toLowerCase().includes('ficha') ||
-                    doc.nombre_archivo?.toLowerCase().includes('ficha');
-                  const isContrato =
-                    doc.nombre_documento?.toLowerCase().includes('contrato') ||
-                    doc.nombre_archivo?.toLowerCase().includes('contrato');
-                  return (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-3 border border-border rounded-xl bg-muted/15 hover:bg-muted/30 transition-colors shadow-sm"
-                    >
-                      <div
-                        onClick={() => {
-                          if (isContrato) {
-                            abrirVisorContrato();
-                          } else {
-                            abrirVisorDocumento(doc);
-                          }
-                        }}
-                        className="flex items-center gap-2.5 overflow-hidden cursor-pointer flex-1"
-                        title="Haga clic para ver este papel en el visualizador"
-                      >
-                        <div className={`p-2 rounded-lg ${isContrato ? 'bg-amber-500/10 text-amber-600' : isPdf ? 'bg-red-500/10 text-red-600' : 'bg-blue-500/10 text-blue-600'}`}>
-                          <FileText className="w-4 h-4" />
+              {tab === 'uniformes' && (
+                <div className="mt-5 space-y-6">
+                  <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+                    {[
+                      { label: 'Dotadas', valor: totalDotaciones, punto: 'bg-primary' },
+                      { label: 'Repuestas', valor: totalReposiciones, punto: 'bg-sky-500' },
+                      { label: 'Pérdidas', valor: totalPerdidas, punto: 'bg-red-500' },
+                      { label: 'En posesión', valor: totalEnPosesion, punto: 'bg-emerald-500' },
+                    ].map((t) => (
+                      <div key={t.label} className="rounded-2xl bg-muted/70 p-3.5">
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                          <span className={`h-2 w-2 rounded-full ${t.punto}`} /> {t.label}
                         </div>
-                        <div className="truncate">
-                          <p className="text-xs font-bold text-foreground truncate" title={doc.nombre_documento}>
-                            {doc.nombre_documento}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">{fmtDate(doc.fecha_subida)}</p>
+                        <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-foreground">{t.valor}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Equipo en posesión</h3>
+                    {Object.keys(saldoMap).length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-border py-9 text-center">
+                        <Shirt className="mx-auto h-7 w-7 text-muted-foreground/60" />
+                        <p className="mt-2 text-sm font-semibold text-foreground">Sin equipo en posesión</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">El guardia no tiene prendas ni accesorios asignados actualmente.</p>
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-border/70 overflow-hidden rounded-2xl bg-muted/70">
+                        {Object.entries(saldoMap).map(([articulo, info]) => (
+                          <li key={articulo} className="flex items-center justify-between gap-3 px-4 py-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-primary shadow-xs">
+                                <Shirt className="h-4 w-4" />
+                              </span>
+                              <div className="min-w-0 leading-tight">
+                                <p className="truncate text-[13px] font-semibold text-foreground">{articulo}</p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  Estado: {info.estado_fisico || 'Operativo'}{info.fecha ? ` · Entregado ${fmtDate(String(info.fecha).slice(0, 10))}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <PildoraCifra>{info.cantidad} pza{info.cantidad === 1 ? '' : 's'}</PildoraCifra>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {tab === 'actividad' && (
+                <div className="mt-5 space-y-5">
+                  {isEditor && (
+                    <form
+                      onSubmit={e => {
+                        e.preventDefault();
+                        if (!mensajeBitacora.trim()) return;
+                        addBitacoraMutation.mutate({ tipo: tipoBitacora, mensaje: mensajeBitacora });
+                      }}
+                      className="rounded-2xl bg-muted/70 p-3"
+                    >
+                      <label htmlFor="bitacora-mensaje" className="sr-only">Nueva anotación en la bitácora</label>
+                      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                        <Input
+                          id="bitacora-mensaje"
+                          value={mensajeBitacora}
+                          onChange={e => setMensajeBitacora(e.target.value)}
+                          placeholder="Anotar resultado de llamada, pase de lista o nota interna..."
+                          className="h-10 flex-1 rounded-xl"
+                        />
+                        <div className="flex items-center gap-2">
+                          <SegmentedTabs
+                            ariaLabel="Tipo de anotación"
+                            value={tipoBitacora}
+                            onChange={setTipoBitacora}
+                            className="bg-card"
+                            items={[
+                              { value: 'llamada', label: 'Llamada', icon: Phone },
+                              { value: 'nota', label: 'Nota', icon: StickyNote },
+                            ]}
+                          />
+                          <Button type="submit" disabled={addBitacoraMutation.isPending || !mensajeBitacora.trim()} className="h-10 rounded-xl px-5">
+                            Guardar
+                          </Button>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-1 shrink-0 ml-2">
-                        {isContrato ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-primary hover:bg-primary/10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              abrirVisorContrato();
-                            }}
-                            title="Ver el contrato en el visualizador"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-primary hover:bg-primary/10"
-                            onClick={() => abrirVisorDocumento(doc)}
-                            title="Abrir en visualizador"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                        {isContrato && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/guardias/${guardia.id}/contrato`);
-                            }}
-                            title="Editar contrato laboral en hojas oficiales"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                        {isFicha && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              abrirEditorFicha();
-                            }}
-                            title="Editar ficha técnica"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                        {isEditor && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                            onClick={() => setConfirmarEliminar({ tipo: 'documento', doc })}
-                            title="Eliminar papel"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* 4. Tarjeta: Cosas que tiene en Posesión (Uniformes y Equipo en Campo) */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-primary" />
-                <h2 className="text-sm font-bold text-foreground">
-                  Cosas en Posesión ({totalEnPosesion} prendas activas)
-                </h2>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => imprimirExpediente(guardia, salidas, entradas)}
-                disabled={isLoadingExpediente}
-                className="text-xs h-8"
-              >
-                <Printer className="w-3.5 h-3.5 mr-1.5" /> Imprimir Acta
-              </Button>
-            </div>
-
-            {/* Resumen numérico */}
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900">
-                <div className="text-base font-black text-blue-700 dark:text-blue-300">{totalDotaciones}</div>
-                <div className="text-[10px] font-bold uppercase text-blue-600 dark:text-blue-400">Dotadas</div>
-              </div>
-              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900">
-                <div className="text-base font-black text-purple-700 dark:text-purple-300">{totalReposiciones}</div>
-                <div className="text-[10px] font-bold uppercase text-purple-600 dark:text-purple-400">Repuestas</div>
-              </div>
-              <div className="p-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
-                <div className="text-base font-black text-red-700 dark:text-red-300">{totalPerdidas}</div>
-                <div className="text-[10px] font-bold uppercase text-red-600 dark:text-red-400">Pérdidas</div>
-              </div>
-              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900">
-                <div className="text-base font-black text-emerald-700 dark:text-emerald-300">{totalEnPosesion}</div>
-                <div className="text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400">En Posesión</div>
-              </div>
-            </div>
-
-            {/* Lista detallada de artículos en posesión */}
-            {Object.keys(saldoMap).length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4 italic">
-                El guardia no tiene prendas o accesorios en posesión actualmente.
-              </p>
-            ) : (
-              <div className="space-y-1.5 pt-1">
-                {Object.entries(saldoMap).map(([articulo, info]) => (
-                  <div
-                    key={articulo}
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 border border-border/50 text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <span className="font-semibold text-foreground">{articulo}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] text-muted-foreground">Estado: {info.estado_fisico || 'Operativo'}</span>
-                      <span className="font-bold text-foreground bg-primary/10 text-primary px-2 py-0.5 rounded font-mono">
-                        {info.cantidad} pza(s)
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 5. Tarjeta: Bitácora de Movimientos y Contactos */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-primary" />
-                <h2 className="text-sm font-bold text-foreground">
-                  Bitácora de Movimientos y Contactos ({bitacora.length} registros)
-                </h2>
-              </div>
-            </div>
-
-            {/* Caja de registro de nota / llamada */}
-            {isEditor && (
-              <form
-                onSubmit={e => {
-                  e.preventDefault();
-                  if (!mensajeBitacora.trim()) return;
-                  addBitacoraMutation.mutate({ tipo: tipoBitacora, mensaje: mensajeBitacora });
-                }}
-                className="space-y-2"
-              >
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={mensajeBitacora}
-                    onChange={e => setMensajeBitacora(e.target.value)}
-                    placeholder="Anotar resultado de llamada, pase de lista o nota interna..."
-                    className="h-9 text-xs rounded-lg"
-                  />
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={tipoBitacora === 'llamada' ? 'default' : 'outline'}
-                      onClick={() => setTipoBitacora('llamada')}
-                      className="h-9 px-2.5 text-xs"
-                    >
-                      <Phone className="w-3.5 h-3.5 mr-1" /> Llamada
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={tipoBitacora === 'nota' ? 'default' : 'outline'}
-                      onClick={() => setTipoBitacora('nota')}
-                      className="h-9 px-2.5 text-xs"
-                    >
-                      <StickyNote className="w-3.5 h-3.5 mr-1" /> Nota
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={addBitacoraMutation.isPending || !mensajeBitacora.trim()}
-                      className="h-9 text-xs font-bold"
-                    >
-                      Guardar
-                    </Button>
-                  </div>
+                    </form>
+                  )}
+                  <LineaTiempo eventos={eventos} />
                 </div>
-              </form>
-            )}
-
-            {/* Timeline de entradas de bitácora y eventos */}
-            <div className="space-y-2.5 pt-1">
-              {bitacora.length === 0 ? (
-                <div className="p-3 rounded-lg bg-muted/20 border border-border/40 text-xs flex items-center justify-between text-muted-foreground">
-                  <span className="flex items-center gap-2">
-                    <User className="w-3.5 h-3.5 text-primary" /> Alta de elemento registrada en sistema
-                  </span>
-                  <span className="text-[11px]">{fmtDate(guardia.fecha_alta)}</span>
-                </div>
-              ) : (
-                bitacora.map((item: any) => (
-                  <div
-                    key={item.id}
-                    className="p-3 rounded-lg bg-muted/20 border border-border/40 text-xs flex items-start justify-between gap-3"
-                  >
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      {item.tipo === 'llamada' ? (
-                        <Phone className="w-3.5 h-3.5 text-sky-500 mt-0.5 shrink-0" />
-                      ) : (
-                        <StickyNote className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-                      )}
-                      <div>
-                        <p className="font-semibold text-foreground leading-relaxed">{item.mensaje}</p>
-                        {item.usuario && (
-                          <span className="text-[10px] text-muted-foreground">Por: {item.usuario}</span>
-                        )}
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
-                      {item.created_at ? fmtDate(item.created_at) : '—'}
-                    </span>
-                  </div>
-                ))
               )}
-            </div>
+            </TarjetaPerfil>
           </div>
         </div>
       </div>
+    </div>
 
-      {/* ================= MODAL VISUALIZADOR PDF ================= */}
+      {/* ================= VISOR PDF ================= */}
       {viewerDoc && (
         <DocumentViewerModal
           title={viewerDoc.title}
@@ -1221,229 +952,170 @@ export default function GuardiaPerfil({ id, onVolver, initialEditFicha, initialT
         />
       )}
 
-      {/* ================= MODAL EDITAR DATOS GENERALES ================= */}
-      <Dialog open={modalEditar} onOpenChange={setModalEditar}>
-        <DialogContent className="rounded-2xl max-w-lg">
-          <form
-            onSubmit={e => {
-              e.preventDefault();
-              editMutation.mutate({
-                id: guardia.id,
-                numero_elemento: editNumeroElemento,
-                nombre: editNombre,
-                fecha_alta: editFechaAlta,
-                telefono: editTelefono,
-                direccion: editDireccion,
-                estado: editEstado,
-              });
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Edit2 className="w-5 h-5 text-primary" /> Editar Datos del Guardia
-              </DialogTitle>
-              <DialogDescription>
-                Modifica los datos principales y de contacto de <b>{guardia.nombre}</b>.
-              </DialogDescription>
-            </DialogHeader>
+      {/* ================= FORMULARIO: EDITAR DATOS GENERALES ================= */}
+      <FormDialog
+        open={modalEditar}
+        onOpenChange={setModalEditar}
+        size="lg"
+        icon={Edit2}
+        title="Editar datos del guardia"
+        description={<>Identidad, datos principales y de contacto de <b className="font-semibold text-foreground">{guardia.nombre}</b>.</>}
+        submitLabel="Guardar cambios"
+        submitting={editMutation.isPending}
+        footerNote={<span><span className="text-destructive">*</span> Campo obligatorio</span>}
+        onSubmit={() =>
+          editMutation.mutate({
+            id: guardia.id,
+            numero_elemento: editNumeroElemento,
+            nombre: unirNombreCompleto(editFichaExtra),
+            fecha_alta: editFechaAlta,
+            telefono: editTelefono,
+            direccion: editDireccion,
+            estado: editEstado,
+            fichaExtra: editFichaExtra,
+          })
+        }
+      >
+        <div className="space-y-6">
+          <FormSection title="Identidad" description="Con el nombre por partes, el nacimiento, el sexo y el lugar de nacimiento se calculan la CURP y el RFC." icon={IdCard}>
+            <IdentidadPersonal
+              value={editFichaExtra}
+              onChange={(cambios) => setEditFichaExtra((f) => ({ ...f, ...cambios }))}
+            />
+          </FormSection>
+          <FormSection title="Identificación" icon={IdCard}>
+            <FieldGrid cols={2}>
+              <Field label="Número de elemento" required>
+                <Input value={editNumeroElemento} onChange={e => setEditNumeroElemento(e.target.value)} required className="font-mono font-semibold" />
+              </Field>
+              <Field label="Fecha de alta" required>
+                <Input type="date" value={editFechaAlta} onChange={e => setEditFechaAlta(e.target.value)} required />
+              </Field>
+            </FieldGrid>
+          </FormSection>
+          <FormSection title="Contacto" icon={Phone}>
+            <FieldGrid cols={1}>
+              <Field label="Teléfono de contacto">
+                <InputGroup icon={Phone}>
+                  <Input type="tel" inputMode="tel" value={editTelefono} onChange={e => setEditTelefono(e.target.value)} placeholder="5512345678" />
+                </InputGroup>
+              </Field>
+              <Field label="Dirección de domicilio">
+                <InputGroup icon={MapPin}>
+                  <Input value={editDireccion} onChange={e => setEditDireccion(e.target.value)} placeholder="Calle, número, colonia, alcaldía o municipio" />
+                </InputGroup>
+              </Field>
+            </FieldGrid>
+          </FormSection>
+          <FormSection title="Situación" icon={Shield}>
+            <Field label="Estado operativo">
+              <Select value={editEstado} onChange={e => setEditEstado(e.target.value)}>
+                <option value="Activo">Activo</option>
+                <option value="Baja Pendiente">Baja pendiente</option>
+                <option value="En Baja">En baja</option>
+              </Select>
+            </Field>
+          </FormSection>
+        </div>
+      </FormDialog>
 
-            <div className="grid gap-4 py-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Número de Elemento</label>
-                <Input
-                  value={editNumeroElemento}
-                  onChange={e => setEditNumeroElemento(e.target.value)}
-                  required
-                  className="font-mono font-bold"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Nombre Completo</label>
-                <Input
-                  value={editNombre}
-                  onChange={e => setEditNombre(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
-                <Input
-                  type="date"
-                  value={editFechaAlta}
-                  onChange={e => setEditFechaAlta(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Teléfono de Contacto</label>
-                <Input
-                  value={editTelefono}
-                  onChange={e => setEditTelefono(e.target.value)}
-                  placeholder="Ej. 5512345678"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Dirección de Domicilio</label>
-                <Input
-                  value={editDireccion}
-                  onChange={e => setEditDireccion(e.target.value)}
-                  placeholder="Calle, Número, Colonia, Alcaldía o Municipio"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Estado Operativo</label>
-                <select
-                  value={editEstado}
-                  onChange={e => setEditEstado(e.target.value)}
-                  className="flex h-10 w-full rounded-xl border border-input bg-card px-3 py-1 text-sm shadow-sm font-medium"
-                >
-                  <option value="Activo">Activo</option>
-                  <option value="Baja Pendiente">Baja Pendiente</option>
-                  <option value="En Baja">En Baja</option>
-                </select>
-              </div>
-            </div>
+      {/* ================= FORMULARIO: SUBIR PAPEL AL EXPEDIENTE ================= */}
+      <FormDialog
+        open={modalSubirPapel}
+        onOpenChange={setModalSubirPapel}
+        size="md"
+        icon={Upload}
+        title="Subir papel al expediente"
+        description={<>Digitaliza contratos, identificaciones o comprobantes de <b className="font-semibold text-foreground">{guardia.nombre}</b>.</>}
+        submitLabel="Guardar en expediente"
+        submittingLabel="Subiendo..."
+        submitting={uploadDocMutation.isPending}
+        submitDisabled={!tipoPapel || !archivoPapel}
+        footerNote={<span><span className="text-destructive">*</span> Campo obligatorio</span>}
+        onSubmit={() => {
+          if (!tipoPapel || !archivoPapel) return;
+          const formData = new FormData();
+          formData.append('nombre_documento', tipoPapel);
+          formData.append('file', archivoPapel);
+          uploadDocMutation.mutate(formData);
+        }}
+      >
+        <div className="space-y-5">
+          <Field label="Tipo de documento" required>
+            <Select value={tipoPapel} onChange={e => setTipoPapel(e.target.value)} required>
+              <option value="">Selecciona el tipo de documento</option>
+              <option value="Contrato de Trabajo">Contrato de Trabajo</option>
+              <option value="Identificación Oficial (INE/Pasaporte)">Identificación Oficial (INE/Pasaporte)</option>
+              <option value="Comprobante de Domicilio">Comprobante de Domicilio</option>
+              <option value="Clave Única de Registro de Población (CURP)">Clave Única de Registro de Población (CURP)</option>
+              <option value="Constancia de Situación Fiscal (RFC)">Constancia de Situación Fiscal (RFC)</option>
+              <option value="Número de Seguridad Social (IMSS)">Número de Seguridad Social (IMSS)</option>
+              <option value="Acta de Nacimiento">Acta de Nacimiento</option>
+              <option value="Certificado de Antecedentes No Penales">Certificado de Antecedentes No Penales</option>
+              <option value="Examen Médico">Examen Médico</option>
+              <option value="Cartilla Militar">Cartilla Militar</option>
+              <option value="Certificado de Estudios">Certificado de Estudios</option>
+              <option value="Otro Papel / Documento">Otro Papel / Documento</option>
+            </Select>
+          </Field>
 
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setModalEditar(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={editMutation.isPending} className="font-bold">
-                {editMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ================= MODAL SUBIR PAPEL O CONTRATO ================= */}
-      <Dialog open={modalSubirPapel} onOpenChange={setModalSubirPapel}>
-        <DialogContent className="rounded-2xl max-w-lg">
-          <form
-            onSubmit={e => {
-              e.preventDefault();
-              if (!tipoPapel || !archivoPapel) return;
-              const formData = new FormData();
-              formData.append('nombre_documento', tipoPapel);
-              formData.append('file', archivoPapel);
-              uploadDocMutation.mutate(formData);
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Upload className="w-5 h-5 text-primary" /> Subir Papel al Expediente Digital
-              </DialogTitle>
-              <DialogDescription>
-                Digitaliza contratos, identificaciones o comprobantes para <b>{guardia.nombre}</b>.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="grid gap-4 py-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Tipo de Documento o Papel</label>
-                <select
-                  value={tipoPapel}
-                  onChange={e => setTipoPapel(e.target.value)}
-                  className="flex h-10 w-full rounded-xl border border-input bg-card px-3 py-1 text-xs shadow-sm font-medium"
-                  required
-                >
-                  <option value="">Selecciona tipo de documento...</option>
-                  <option value="Contrato de Trabajo">Contrato de Trabajo</option>
-                  <option value="Identificación Oficial (INE/Pasaporte)">Identificación Oficial (INE/Pasaporte)</option>
-                  <option value="Comprobante de Domicilio">Comprobante de Domicilio</option>
-                  <option value="Clave Única de Registro de Población (CURP)">Clave Única de Registro de Población (CURP)</option>
-                  <option value="Constancia de Situación Fiscal (RFC)">Constancia de Situación Fiscal (RFC)</option>
-                  <option value="Número de Seguridad Social (IMSS)">Número de Seguridad Social (IMSS)</option>
-                  <option value="Acta de Nacimiento">Acta de Nacimiento</option>
-                  <option value="Certificado de Antecedentes No Penales">Certificado de Antecedentes No Penales</option>
-                  <option value="Examen Médico">Examen Médico</option>
-                  <option value="Cartilla Militar">Cartilla Militar</option>
-                  <option value="Certificado de Estudios">Certificado de Estudios</option>
-                  <option value="Otro Papel / Documento">Otro Papel / Documento</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Archivo Escaneado (PDF o Imagen)</label>
-                <input
-                  type="file"
-                  accept=".pdf,image/*"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) setArchivoPapel(file);
-                  }}
-                  className="flex h-10 w-full rounded-xl border border-input bg-card px-3 py-1 text-xs shadow-sm file:border-0 file:bg-transparent file:text-xs file:font-semibold cursor-pointer"
-                  required
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setModalSubirPapel(false)}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={uploadDocMutation.isPending || !tipoPapel || !archivoPapel}
-                className="font-bold"
-              >
-                {uploadDocMutation.isPending ? 'Subiendo...' : 'Guardar en Expediente'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Confirmación de borrado (ficha técnica o documento del expediente).
-          Diálogo propio en vez de window.confirm(): el navegador puede
-          bloquear los cuadros nativos sin avisar, y entonces el botón
-          "Eliminar" parecía no hacer nada. */}
-      <Dialog open={!!confirmarEliminar} onOpenChange={(open) => !open && setConfirmarEliminar(null)}>
-        <DialogContent className="rounded-2xl max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="w-5 h-5" /> Confirmar eliminación
-            </DialogTitle>
-            <DialogDescription>
-              {confirmarEliminar?.tipo === 'ficha' && (
+          <Field label="Archivo escaneado" required group hint="PDF o imagen. Se guarda en el expediente digital del guardia.">
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-input bg-muted/40 px-4 py-8 text-center transition-colors hover:border-primary/50 hover:bg-primary/[0.03] focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15">
+              <input
+                type="file"
+                accept=".pdf,image/*"
+                className="sr-only"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) setArchivoPapel(file);
+                }}
+              />
+              {archivoPapel ? (
                 <>
-                  ¿Eliminar por completo la ficha técnica de <b>{guardia.nombre}</b>? Se
-                  borrarán los datos capturados y el PDF generado. Esta acción no se puede
-                  deshacer.
+                  <FileCheck className="h-7 w-7 text-emerald-600" />
+                  <span className="max-w-full truncate text-sm font-semibold text-foreground">{archivoPapel.name}</span>
+                  <span className="text-xs text-muted-foreground">{(archivoPapel.size / 1024).toFixed(0)} KB · clic para cambiar el archivo</span>
+                </>
+              ) : (
+                <>
+                  <CloudUpload className="h-7 w-7 text-muted-foreground" />
+                  <span className="text-sm font-semibold text-foreground">Elegir un archivo</span>
+                  <span className="text-xs text-muted-foreground">PDF, JPG o PNG</span>
                 </>
               )}
-              {confirmarEliminar?.tipo === 'documento' && (
-                <>
-                  ¿Eliminar el documento <b>&quot;{confirmarEliminar.doc.nombre_documento}&quot;</b>?
-                  Esta acción no se puede deshacer.
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmarEliminar(null)}
-              disabled={deleteFichaMutation.isPending || deleteDocMutation.isPending}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleteFichaMutation.isPending || deleteDocMutation.isPending}
-              onClick={() => {
-                if (confirmarEliminar?.tipo === 'ficha') deleteFichaMutation.mutate();
-                if (confirmarEliminar?.tipo === 'documento') deleteDocMutation.mutate(confirmarEliminar.doc.id);
-              }}
-              className="font-bold"
-            >
-              {(deleteFichaMutation.isPending || deleteDocMutation.isPending) ? 'Eliminando...' : 'Eliminar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+            </label>
+          </Field>
+        </div>
+      </FormDialog>
+
+      {/* Confirmación de borrado (ficha técnica o documento del expediente). Diálogo propio
+          en vez de window.confirm(): el navegador puede bloquear los cuadros nativos sin
+          avisar, y entonces el botón Eliminar parecía no hacer nada. */}
+      <ConfirmDialog
+        open={!!confirmarEliminar}
+        onOpenChange={(abierto) => !abierto && setConfirmarEliminar(null)}
+        title="Confirmar eliminación"
+        description={
+          confirmarEliminar?.tipo === 'ficha'
+            ? <>Ficha técnica de <b className="font-semibold text-foreground">{guardia.nombre}</b>.</>
+            : confirmarEliminar?.tipo === 'documento'
+              ? <>Documento <b className="font-semibold text-foreground">“{confirmarEliminar.doc.nombre_documento}”</b>.</>
+              : undefined
+        }
+        confirmLabel="Eliminar"
+        confirmingLabel="Eliminando..."
+        confirming={deleteFichaMutation.isPending || deleteDocMutation.isPending}
+        onConfirm={() => {
+          if (confirmarEliminar?.tipo === 'ficha') deleteFichaMutation.mutate();
+          if (confirmarEliminar?.tipo === 'documento') deleteDocMutation.mutate(confirmarEliminar.doc.id);
+        }}
+      >
+        <Callout tone="danger" title="Esta acción no se puede deshacer">
+          {confirmarEliminar?.tipo === 'ficha'
+            ? 'Se borrarán por completo los datos capturados de la ficha técnica y el PDF generado.'
+            : 'El archivo se eliminará del expediente digital del guardia.'}
+        </Callout>
+      </ConfirmDialog>
+    </>
   );
 }

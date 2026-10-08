@@ -1,4 +1,6 @@
 'use client';
+import InventarioHerramientas from './InventarioHerramientas';
+import { fechaMexico } from '@/src/lib/fecha';
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import {
   AlertTriangle, Package, Download, Printer, ArrowDownToLine,
   ArrowUpFromLine, ShieldCheck, Users, Search, BarChart3, ListOrdered,
-  Plus, Tag, Layers, Edit3, Trash2, CheckCircle2, Sparkles, X, SlidersHorizontal
+  Plus, Tag, Layers, Edit3, Trash2, CheckCircle2, X, SlidersHorizontal
 } from 'lucide-react';
 import { downloadCSV, fmtDate, cn } from '@/src/lib/utils';
 import { buildInventarioHtml, calcularTotalesInventario } from '@/src/lib/inventarioTemplate';
@@ -52,7 +54,9 @@ const PRESETS_TALLAS: Record<string, { label: string; tallas: string[] }> = {
 };
 
 export default function InventarioApp() {
-  const { isEditor } = useAuth();
+  const { puede } = useAuth();
+  const isEditor = puede('inventario', 'editar');
+  const [corte, setCorte] = useState('');
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -74,22 +78,22 @@ export default function InventarioApp() {
   });
   const [nuevaTallaInput, setNuevaTallaInput] = useState('');
 
-  const { data: inventario, isLoading: loadingInv } = useQuery({
-    queryKey: ['inventario'],
-    queryFn: () => apiFetch<InventarioResumenRow[]>('/api/inventario'),
+  const { data: inventario, isLoading: loadingInv, error: errorInv, refetch: refetchInv } = useQuery({
+    queryKey: ['inventario', corte],
+    queryFn: () => apiFetch<InventarioResumenRow[]>('/api/inventario' + (corte ? '?corte=' + corte : '')),
   });
 
-  const { data: inventarioDetalle } = useQuery({
-    queryKey: ['inventarioDetalle'],
-    queryFn: () => apiFetch<InventarioDetalleRow[]>('/api/inventario/detalle'),
+  const { data: inventarioDetalle, error: errorDetalle } = useQuery({
+    queryKey: ['inventarioDetalle', corte],
+    queryFn: () => apiFetch<InventarioDetalleRow[]>('/api/inventario/detalle' + (corte ? '?corte=' + corte : '')),
   });
 
-  const { data: catalogoPrendas = [], isLoading: loadingPrendas } = useQuery({
+  const { data: catalogoPrendas = [], isLoading: loadingPrendas, error: errorPrendas } = useQuery({
     queryKey: ['catalogoPrendas'],
     queryFn: () => apiFetch<any[]>('/api/prendas'),
   });
 
-  const { data: dashboardMetrics, isLoading: loadingDash } = useQuery({
+  const { data: dashboardMetrics, isLoading: loadingDash, error: errorDash } = useQuery({
     queryKey: ['dashboardMetrics'],
     queryFn: () => apiFetch<{ metrics: any; chartData: any[]; recentMovements: any[] }>('/api/dashboard/metrics'),
   });
@@ -99,6 +103,8 @@ export default function InventarioApp() {
     queryClient.invalidateQueries({ queryKey: ['inventarioDetalle'] });
     queryClient.invalidateQueries({ queryKey: ['catalogoPrendas'] });
     queryClient.invalidateQueries({ queryKey: ['prendas'] });
+    // Renombrar una prenda reescribe su nombre en todo el historial de movimientos.
+    ['entradas', 'salidas', 'uniformesCampo', 'bajas', 'dashboardMetrics', 'expediente', 'inventarioHistorial'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
   };
 
   const createPrendaMutation = useMutation({
@@ -214,7 +220,7 @@ export default function InventarioApp() {
       categoria: finalCategoria,
       requiere_talla: prendaForm.requiereTalla,
       tallas: prendaForm.requiereTalla ? prendaForm.tallas : [],
-      stock_minimo: Number(prendaForm.stockMinimo) || 5,
+      stock_minimo: Number.isFinite(prendaForm.stockMinimo) ? prendaForm.stockMinimo : 5,
       costo_estimado: prendaForm.costoEstimado ? Number(prendaForm.costoEstimado) : null,
     };
 
@@ -225,6 +231,7 @@ export default function InventarioApp() {
     }
   };
 
+  if (errorInv) return <div role="alert" className="p-6 space-y-3"><p>{errorInv.message}</p><Button onClick={() => refetchInv()}>Reintentar</Button>{corte && <Button variant="outline" onClick={() => setCorte('')}>Ver saldo actual</Button>}</div>;
   if (loadingInv || !inventario) {
     return (
       <div className="flex items-center justify-center h-full min-h-[300px]">
@@ -236,8 +243,7 @@ export default function InventarioApp() {
     );
   }
 
-  const stockBajoItems = inventario.filter((i) => i.stockBajo).length;
-  const totales = calcularTotalesInventario(inventario);
+
 
   // Categorías presentes en el inventario actual
   const categoriasDisponibles = Array.from(
@@ -250,6 +256,17 @@ export default function InventarioApp() {
     return matchTerm && matchCat;
   });
 
+  const stockBajoItems = filteredInventario.filter(i => i.stockBajo).length;
+  const totales = calcularTotalesInventario(filteredInventario);
+  const filteredDetalle = (inventarioDetalle ?? []).filter(d => filteredInventario.some(i => i.articulo === d.articulo));
+  const parametros = new URLSearchParams({ buscar: searchTerm, categoria: categoriaFiltro, ...(corte ? { corte } : {}) });
+  const descargar = async (tipo: 'excel' | 'pdf') => {
+    try {
+      const res = await fetch('/api/inventario/export-' + tipo + '?' + parametros.toString(), { headers: { Authorization: 'Bearer ' + localStorage.getItem('inv_token') } });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo descargar el reporte');
+      const url = URL.createObjectURL(await res.blob()); const a = document.createElement('a'); a.href = url; a.download = 'inventario_' + (corte || fechaMexico()) + (tipo === 'excel' ? '.xlsx' : '.pdf'); a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { toast.error((e as Error).message); }
+  };
   const handleExportCSV = () => {
     const headers = [
       'Artículo',
@@ -266,7 +283,7 @@ export default function InventarioApp() {
       'Total Existente',
       'Stock Mínimo',
     ];
-    const rows = inventario.map((i: any) => [
+    const rows = filteredInventario.map((i: any) => [
       i.articulo,
       i.categoria || 'Uniformes',
       i.totalEntradas,
@@ -296,35 +313,16 @@ export default function InventarioApp() {
       totales.totalExistente,
       '—',
     ]);
-    downloadCSV(`inventario_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
+    downloadCSV(`inventario_${fechaMexico()}.csv`, headers, rows);
   };
 
-  const handleExportPDF = async () => {
-    try {
-      const token = localStorage.getItem('inv_token');
-      const response = await fetch('/api/inventario/export-pdf', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error('Error al descargar el reporte PDF');
-      const blob = new Blob([await response.arrayBuffer()], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `inventario_${new Date().toISOString().split('T')[0]}.pdf`;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 1000);
-    } catch {
-      alert('No se pudo generar el reporte PDF.');
-    }
-  };
+  const handleExportPDF = () => descargar('pdf');
 
   const handlePrint = () => {
-    const html = buildInventarioHtml(inventario, inventarioDetalle ?? []);
+    const html = buildInventarioHtml(filteredInventario, filteredDetalle, corte || undefined, {
+      logoSrc: window.location.origin + '/LOGO_PDFS.png',
+      fontSrc: window.location.origin + '/fonts/inter-latin.woff2',
+    });
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const win = window.open(url, '_blank', 'width=1000,height=720');
@@ -361,15 +359,15 @@ export default function InventarioApp() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {isEditor && (
+          {(puede('inventario', 'crear') || puede('entradas', 'crear') || puede('salidas', 'crear')) && (
             <>
-              <Button size="sm" onClick={handleOpenNewPrenda} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+              <Button disabled={!puede('inventario', 'crear')} size="sm" onClick={handleOpenNewPrenda}>
                 <Plus className="w-4 h-4 mr-1.5" /> Nueva Prenda
               </Button>
-              <Button size="sm" onClick={() => router.push('/entradas')}>
+              <Button disabled={!puede('entradas', 'crear')} size="sm" variant="outline" onClick={() => router.push('/entradas')}>
                 <ArrowDownToLine className="w-4 h-4 mr-1.5" /> Entrada
               </Button>
-              <Button size="sm" onClick={() => router.push('/salidas')} className="bg-accent hover:bg-accent/90 text-white">
+              <Button disabled={!puede('salidas', 'crear')} size="sm" variant="outline" onClick={() => router.push('/salidas')}>
                 <ArrowUpFromLine className="w-4 h-4 mr-1.5" /> Salida
               </Button>
               <Button size="sm" onClick={() => router.push('/uniformes-campo')} variant="outline">
@@ -377,7 +375,7 @@ export default function InventarioApp() {
               </Button>
             </>
           )}
-          <Button variant="outline" size="sm" onClick={handleExportCSV}>
+          <Button variant="outline" size="sm" onClick={() => descargar('excel')}>
             <Download className="w-4 h-4 mr-1.5" /> Excel
           </Button>
           <Button variant="outline" size="sm" onClick={handleExportPDF}>
@@ -389,6 +387,8 @@ export default function InventarioApp() {
         </div>
       </div>
 
+      <InventarioHerramientas prendas={inventario} detalle={inventarioDetalle ?? []} corte={corte} onCorte={setCorte} />
+      {(errorDetalle || errorPrendas || errorDash) && <p role="alert" className="text-red-600">No se pudieron cargar todos los datos: {(errorDetalle || errorPrendas || errorDash)?.message} <Button variant="outline" onClick={() => queryClient.invalidateQueries()}>Reintentar</Button></p>}
       {/* Tabs Selector */}
       <div className="flex items-center gap-2 border-b border-border pb-1">
         <button
@@ -439,8 +439,8 @@ export default function InventarioApp() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
               <p className="text-xs text-muted-foreground">En Almacén</p>
-              <p className="text-2xl font-bold text-emerald-700 mt-1">{totales.almacen}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">piezas disponibles</p>
+              <p className="text-2xl font-bold text-emerald-700 mt-1">{totales.almacenNuevo + totales.almacenUsado}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">listas para entregar{totales.almacenInutilizable !== 0 ? ` · ${totales.almacenInutilizable} inutilizables` : ''}</p>
             </div>
             <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
               <p className="text-xs text-muted-foreground">En Campo</p>
@@ -466,7 +466,7 @@ export default function InventarioApp() {
               <div>
                 <p className="text-sm font-semibold">Stock bajo detectado</p>
                 <p className="text-sm mt-0.5 text-amber-800">
-                  {stockBajoItems} {stockBajoItems === 1 ? 'prenda ha alcanzado' : 'prendas han alcanzado'} o superado su límite mínimo de alerta en almacén.
+                  {stockBajoItems} {stockBajoItems === 1 ? 'prenda ha alcanzado' : 'prendas han alcanzado'} o quedado por debajo de su mínimo en almacén.
                 </p>
               </div>
             </div>
@@ -524,7 +524,7 @@ export default function InventarioApp() {
                   <TableHead className="text-right font-semibold text-foreground">Entregados Def.</TableHead>
                   <TableHead className="text-right font-semibold text-foreground">Pérdidas</TableHead>
                   <TableHead className="text-right font-semibold text-foreground">Total</TableHead>
-                  {isEditor && <TableHead className="w-12 text-center"></TableHead>}
+                  {isEditor && !corte && <TableHead className="w-12 text-center"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -539,14 +539,15 @@ export default function InventarioApp() {
                     <TableRow key={item.articulo} className={item.stockBajo ? 'bg-amber-50/50 hover:bg-amber-50/80' : ''}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold">{item.articulo}</span>
+                          <span className="font-semibold">{item.articulo}</span>{item.archivada && <Badge>Archivada</Badge>}{item.inconsistente && <Badge variant="destructive">Revisar saldo</Badge>}
                           {item.stockBajo && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 text-[11px] font-medium">
                               <AlertTriangle className="w-3 h-3" />
-                              {item.almacen <= 0 ? 'Sin stock' : `Stock bajo (≤${item.stockMinimo ?? 5})`}
+                              {item.almacenNuevo + item.almacenUsado <= 0 ? 'Sin stock' : `Stock bajo (≤${item.stockMinimo ?? 5})`}
                             </span>
                           )}
                         </div>
+                        <details className="mt-2 text-xs"><summary className="cursor-pointer text-primary">Ver tallas y ajustes</summary><p>Ajuste neto: {item.ajusteNeto || 0}</p>{filteredDetalle.filter(d => d.articulo === item.articulo).map(d => <p key={d.talla || ''} className="py-1">{d.talla || 'Sin talla'}: {d.almacenNuevo} nuevas · {d.almacenUsado} usadas · {d.almacenInutilizable} inutilizables</p>)}</details>
                       </TableCell>
                       <TableCell>
                         <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground font-medium">
@@ -555,13 +556,13 @@ export default function InventarioApp() {
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">{item.totalEntradas}</TableCell>
                       <TableCell className="text-right text-emerald-600 font-medium">
-                        {item.almacenNuevo > 0 ? item.almacenNuevo : <span className="text-muted-foreground">—</span>}
+                        {item.almacenNuevo !== 0 ? item.almacenNuevo : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right text-blue-600 font-medium">
-                        {item.almacenUsado > 0 ? item.almacenUsado : <span className="text-muted-foreground">—</span>}
+                        {item.almacenUsado !== 0 ? item.almacenUsado : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right text-red-600 font-medium">
-                        {item.almacenInutilizable > 0 ? item.almacenInutilizable : <span className="text-muted-foreground">—</span>}
+                        {item.almacenInutilizable !== 0 ? item.almacenInutilizable : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right">
                         <span
@@ -577,19 +578,19 @@ export default function InventarioApp() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        {item.enCampo > 0 ? item.enCampo : <span className="text-muted-foreground">—</span>}
+                        {item.enCampo !== 0 ? item.enCampo : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right">
-                        {item.enBajas > 0 ? item.enBajas : <span className="text-muted-foreground">—</span>}
+                        {item.enBajas !== 0 ? item.enBajas : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        {item.definitivos > 0 ? item.definitivos : <span className="text-muted-foreground">—</span>}
+                        {item.definitivos !== 0 ? item.definitivos : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right">
-                        {item.perdidas > 0 ? <span className="text-red-600 font-medium">{item.perdidas}</span> : <span className="text-muted-foreground">—</span>}
+                        {item.perdidas !== 0 ? <span className="text-red-600 font-medium">{item.perdidas}</span> : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right font-bold">{item.totalExistente}</TableCell>
-                      {isEditor && (
+                      {isEditor && !corte && (
                         <TableCell className="text-center p-1">
                           <Button
                             variant="ghost"
@@ -621,12 +622,12 @@ export default function InventarioApp() {
                       {totales.almacen}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right">{totales.enCampo > 0 ? totales.enCampo : '—'}</TableCell>
-                  <TableCell className="text-right">{totales.enBajas > 0 ? totales.enBajas : '—'}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{totales.definitivos > 0 ? totales.definitivos : '—'}</TableCell>
-                  <TableCell className="text-right">{totales.perdidas > 0 ? <span className="text-red-600 font-bold">{totales.perdidas}</span> : '—'}</TableCell>
+                  <TableCell className="text-right">{totales.enCampo !== 0 ? totales.enCampo : '—'}</TableCell>
+                  <TableCell className="text-right">{totales.enBajas !== 0 ? totales.enBajas : '—'}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{totales.definitivos !== 0 ? totales.definitivos : '—'}</TableCell>
+                  <TableCell className="text-right">{totales.perdidas !== 0 ? <span className="text-red-600 font-bold">{totales.perdidas}</span> : '—'}</TableCell>
                   <TableCell className="text-right font-bold text-lg">{totales.totalExistente}</TableCell>
-                  {isEditor && <TableCell></TableCell>}
+                  {isEditor && !corte && <TableCell></TableCell>}
                 </TableRow>
               </TableBody>
             </Table>
@@ -644,7 +645,7 @@ export default function InventarioApp() {
                 Configura tallas, categorías y umbrales mínimos de stock para cada prenda sin modificar código.
               </p>
             </div>
-            {isEditor && (
+            {puede('inventario', 'crear') && (
               <Button onClick={handleOpenNewPrenda} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                 <Plus className="w-4 h-4 mr-1.5" /> Agregar Nueva Prenda
               </Button>
@@ -679,19 +680,35 @@ export default function InventarioApp() {
                         >
                           <Edit3 className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600"
-                          onClick={() => {
-                            if (confirm(`¿Deseas eliminar o archivar "${item.nombre}"?`)) {
-                              deletePrendaMutation.mutate(item.id);
-                            }
-                          }}
-                          title="Eliminar o archivar prenda"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {item.activo === 0 ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs text-emerald-700 hover:text-emerald-800"
+                            onClick={() => updatePrendaMutation.mutate({ id: item.id, payload: {
+                              nombre: item.nombre, categoria: item.categoria, requiere_talla: Boolean(item.requiere_talla),
+                              tallas: Array.isArray(item.tallas) ? item.tallas : [], stock_minimo: item.stock_minimo ?? 5,
+                              costo_estimado: item.costo_estimado ?? null, activo: true,
+                            } })}
+                            title="Volver a mostrar la prenda en entradas y salidas"
+                          >
+                            Reactivar
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600"
+                            onClick={() => {
+                              if (confirm(`¿Deseas archivar "${item.nombre}"?`)) {
+                                deletePrendaMutation.mutate(item.id);
+                              }
+                            }}
+                            disabled={!puede('inventario', 'eliminar')} title="Archivar prenda"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     )}
                   </CardHeader>
@@ -867,7 +884,7 @@ export default function InventarioApp() {
 
           <form onSubmit={handleSubmitPrenda} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Nombre de la Prenda o Artículo *</label>
+              <label className="field-label">Nombre de la Prenda o Artículo *</label>
               <Input
                 placeholder="Ej. Camisola Táctica Manga Larga, Chaleco Reflejante..."
                 value={prendaForm.nombre}
@@ -878,7 +895,7 @@ export default function InventarioApp() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">Categoría *</label>
+                <label className="field-label">Categoría *</label>
                 <Select
                   value={prendaForm.categoria}
                   onChange={(e) => setPrendaForm({ ...prendaForm, categoria: e.target.value })}
@@ -891,7 +908,7 @@ export default function InventarioApp() {
 
               {prendaForm.categoria === 'Otro' ? (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Escribe la Categoría</label>
+                  <label className="field-label">Escribe la Categoría</label>
                   <Input
                     placeholder="Ej. Protección Solar"
                     value={prendaForm.categoriaCustom}
@@ -901,7 +918,7 @@ export default function InventarioApp() {
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Stock Mínimo de Alerta</label>
+                  <label className="field-label">Stock Mínimo de Alerta</label>
                   <Input
                     type="number"
                     min={0}
@@ -914,7 +931,7 @@ export default function InventarioApp() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Costo Estimado de Reposición ($ MXN Opcional)</label>
+              <label className="field-label">Costo Estimado de Reposición ($ MXN Opcional)</label>
               <Input
                 type="number"
                 step="0.01"
@@ -947,7 +964,7 @@ export default function InventarioApp() {
                 <div className="space-y-3 pt-2 border-t border-border/60">
                   {/* Plantillas Rápidas */}
                   <div>
-                    <label className="text-[11px] font-semibold text-muted-foreground block mb-1.5">
+                    <label className="field-label block mb-1.5">
                       Cargar plantilla rápida de tallas:
                     </label>
                     <div className="flex flex-wrap gap-1.5">
@@ -960,7 +977,7 @@ export default function InventarioApp() {
                           onClick={() => handleApplyPreset(key)}
                           className="text-[11px] h-7 px-2.5 bg-background"
                         >
-                          <Sparkles className="w-3 h-3 mr-1 text-amber-500" />
+                          <Tag className="w-3 h-3 mr-1 text-muted-foreground" />
                           {preset.label}
                         </Button>
                       ))}

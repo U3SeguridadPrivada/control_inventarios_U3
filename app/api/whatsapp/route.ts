@@ -7,7 +7,7 @@ import {
   guardias, clientes, incidencias, servicio_guardias, servicios, salidas, users,
   candidatos, vacantes, whatsapp_conversaciones, eventos_calendario, whatsapp_chats,
 } from '@/src/db/schema';
-import { eq, desc, like } from 'drizzle-orm';
+import { eq, desc, like, and, inArray } from 'drizzle-orm';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getConfig } from '@/src/lib/mailer';
 import { cleanPhoneNumber, phoneMatches, tocarChat, enviarMensajeWhatsApp, mostrarEscribiendoKapso } from '@/src/lib/whatsapp';
@@ -1079,7 +1079,10 @@ INSTRUCCIONES CLAVE:
           estadoAsignacion: salidas.estado_asignacion,
         })
           .from(salidas)
-          .where(eq(salidas.guardia_id, usuarioId))
+          // Solo lo que el guardia trae a su cargo hoy: las filas devueltas, extraviadas o dadas de
+          // baja son historial y hacían que el bot afirmara que aún tenía prendas que ya entregó.
+          // Las anuladas tampoco cuentan: anular no cambia su estado_asignacion, solo marca anulado=1.
+          .where(and(eq(salidas.anulado, 0), eq(salidas.guardia_id, usuarioId), inArray(salidas.estado_asignacion, ['Uniforme en Campo', 'Uniforme en Bajas'])))
           .all();
         return { success: true, inventario: uniformes };
       } catch (error: any) {

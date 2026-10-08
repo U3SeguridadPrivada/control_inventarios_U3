@@ -1,0 +1,317 @@
+{
+  "alcance": "Rutas y calculos reales con SQLite en memoria; autenticacion simulada. Base local consultada solo con readonly.",
+  "escenarios": 20,
+  "defectosReproducidos": 13,
+  "controlesCorrectos": 7,
+  "results": [
+    {
+      "name": "Control: compra, asignacion y recuperacion",
+      "control": "correcto",
+      "balance": {
+        "almacen": 3,
+        "nuevo": 2,
+        "usado": 1,
+        "inutilizable": 0,
+        "campo": 0,
+        "bajas": 0,
+        "perdidas": 0,
+        "total": 3
+      }
+    },
+    {
+      "name": "Devolucion libre duplica equipo asignado",
+      "defecto": true,
+      "esperadoTotal": 1,
+      "balance": {
+        "almacen": 1,
+        "nuevo": 0,
+        "usado": 1,
+        "inutilizable": 0,
+        "campo": 1,
+        "bajas": 0,
+        "perdidas": 0,
+        "total": 2
+      }
+    },
+    {
+      "name": "Salida sin talla y segunda salida de la misma existencia",
+      "defecto": true,
+      "estadosHTTP": [
+        201,
+        201
+      ],
+      "balance": {
+        "almacen": -1,
+        "nuevo": -1,
+        "usado": 0,
+        "inutilizable": 0,
+        "campo": 2,
+        "bajas": 0,
+        "perdidas": 0,
+        "total": 1
+      },
+      "detalle": []
+    },
+    {
+      "name": "Archivar prenda personalizada con talla deja stock disponible para salida sin talla",
+      "defecto": true,
+      "status": 201,
+      "detalle": [
+        {
+          "articulo": "Camisa Especial",
+          "talla": "M",
+          "almacen": 2,
+          "almacenNuevo": 2,
+          "almacenUsado": 0,
+          "almacenInutilizable": 0
+        }
+      ],
+      "nota": "SalidasApp usa catalogo activo y respaldo constante; Camisa Especial queda sin regla de talla en UI."
+    },
+    {
+      "name": "Cambiar requiere_talla con existencias no reclasifica movimientos",
+      "defecto": true,
+      "balance": {
+        "almacen": 0,
+        "nuevo": 0,
+        "usado": 0,
+        "inutilizable": 0,
+        "campo": 1,
+        "bajas": 0,
+        "perdidas": 0,
+        "total": 1
+      },
+      "detalle": [
+        {
+          "articulo": "Camisolas",
+          "talla": "M",
+          "almacen": 1,
+          "almacenNuevo": 1,
+          "almacenUsado": 0,
+          "almacenInutilizable": 0
+        }
+      ]
+    },
+    {
+      "name": "Extravío por ruta generica no afecta el inventario",
+      "defecto": true,
+      "status": 201,
+      "estadoAsignacion": "N/A",
+      "balance": {
+        "almacen": 1,
+        "nuevo": 1,
+        "usado": 0,
+        "inutilizable": 0,
+        "campo": 0,
+        "bajas": 0,
+        "perdidas": 0,
+        "total": 1
+      }
+    },
+    {
+      "name": "Asignacion generica sin guardia queda fuera de Uniformes en Campo",
+      "defecto": true,
+      "balance": {
+        "almacen": 0,
+        "nuevo": 0,
+        "usado": 0,
+        "inutilizable": 0,
+        "campo": 1,
+        "bajas": 0,
+        "perdidas": 0,
+        "total": 1
+      },
+      "campo": []
+    },
+    {
+      "name": "Reposicion permite entregar equipo inutilizable",
+      "defecto": true,
+      "status": 201,
+      "balance": {
+        "almacen": 1,
+        "nuevo": 0,
+        "usado": 1,
+        "inutilizable": 0,
+        "campo": 1,
+        "bajas": 0,
+        "perdidas": 0,
+        "total": 2
+      }
+    },
+    {
+      "name": "Reposicion acepta estado de devolucion desconocido",
+      "defecto": true,
+      "status": 201,
+      "esperadoTotal": 2,
+      "balance": {
+        "almacen": 0,
+        "nuevo": 0,
+        "usado": 0,
+        "inutilizable": 0,
+        "campo": 1,
+        "bajas": 0,
+        "perdidas": 0,
+        "total": 1
+      }
+    },
+    {
+      "name": "Control: reposicion normal, extravio y recuperacion",
+      "control": "correcto",
+      "balance": {
+        "almacen": 3,
+        "nuevo": 0,
+        "usado": 3,
+        "inutilizable": 0,
+        "campo": 0,
+        "bajas": 0,
+        "perdidas": 0,
+        "total": 3
+      }
+    },
+    {
+      "name": "Control: baja parcial y reintento rechazado",
+      "control": "correcto en API; UI no permite capturar cantidad parcial",
+      "balance": {
+        "almacen": 1,
+        "nuevo": 0,
+        "usado": 1,
+        "inutilizable": 0,
+        "campo": 0,
+        "bajas": 0,
+        "perdidas": 2,
+        "total": 1
+      }
+    },
+    {
+      "name": "Control: baja sin equipo se completa",
+      "control": "correcto"
+    },
+    {
+      "name": "Control: carga inicial atomica y equipo previo sin afectar almacen",
+      "control": "correcto",
+      "balance": {
+        "almacen": 4,
+        "nuevo": 2,
+        "usado": 1,
+        "inutilizable": 1,
+        "campo": 3,
+        "bajas": 0,
+        "perdidas": 0,
+        "total": 7
+      }
+    },
+    {
+      "name": "Control: baja por daño descuenta inutilizables",
+      "control": "correcto",
+      "balance": {
+        "almacen": 1,
+        "nuevo": 0,
+        "usado": 0,
+        "inutilizable": 1,
+        "campo": 0,
+        "bajas": 0,
+        "perdidas": 1,
+        "total": 1
+      }
+    },
+    {
+      "name": "Catalogo archivado oculta las perdidas historicas",
+      "defecto": true,
+      "perdidasAntes": 1,
+      "perdidasDespues": 0,
+      "nota": "La fila archivada se oculta aunque contiene entradas y perdidas historicas."
+    },
+    {
+      "name": "Expediente mezcla guardias homonimos",
+      "defecto": true,
+      "registrosDeOtroGuardia": 1
+    },
+    {
+      "name": "Dashboard fusiona fechas de años distintos",
+      "defecto": true,
+      "chartData": [
+        {
+          "fecha": "10-06",
+          "Entradas": 5,
+          "Salidas": 0
+        }
+      ]
+    },
+    {
+      "name": "Entradas aceptan articulo, talla y fecha ajenos al catalogo",
+      "defecto": true,
+      "registro": {
+        "articulo": "Articulo inexistente",
+        "talla": null,
+        "fecha": "fecha-invalida",
+        "registrado_por": "Otro usuario"
+      }
+    },
+    {
+      "name": "Formulario de asignacion convierte 1.5 piezas en 2",
+      "defecto": true,
+      "cantidadCapturada": 1.5,
+      "cantidadGuardada": 2,
+      "nota": "Se ejecuta el handler real extraido del componente; no se automatiza el navegador."
+    },
+    {
+      "name": "Control: permisos basicos rechazan viewer y sin sesion",
+      "control": "correcto; identidad simulada, no se prueba JWT ni interfaz"
+    }
+  ],
+  "baseLocal": {
+    "counts": {
+      "catalogo_prendas": 11,
+      "entradas": 1,
+      "salidas": 2,
+      "guardias": 3,
+      "bajas": 2
+    },
+    "existing": [
+      {
+        "articulo": "Camisolas",
+        "talla": "28",
+        "piezas": 3
+      }
+    ],
+    "assigned": [
+      {
+        "articulo": "Camisolas",
+        "talla": "28",
+        "estado_asignacion": "Uniforme en Campo",
+        "estado_guardia": null,
+        "piezas": 2
+      }
+    ],
+    "processes": [
+      {
+        "id": 2,
+        "estado": "Pendiente",
+        "items": 0
+      },
+      {
+        "id": 3,
+        "estado": "Pendiente",
+        "items": 0
+      }
+    ],
+    "orphaned": [
+      {
+        "id": 1,
+        "guardia_id": null,
+        "articulo": "Camisolas",
+        "talla": "28",
+        "cantidad": 1,
+        "coincidencias_por_nombre": 0
+      },
+      {
+        "id": 2,
+        "guardia_id": null,
+        "articulo": "Camisolas",
+        "talla": "28",
+        "cantidad": 1,
+        "coincidencias_por_nombre": 0
+      }
+    ]
+  }
+}

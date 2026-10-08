@@ -1,7 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { Role } from '@/src/utils/roleMapping';
-import { puedeVerModulo, type AccesoUsuario, type PermisoModulo } from '@/src/lib/permisosModulos';
+import { puedeVerModulo, puedeAccionModulo, type AccesoUsuario, type PermisoModulo } from '@/src/lib/permisosModulos';
 
 
 export interface AuthUser {
@@ -36,6 +36,7 @@ interface AuthContextValue extends AuthState {
   userRole: Role | null;
   /** true si el usuario puede ver el modulo indicado (ids de src/config/nav.ts). */
   puedeVer: (modulo: string) => boolean;
+  puede: (modulo: string, accion: keyof PermisoModulo) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -118,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       puedeVer: (modulo: string) => puedeVerModulo(modulo, acceso),
+      puede: (modulo, accion) => puedeAccionModulo(modulo, accion, acceso),
       // roles basados en el email institucional
       userRole: acceso?.areaRole ?? null,
       isAdmin: state.user?.role === 'admin',

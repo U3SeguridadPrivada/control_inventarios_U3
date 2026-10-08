@@ -7,9 +7,10 @@ import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Select } from '@/src/components/ui/select';
 import { Textarea } from '@/src/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
+import { Field, FieldGrid, FormSection } from '@/src/components/ui/field';
+import { FormDialog } from '@/src/components/ui/form-dialog';
 import { Badge } from '@/src/components/ui/badge';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Clock, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, Clock, AlertTriangle, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { fmtDate } from '@/src/lib/utils';
 
@@ -280,23 +281,42 @@ export default function CalendarioApp() {
         </div>
       )}
 
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent>
-          <form onSubmit={handleSubmit}>
-            <DialogHeader><DialogTitle>{editing ? 'Editar evento' : 'Nuevo evento'}</DialogTitle><DialogDescription>Los eventos son visibles para todo el equipo</DialogDescription></DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2"><label className="text-sm font-medium">Título</label><Input value={form.titulo} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Fecha y hora</label><Input type="datetime-local" value={form.fecha_inicio} onChange={(e) => setForm((f) => ({ ...f, fecha_inicio: e.target.value }))} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Descripción</label><Textarea value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} rows={3} /></div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Guardia relacionado (opcional)</label>
+      <FormDialog
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        size="md"
+        icon={CalendarDays}
+        title={editing ? 'Editar evento' : 'Nuevo evento'}
+        description="Los eventos son visibles para todo el equipo."
+        submitLabel={editing ? 'Guardar' : 'Crear'}
+        submitting={createMutation.isPending || updateMutation.isPending}
+        footerNote={<span><span className="text-destructive">*</span> Campo obligatorio</span>}
+        onSubmit={handleSubmit}
+      >
+        <div className="space-y-6">
+          <FormSection title="Qué y cuándo" icon={Clock}>
+            <FieldGrid cols={1}>
+              <Field label="Título" required>
+                <Input value={form.titulo} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} required placeholder="Ej. Revisión de puesto, junta con cliente" />
+              </Field>
+              <Field label="Fecha y hora" required>
+                <Input type="datetime-local" value={form.fecha_inicio} onChange={(e) => setForm((f) => ({ ...f, fecha_inicio: e.target.value }))} required />
+              </Field>
+            </FieldGrid>
+          </FormSection>
+
+          <FormSection title="Detalles">
+            <FieldGrid cols={2}>
+              <Field label="Descripción" span={2}>
+                <Textarea value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} rows={3} placeholder="Notas o indicaciones para el equipo" />
+              </Field>
+              <Field label="Guardia relacionado" hint="Opcional: el evento se ve en su expediente.">
                 <Select value={form.guardia_id} onChange={(e) => setForm((f) => ({ ...f, guardia_id: e.target.value }))}>
                   <option value="">Sin asignar</option>
                   {guardias.map((g) => <option key={g.id} value={g.id}>{g.nombre} ({g.numero_elemento})</option>)}
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Recordatorio</label>
+              </Field>
+              <Field label="Recordatorio">
                 <Select value={form.notificar_minutos_antes} onChange={(e) => setForm((f) => ({ ...f, notificar_minutos_antes: e.target.value }))}>
                   <option value="">Sin recordatorio</option>
                   <option value="15">15 minutos antes</option>
@@ -304,54 +324,60 @@ export default function CalendarioApp() {
                   <option value="60">1 hora antes</option>
                   <option value="1440">1 día antes</option>
                 </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>{editing ? 'Guardar' : 'Crear'}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+              </Field>
+            </FieldGrid>
+          </FormSection>
+        </div>
+      </FormDialog>
 
-      <Dialog open={incModalOpen} onOpenChange={setIncModalOpen}>
-        <DialogContent>
-          <form onSubmit={handleIncSubmit}>
-            <DialogHeader><DialogTitle>Registrar incidencia</DialogTitle><DialogDescription>Queda asociada al expediente del guardia.</DialogDescription></DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Guardia</label>
+      <FormDialog
+        open={incModalOpen}
+        onOpenChange={setIncModalOpen}
+        size="md"
+        icon={AlertTriangle}
+        title="Registrar incidencia"
+        description="Queda asociada al expediente del guardia."
+        submitLabel="Registrar"
+        submitting={createIncMutation.isPending}
+        footerNote={<span><span className="text-destructive">*</span> Campo obligatorio</span>}
+        onSubmit={handleIncSubmit}
+      >
+        <div className="space-y-6">
+          <FormSection title="Guardia y tipo" icon={AlertTriangle}>
+            <FieldGrid cols={2}>
+              <Field label="Guardia" required span={2}>
                 <Select value={incForm.guardia_id} onChange={(e) => setIncForm((f) => ({ ...f, guardia_id: e.target.value }))} required>
                   <option value="">Selecciona un guardia...</option>
                   {guardias.map((g) => <option key={g.id} value={g.id}>{g.nombre} ({g.numero_elemento})</option>)}
                 </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tipo</label>
-                  <Select value={incForm.tipo} onChange={(e) => setIncForm((f) => ({ ...f, tipo: e.target.value }))}>
-                    {TIPOS_INCIDENCIA.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Gravedad</label>
-                  <Select value={incForm.gravedad} onChange={(e) => setIncForm((f) => ({ ...f, gravedad: e.target.value }))}>
-                    <option value="Leve">Leve</option>
-                    <option value="Moderada">Moderada</option>
-                    <option value="Grave">Grave</option>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2"><label className="text-sm font-medium">Fecha</label><Input type="date" value={incForm.fecha} onChange={(e) => setIncForm((f) => ({ ...f, fecha: e.target.value }))} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Descripción</label><Textarea value={incForm.descripcion} onChange={(e) => setIncForm((f) => ({ ...f, descripcion: e.target.value }))} rows={3} required /></div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIncModalOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={createIncMutation.isPending}>Registrar</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+              </Field>
+              <Field label="Tipo">
+                <Select value={incForm.tipo} onChange={(e) => setIncForm((f) => ({ ...f, tipo: e.target.value }))}>
+                  {TIPOS_INCIDENCIA.map((t) => <option key={t} value={t}>{t}</option>)}
+                </Select>
+              </Field>
+              <Field label="Gravedad">
+                <Select value={incForm.gravedad} onChange={(e) => setIncForm((f) => ({ ...f, gravedad: e.target.value }))}>
+                  <option value="Leve">Leve</option>
+                  <option value="Moderada">Moderada</option>
+                  <option value="Grave">Grave</option>
+                </Select>
+              </Field>
+            </FieldGrid>
+          </FormSection>
+
+          <FormSection title="Qué ocurrió">
+            <FieldGrid cols={1}>
+              <Field label="Fecha" required>
+                <Input type="date" value={incForm.fecha} onChange={(e) => setIncForm((f) => ({ ...f, fecha: e.target.value }))} required />
+              </Field>
+              <Field label="Descripción" required>
+                <Textarea value={incForm.descripcion} onChange={(e) => setIncForm((f) => ({ ...f, descripcion: e.target.value }))} rows={3} required placeholder="Describe lo sucedido con el mayor detalle posible" />
+              </Field>
+            </FieldGrid>
+          </FormSection>
+        </div>
+      </FormDialog>
     </div>
   );
 }

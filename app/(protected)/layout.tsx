@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/src/context/AuthContext';
+import { ShellProvider } from '@/src/context/ShellContext';
 import { useEventNotifications } from '@/src/hooks/useEventNotifications';
 import { usePathname } from 'next/navigation';
 import Sidebar from '@/src/components/Sidebar';
@@ -34,6 +35,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const isCorreo = pathname === '/correo' || pathname.startsWith('/correo/');
 
   return (
+    <ShellProvider>
     <div className="flex min-h-[100svh] bg-background">
       <Sidebar />
       <div className="flex-1 min-w-0 flex flex-col h-[100svh] overflow-hidden">
@@ -51,6 +53,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       <MobileNav />
       <InstallPrompt />
     </div>
+    </ShellProvider>
   );
 }
 

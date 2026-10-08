@@ -3,7 +3,7 @@ import { db } from '@/src/db';
 import { personal_administrativo } from '@/src/db/schema';
 import { verifyAuth, unauthorized } from '@/src/lib/auth';
 import { desc } from 'drizzle-orm';
-import { reconstruirDireccion, CAMPOS_FICHA_BASICA } from '@/src/lib/fichaTecnicaUtils';
+import { reconstruirDireccion, extraerFichaBasica } from '@/src/lib/fichaTecnicaUtils';
 
 export async function GET(req: NextRequest) {
   if (!verifyAuth(req)) return unauthorized();
@@ -44,10 +44,7 @@ export async function POST(req: NextRequest) {
     };
     if (numero_empleado) ficha.numeroElemento = numero_empleado.trim();
 
-    for (const campo of CAMPOS_FICHA_BASICA) {
-      const valor = body[campo];
-      if (typeof valor === 'string' && valor.trim()) ficha[campo] = valor.trim();
-    }
+    Object.assign(ficha, extraerFichaBasica(body));
 
     const direccionReconstruida = ficha.calleNumero
       ? reconstruirDireccion({

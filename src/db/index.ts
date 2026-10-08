@@ -4,6 +4,7 @@ import { mkdirSync, existsSync, readFileSync } from 'fs';
 import path from 'path';
 import * as schema from './schema';
 import { programarRespaldos } from '@/src/lib/respaldos';
+import { migrarInventario } from '@/src/db/inventarioMigracion';
 
 type DrizzleDB = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -725,6 +726,7 @@ function initDb(): DrizzleDB {
     console.error('[respaldos] No se pudo programar el respaldo automático:', err);
   }
 
+  migrarInventario(sqlite);
   _db = drizzle(sqlite, { schema });
   return _db;
 }

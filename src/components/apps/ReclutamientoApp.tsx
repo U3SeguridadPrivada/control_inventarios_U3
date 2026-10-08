@@ -155,30 +155,30 @@ function CandidatoDetalle({ candidato, vacantes, onClose }: { candidato: Candida
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-2">
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Nombre</label><Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} disabled={!isEditor} /></div>
-            <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Ciudad</label><Input value={form.ciudad} onChange={(e) => setForm((f) => ({ ...f, ciudad: e.target.value }))} disabled={!isEditor} /></div>
-            <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Edad</label><Input type="number" value={form.edad} onChange={(e) => setForm((f) => ({ ...f, edad: e.target.value }))} disabled={!isEditor} /></div>
+            <div className="space-y-1.5"><label className="field-label">Nombre</label><Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} disabled={!isEditor} /></div>
+            <div className="space-y-1.5"><label className="field-label">Ciudad</label><Input value={form.ciudad} onChange={(e) => setForm((f) => ({ ...f, ciudad: e.target.value }))} disabled={!isEditor} /></div>
+            <div className="space-y-1.5"><label className="field-label">Edad</label><Input type="number" value={form.edad} onChange={(e) => setForm((f) => ({ ...f, edad: e.target.value }))} disabled={!isEditor} /></div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Etapa</label>
+              <label className="field-label">Etapa</label>
               <Select value={form.etapa} onChange={(e) => setForm((f) => ({ ...f, etapa: e.target.value }))} disabled={!isEditor}>
                 {ETAPAS.map((et) => <option key={et} value={et}>{et}</option>)}
               </Select>
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Vacante de interés</label>
+            <label className="field-label">Vacante de interés</label>
             <Select value={form.vacante_id} onChange={(e) => setForm((f) => ({ ...f, vacante_id: e.target.value }))} disabled={!isEditor}>
               <option value="">Sin vacante</option>
               {vacantes.map((v) => <option key={v.id} value={v.id}>{v.puesto}{v.ubicacion ? ` — ${v.ubicacion}` : ''}</option>)}
             </Select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><CalendarClock className="w-3.5 h-3.5" /> Fecha y hora de entrevista</label>
+            <label className="field-label flex items-center gap-1"><CalendarClock className="w-3.5 h-3.5" /> Fecha y hora de entrevista</label>
             <Input type="datetime-local" value={form.fecha_entrevista} onChange={(e) => setForm((f) => ({ ...f, fecha_entrevista: e.target.value }))} disabled={!isEditor} />
             <p className="text-[11px] text-muted-foreground">Ajusta aquí la cita si el bot la agendó en un día equivocado. Déjala vacía para quitarla.</p>
           </div>
-          <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Experiencia</label><Textarea rows={2} value={form.experiencia} onChange={(e) => setForm((f) => ({ ...f, experiencia: e.target.value }))} disabled={!isEditor} /></div>
-          <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Notas del reclutador</label><Textarea rows={3} value={notas} onChange={(e) => setNotas(e.target.value)} disabled={!isEditor} /></div>
+          <div className="space-y-1.5"><label className="field-label">Experiencia</label><Textarea rows={2} value={form.experiencia} onChange={(e) => setForm((f) => ({ ...f, experiencia: e.target.value }))} disabled={!isEditor} /></div>
+          <div className="space-y-1.5"><label className="field-label">Notas del reclutador</label><Textarea rows={3} value={notas} onChange={(e) => setNotas(e.target.value)} disabled={!isEditor} /></div>
 
           {isEditor && !candidato.guardia_id && (
             <div className="border border-emerald-500/30 bg-emerald-500/5 rounded-lg p-3 space-y-2">
@@ -319,11 +319,11 @@ function PipelineCandidatos({ vacantes }: { vacantes: Vacante[] }) {
           <form onSubmit={(e) => { e.preventDefault(); crearMutation.mutate(); }}>
             <DialogHeader><DialogTitle>Registrar candidato manualmente</DialogTitle><DialogDescription>Para candidatos que llegan por otro medio (referido, bolsa de trabajo, etc.).</DialogDescription></DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="space-y-2"><label className="text-sm font-medium">Nombre</label><Input value={nuevoForm.nombre} onChange={(e) => setNuevoForm((f) => ({ ...f, nombre: e.target.value }))} /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Teléfono (WhatsApp)</label><Input value={nuevoForm.telefono} onChange={(e) => setNuevoForm((f) => ({ ...f, telefono: e.target.value }))} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Ciudad</label><Input value={nuevoForm.ciudad} onChange={(e) => setNuevoForm((f) => ({ ...f, ciudad: e.target.value }))} /></div>
+              <div className="space-y-2"><label className="field-label">Nombre</label><Input value={nuevoForm.nombre} onChange={(e) => setNuevoForm((f) => ({ ...f, nombre: e.target.value }))} /></div>
+              <div className="space-y-2"><label className="field-label">Teléfono (WhatsApp)</label><Input value={nuevoForm.telefono} onChange={(e) => setNuevoForm((f) => ({ ...f, telefono: e.target.value }))} required /></div>
+              <div className="space-y-2"><label className="field-label">Ciudad</label><Input value={nuevoForm.ciudad} onChange={(e) => setNuevoForm((f) => ({ ...f, ciudad: e.target.value }))} /></div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Vacante de interés</label>
+                <label className="field-label">Vacante de interés</label>
                 <Select value={nuevoForm.vacante_id} onChange={(e) => setNuevoForm((f) => ({ ...f, vacante_id: e.target.value }))}>
                   <option value="">Sin vacante</option>
                   {vacantes.map((v) => <option key={v.id} value={v.id}>{v.puesto}</option>)}
@@ -429,14 +429,14 @@ function VacantesTab({ vacantes, isLoading }: { vacantes: Vacante[]; isLoading: 
           <form onSubmit={handleSubmit}>
             <DialogHeader><DialogTitle>{editing ? 'Editar vacante' : 'Nueva vacante'}</DialogTitle><DialogDescription>El bot de WhatsApp ofrece automáticamente las vacantes activas a los candidatos.</DialogDescription></DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="space-y-2"><label className="text-sm font-medium">Puesto</label><Input value={form.puesto} onChange={(e) => setForm((f) => ({ ...f, puesto: e.target.value }))} required placeholder="Guardia intramuros" /></div>
+              <div className="space-y-2"><label className="field-label">Puesto</label><Input value={form.puesto} onChange={(e) => setForm((f) => ({ ...f, puesto: e.target.value }))} required placeholder="Guardia intramuros" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2"><label className="text-sm font-medium">Zona / Ciudad</label><Input value={form.ubicacion} onChange={(e) => setForm((f) => ({ ...f, ubicacion: e.target.value }))} /></div>
-                <div className="space-y-2"><label className="text-sm font-medium">Turno</label><Input value={form.turno} onChange={(e) => setForm((f) => ({ ...f, turno: e.target.value }))} placeholder="12x12 diurno" /></div>
+                <div className="space-y-2"><label className="field-label">Zona / Ciudad</label><Input value={form.ubicacion} onChange={(e) => setForm((f) => ({ ...f, ubicacion: e.target.value }))} /></div>
+                <div className="space-y-2"><label className="field-label">Turno</label><Input value={form.turno} onChange={(e) => setForm((f) => ({ ...f, turno: e.target.value }))} placeholder="12x12 diurno" /></div>
               </div>
-              <div className="space-y-2"><label className="text-sm font-medium">Sueldo (texto que el bot puede decir)</label><Input value={form.sueldo} onChange={(e) => setForm((f) => ({ ...f, sueldo: e.target.value }))} placeholder="$2,200 - $2,600 semanales aprox." /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Requisitos</label><Textarea rows={2} value={form.requisitos} onChange={(e) => setForm((f) => ({ ...f, requisitos: e.target.value }))} placeholder="Mayor de edad, secundaria, disponibilidad de horario..." /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Descripción adicional</label><Textarea rows={2} value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} /></div>
+              <div className="space-y-2"><label className="field-label">Sueldo (texto que el bot puede decir)</label><Input value={form.sueldo} onChange={(e) => setForm((f) => ({ ...f, sueldo: e.target.value }))} placeholder="$2,200 - $2,600 semanales aprox." /></div>
+              <div className="space-y-2"><label className="field-label">Requisitos</label><Textarea rows={2} value={form.requisitos} onChange={(e) => setForm((f) => ({ ...f, requisitos: e.target.value }))} placeholder="Mayor de edad, secundaria, disponibilidad de horario..." /></div>
+              <div className="space-y-2"><label className="field-label">Descripción adicional</label><Textarea rows={2} value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} /></div>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input type="checkbox" checked={form.activa} onChange={(e) => setForm((f) => ({ ...f, activa: e.target.checked }))} className="rounded border-border" /> Vacante activa (visible para el bot)
               </label>

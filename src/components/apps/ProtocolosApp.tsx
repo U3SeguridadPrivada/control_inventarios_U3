@@ -271,30 +271,30 @@ export default function ProtocolosApp() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Título</label>
+                <label className="field-label">Título</label>
                 <Input value={form.titulo} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} placeholder="Ej. Respuesta ante intento de robo" required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Categoría</label>
+                  <label className="field-label">Categoría</label>
                   <Select value={form.categoria} onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}>
                     {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Prioridad</label>
+                  <label className="field-label">Prioridad</label>
                   <Select value={form.prioridad} onChange={(e) => setForm((f) => ({ ...f, prioridad: e.target.value }))}>
                     {PRIORIDADES.map((p) => <option key={p} value={p}>{p}</option>)}
                   </Select>
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Descripción / cuándo aplica</label>
+                <label className="field-label">Descripción / cuándo aplica</label>
                 <Textarea value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} rows={2} />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Pasos</label>
+                <label className="field-label">Pasos</label>
                 <div className="space-y-2">
                   {form.pasos.map((paso, i) => (
                     <div key={i} className="flex items-start gap-2">

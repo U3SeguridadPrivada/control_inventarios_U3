@@ -1,4 +1,5 @@
 'use client';
+import { fechaMexico } from '@/src/lib/fecha';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/src/lib/api';
@@ -6,9 +7,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
-import { MESES } from '@/src/components/ui/rango-fechas';
 import { Badge } from '@/src/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
+import { PageHeader } from '@/src/components/ui/page-header';
+import { SegmentedTabs } from '@/src/components/ui/tabs';
+import { Avatar } from '@/src/components/ui/avatar';
+import { Field, FieldGrid, FormSection, InputGroup, Callout } from '@/src/components/ui/field';
+import { FormDialog, ConfirmDialog } from '@/src/components/ui/form-dialog';
+import { ProgressRing } from '@/src/components/ui/progress-ring';
+import { TarjetaPersona, datosFicha, variantEstado, puntoEstado } from '@/src/components/personal/TarjetaPersona';
+import { Select } from '@/src/components/ui/select';
 import {
   Search,
   UserPlus,
@@ -37,25 +44,29 @@ import {
   FileCheck,
   Building2,
   Clock,
-  Sparkles,
   ChevronRight,
-  Maximize2
+  Maximize2,
+  X
 } from 'lucide-react';
 import { fmtDate, cn } from '@/src/lib/utils';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
 import MachoteFichaTecnica from '@/src/components/machotes/MachoteFichaTecnica';
 import GuardiaPerfil from './GuardiaPerfil';
+import { IdentidadPersonal } from '@/src/components/forms/IdentidadPersonal';
+import { FICHA_EXTRA_VACIA, extraerFichaExtra, type FichaExtraValores } from './administrativos/FichaExtraEditor';
+import { unirNombreCompleto, validarNSS } from '@/src/lib/rfcCurp';
 
 function imprimirExpediente(guardia: any, salidas: any[], entradas: any[]) {
+  salidas = salidas.filter(s => !s.anulado); entradas = entradas.filter(e => !e.anulado);
   const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
-  const enPosesion = salidas.filter(s => s.estado_asignacion === 'Uniforme en Campo');
+  const enPosesion = salidas.filter(s => !s.anulado).filter(s => s.estado_asignacion === 'Uniforme en Campo');
   const saldoMap: Record<string, number> = {};
   enPosesion.forEach(s => { const key = `${s.articulo}${s.talla ? ` (Talla: ${s.talla})` : ''}`; saldoMap[key] = (saldoMap[key] || 0) + s.cantidad; });
   const dotacion = salidas.filter(s => s.concepto === 'Uniforme en Campo' || s.concepto === 'Asignación');
   const reposicion = salidas.filter(s => s.concepto === 'Reposición');
-  const extravios = salidas.filter(s => s.concepto === 'Extravío' || s.concepto === 'Inutilizable');
-  const recuperados = entradas.filter(e => e.motivo === 'Recuperado');
+  const extravios = salidas.filter(s => s.estado_asignacion === 'Extraviado' || s.concepto === 'Extravío');
+  const recuperados = entradas.filter(e => !e.anulado).filter(e => e.motivo === 'Recuperado');
   const reposicionEntradas = entradas.filter(e => e.motivo === 'Reposición (Entrada Múltiple)');
   const totalDotaciones = dotacion.reduce((a: number, s: any) => a + s.cantidad, 0);
   const totalReposiciones = reposicion.reduce((a: number, s: any) => a + s.cantidad, 0);
@@ -94,9 +105,9 @@ function imprimirExpediente(guardia: any, salidas: any[], entradas: any[]) {
   <div class="section-title">I. Dotación inicial</div>
   ${dotacion.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Estado')}<tbody>${dotacion.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.estado_fisico||'Nuevo'}</td></tr>`).join('')}</tbody></table>`}
   <div class="section-title">II. Equipo repuesto</div>
-  ${reposicion.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Estado devuelto → Entregado')}<tbody>${reposicion.map((item: any, idx: number) => { const matched = reposicionEntradas.find((e: any) => e.articulo === item.articulo && e.fecha === item.fecha); const devuelto = matched?.estado || '—'; return `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>Devolvió: <strong>${devuelto}</strong> → Recibió: <strong>${item.estado_fisico||'Nuevo'}</strong></td></tr>`; }).join('')}</tbody></table>`}
+  ${reposicion.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Estado devuelto → Entregado')}<tbody>${reposicion.map((item: any, idx: number) => { const matched = item.operacion_id && item.salida_origen_id ? reposicionEntradas.find((e: any) => e.operacion_id === item.operacion_id && e.salida_origen_id === item.salida_origen_id) : undefined; const devuelto = matched?.estado || '—'; return `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>Devolvió: <strong>${devuelto}</strong> → Recibió: <strong>${item.estado_fisico||'Nuevo'}</strong></td></tr>`; }).join('')}</tbody></table>`}
   <div class="section-title">III. Pérdidas y extravíos</div>
-  ${extravios.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Tipo')}<tbody>${extravios.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.concepto||'Extravío'}</td></tr>`).join('')}</tbody></table>`}
+  ${extravios.length === 0 ? '<p style="color:#6b7280;font-size:11px">Sin registros.</p>' : `<table>${mkHeader('Tipo')}<tbody>${extravios.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.estado_asignacion === 'Extraviado' ? 'Extravío' : (item.concepto||'Extravío')}</td></tr>`).join('')}</tbody></table>`}
   ${recuperados.length === 0 ? '' : `<div class="section-title">IV. Equipo recuperado</div><table>${mkHeader('Estado al recuperar')}<tbody>${recuperados.map((item: any, idx: number) => `<tr><td style="text-align:center">${idx+1}</td><td>${fmtDate(item.fecha)}</td><td><strong>${item.articulo}</strong></td><td style="text-align:center">${item.talla||'—'}</td><td style="text-align:center">${item.cantidad}</td><td>${item.estado||'—'}</td></tr>`).join('')}</tbody></table>`}
   <div class="saldo-box">
     <div class="saldo-title">Saldo Actual en Posesión</div>
@@ -229,29 +240,18 @@ function MenuContextualGuardia({
   );
 }
 
-/** Campo de una sola línea para el alta rápida: label diminuto + input bajo,
- *  pensado para que quepan muchos en una cuadrícula sin forzar scroll. */
-function CampoCompacto({
-  label, value, onChange, placeholder, className,
-}: {
-  label: string;
-  value: string;
-  onChange: (val: string) => void;
-  placeholder?: string;
-  className?: string;
-}) {
-  return (
-    <div className={cn('space-y-0.5', className)}>
-      <label className="text-[11px] font-semibold text-muted-foreground truncate block">{label}</label>
-      <Input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="rounded-lg h-9"
-      />
-    </div>
-  );
-}
+// El orden importa: la identidad (nombre por partes, nacimiento, sexo, lugar de nacimiento) va primero
+// porque de ella salen la CURP y el RFC.
+const SECCIONES_ALTA = [
+  { id: 'alta-identidad', label: 'Identidad' },
+  { id: 'alta-empresa', label: 'Alta en la empresa' },
+  { id: 'alta-contacto', label: 'Contacto' },
+  { id: 'alta-personales', label: 'Datos personales' },
+  { id: 'alta-domicilio', label: 'Domicilio' },
+] as const;
+
+const OPCIONES_ESTADO_CIVIL = ['Soltero(a)', 'Casado(a)', 'Unión libre', 'Divorciado(a)', 'Viudo(a)'];
+const OPCIONES_ESTUDIOS = ['Primaria', 'Secundaria', 'Preparatoria', 'Técnico', 'Licenciatura', 'Posgrado'];
 
 export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: number } = {}) {
   const { isEditor, isAdmin } = useAuth();
@@ -259,7 +259,23 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
   const [selectedGuardiaId, setSelectedGuardiaId] = useState<number | null>(initialGuardiaId || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState<'Todos' | 'Activo' | 'Baja Pendiente' | 'En Baja'>('Todos');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  // El proceso de baja deja al guardia en "Baja Definitiva"; el filtro "En Baja" debe incluirlo
+  // (antes solo veía el estado manual "En Baja" y los guardias con baja completada desaparecían
+  // de todos los filtros salvo "Todos").
+  const coincideEstado = (g: any, est: string) =>
+    est === 'Todos' || g.estado === est || (est === 'En Baja' && g.estado === 'Baja Definitiva');
+  // La vista elegida (tarjetas o tabla) se recuerda entre visitas.
+  const [viewMode, setViewModeState] = useState<'cards' | 'table'>('cards');
+  useEffect(() => {
+    try {
+      const guardada = localStorage.getItem('u3_guardias_vista');
+      if (guardada === 'cards' || guardada === 'table') setViewModeState(guardada);
+    } catch { /* sin almacenamiento: queda en tarjetas */ }
+  }, []);
+  const setViewMode = (vista: 'cards' | 'table') => {
+    setViewModeState(vista);
+    try { localStorage.setItem('u3_guardias_vista', vista); } catch { /* solo no se recuerda */ }
+  };
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -276,38 +292,25 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
 
   // Registration States
   const [numeroElemento, setNumeroElemento] = useState('');
-  const [nombre, setNombre] = useState('');
-  const [fechaAlta, setFechaAlta] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaAlta, setFechaAlta] = useState(fechaMexico());
   const [telefono, setTelefono] = useState('');
 
-  // Datos personales y domicilio del alta rápida: mismas llaves que la Ficha
-  // Técnica oficial, para que al abrirla después ya vengan precargados.
-  const FICHA_EXTRA_VACIA = {
-    fechaNacimiento: '', edad: '', estadoCivil: '', estudios: '', rfc: '', curp: '', imss: '',
-    sexo: '', estatura: '', peso: '',
-    calleNumero: '', colonia: '', entreCalles: '', cp: '', delegacionMunicipio: '', estado: '',
-    tiempoResidencia: '', tiempoRadicarEstado: '', telefonoEmergencia: '', celular: '',
-  };
-  const [fichaExtra, setFichaExtra] = useState(FICHA_EXTRA_VACIA);
-  const actualizarFichaExtra = (campo: keyof typeof FICHA_EXTRA_VACIA, valor: string) =>
+  // Identidad, datos personales y domicilio del alta rápida: mismas llaves que la Ficha
+  // Técnica oficial, para que al abrirla después ya vengan precargados. El nombre se
+  // captura por partes (nombre(s) y apellidos); `nombre` en la tabla es la unión de ellas.
+  const [fichaExtra, setFichaExtra] = useState<FichaExtraValores>(FICHA_EXTRA_VACIA);
+  const actualizarFichaExtra = (campo: keyof FichaExtraValores, valor: string) =>
     setFichaExtra((f) => ({ ...f, [campo]: valor }));
-
-  // Fecha de nacimiento con el mes en letra ("15 de marzo de 1998"): un
-  // calendario emergente es incómodo para saltar décadas atrás, así que se
-  // captura como tres campos sueltos y se compone al guardar.
-  const [diaNac, setDiaNac] = useState('');
-  const [mesNac, setMesNac] = useState('');
-  const [anioNac, setAnioNac] = useState('');
-  const fechaNacimientoTexto = diaNac && mesNac && anioNac ? `${diaNac} de ${mesNac} de ${anioNac}` : '';
+  const nombreAlta = unirNombreCompleto(fichaExtra);
 
   // Selected Guardia & Baja States
   const [selectedGuardia, setSelectedGuardia] = useState<any>(null);
-  const [fechaBaja, setFechaBaja] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaBaja, setFechaBaja] = useState(fechaMexico());
 
   // Editing States
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editNumeroElemento, setEditNumeroElemento] = useState('');
-  const [editNombre, setEditNombre] = useState('');
+  const [editFichaExtra, setEditFichaExtra] = useState<FichaExtraValores>(FICHA_EXTRA_VACIA);
   const [editFechaAlta, setEditFechaAlta] = useState('');
   const [editTelefono, setEditTelefono] = useState('');
   const [editDireccion, setEditDireccion] = useState('');
@@ -328,12 +331,8 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
       toast.success('Guardia registrado con éxito');
       setIsModalOpen(false);
       setNumeroElemento('');
-      setNombre('');
       setTelefono('');
       setFichaExtra(FICHA_EXTRA_VACIA);
-      setDiaNac('');
-      setMesNac('');
-      setAnioNac('');
     },
     onError: () => toast.error('Error al registrar (¿Número duplicado?)'),
   });
@@ -351,14 +350,14 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
 
   const bajaMutation = useMutation({
     mutationFn: (payload: { id: number, fecha: string }) =>
-      apiFetch(`/api/guardias/${payload.id}/baja`, { method: 'POST', body: JSON.stringify({ fecha: payload.fecha }) }),
-    onSuccess: () => {
+      apiFetch<any>(`/api/guardias/${payload.id}/baja`, { method: 'POST', body: JSON.stringify({ fecha: payload.fecha }) }),
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['guardias'] });
-      queryClient.invalidateQueries({ queryKey: ['bajas'] });
-      toast.success('Proceso de baja iniciado');
+      ['bajas', 'salidas', 'inventario', 'uniformesCampo', 'dashboardMetrics'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
+      toast.success(data?.estado_general === 'Completada' ? 'Baja registrada: el guardia no tenía equipo pendiente' : 'Proceso de baja iniciado');
       setIsBajaModalOpen(false);
     },
-    onError: () => toast.error('Error al procesar la baja'),
+    onError: (err: any) => toast.error(err.message || 'Error al procesar la baja'),
   });
 
   const deleteMutation = useMutation({
@@ -374,8 +373,8 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
   });
 
   const startEdit = (guardia: any) => {
-    setEditNombre(guardia.nombre);
-    setEditNumeroElemento(guardia.numero_elemento);
+    setEditFichaExtra(extraerFichaExtra(guardia.ficha_tecnica_json, guardia.nombre));
+    setEditNumeroElemento(guardia.numero_elemento || '');
     setEditFechaAlta(guardia.fecha_alta ? guardia.fecha_alta.split('T')[0] : '');
     setEditTelefono(guardia.telefono || '');
     setEditDireccion(guardia.direccion || '');
@@ -405,7 +404,7 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
         (g.telefono || '').toLowerCase().includes(term);
 
       const matchEstado =
-        filterEstado === 'Todos' || g.estado === filterEstado;
+        coincideEstado(g, filterEstado);
 
       return matchSearch && matchEstado;
     });
@@ -416,76 +415,57 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
     return <GuardiaPerfil id={selectedGuardiaId} onVolver={() => setSelectedGuardiaId(null)} />;
   }
 
-  // Auth token for inline PDF preview
-  const authToken = typeof window !== 'undefined' ? localStorage.getItem('inv_token') : '';
+  const filtros = (['Todos', 'Activo', 'Baja Pendiente', 'En Baja'] as const).map((est) => ({
+    value: est,
+    label: est === 'Todos' ? 'Todos' : est === 'Activo' ? 'Activos' : est === 'Baja Pendiente' ? 'Baja pendiente' : 'En baja',
+    count: guardias.filter((g: any) => coincideEstado(g, est)).length,
+  }));
+
+  // Resumen vivo del alta: cuanto de la ficha se ha capturado hasta ahora.
+  const camposAlta = [numeroElemento, telefono, ...Object.values(fichaExtra)];
+  const totalCamposAlta = camposAlta.length;
+  const capturadosAlta = camposAlta.filter((v) => String(v ?? '').trim() !== '').length;
+  const avanceAlta = Math.round((capturadosAlta / totalCamposAlta) * 100);
+
+  // El NSS mide 11 dígitos; mientras se escribe no se avisa, solo cuando ya se pasó.
+  const nss = fichaExtra.imss.replace(/\D/g, '').length > 11 ? validarNSS(fichaExtra.imss) : null;
+  const errorNss = nss && !nss.ok ? nss.motivo : undefined;
+
+  const irASeccion = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      {/* Top Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card/60 backdrop-blur-sm p-5 rounded-2xl border border-border shadow-sm">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
-              <Shield className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground">
-                Personal de Guardias
-              </h1>
-              <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
-                Directorio operativo, perfiles completos, expedientes con documentos y fichas técnicas editables en PDF.
-              </p>
-            </div>
-          </div>
-        </div>
+    <div className="space-y-5 pb-10">
+      <PageHeader
+        title="Guardias"
+        description="Directorio operativo, expedientes con documentos y fichas técnicas del personal de seguridad."
+        actions={
+          <>
+            <SegmentedTabs
+              ariaLabel="Tipo de vista"
+              value={viewMode}
+              onChange={setViewMode}
+              items={[
+                { value: 'cards', label: 'Tarjetas', icon: LayoutGrid },
+                { value: 'table', label: 'Tabla', icon: List },
+              ]}
+            />
+            {isEditor && (
+              <Button onClick={() => setIsModalOpen(true)} className="h-10">
+                <UserPlus className="h-4 w-4" /> Nuevo guardia
+              </Button>
+            )}
+          </>
+        }
+      />
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Toggle View Mode */}
-          <div className="inline-flex items-center rounded-xl bg-muted/60 p-1 border border-border">
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'cards'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              title="Vista en Tarjetas de Perfil"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" /> Tarjetas
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'table'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              title="Vista en Tabla Compacta"
-            >
-              <List className="w-3.5 h-3.5" /> Tabla
-            </button>
-          </div>
-
-          {isEditor && (
-            <Button
-              onClick={() => setIsModalOpen(true)}
-              className="shadow-sm font-semibold rounded-xl"
-            >
-              <UserPlus className="w-4 h-4 mr-2" /> Nuevo Guardia
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 max-w-md w-full relative">
-          <Search className="w-4 h-4 absolute left-3.5 text-muted-foreground pointer-events-none" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SegmentedTabs ariaLabel="Filtrar por estado" value={filterEstado} onChange={setFilterEstado} items={filtros} />
+        <div className="relative w-full sm:max-w-xs">
+          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nombre, número de elemento o teléfono..."
-            className="pl-10 h-10 rounded-xl bg-card"
+            aria-label="Buscar guardias"
+            placeholder="Buscar por nombre, elemento o teléfono"
+            className="h-10 pl-9 pr-9"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
@@ -493,351 +473,123 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
             <button
               type="button"
               onClick={() => setSearchTerm('')}
-              className="absolute right-3 text-xs text-muted-foreground hover:text-foreground"
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              Limpiar
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
-
-        {/* Status Pill Filters */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scroll-touch">
-          {(['Todos', 'Activo', 'Baja Pendiente', 'En Baja'] as const).map(est => {
-            const count = est === 'Todos' ? guardias.length : guardias.filter((g: any) => g.estado === est).length;
-            const isSelected = filterEstado === est;
-            return (
-              <button
-                key={est}
-                type="button"
-                onClick={() => setFilterEstado(est)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border ${
-                  isSelected
-                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                    : 'bg-card text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground'
-                }`}
-              >
-                <span>{est}</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isSelected ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
-      {/* Main Content: Cards or Table */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
-          <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-          <p className="text-sm font-medium text-muted-foreground">Cargando catálogo de guardias...</p>
+        <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+          <RefreshCw className="h-7 w-7 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">Cargando guardias...</p>
         </div>
       ) : filteredData.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 bg-card border border-border border-dashed rounded-2xl text-center p-6">
-          <User className="w-12 h-12 text-muted-foreground/40 mb-3" />
-          <h3 className="text-base font-bold text-foreground">No se encontraron guardias</h3>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-sm">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+            <User className="h-6 w-6" />
+          </span>
+          <h3 className="mt-4 text-base font-bold text-foreground">No se encontraron guardias</h3>
+          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
             {searchTerm
-              ? 'No hay resultados que coincidan con la búsqueda. Intenta con otro nombre o número.'
-              : 'Aún no hay guardias registrados con este filtro.'}
+              ? 'Ningún guardia coincide con la búsqueda. Prueba con otro nombre o número.'
+              : 'Todavía no hay guardias registrados con este filtro.'}
           </p>
           {isEditor && (
-            <Button onClick={() => setIsModalOpen(true)} size="sm" className="mt-4">
-              <UserPlus className="w-4 h-4 mr-1.5" /> Registrar Primer Guardia
+            <Button onClick={() => setIsModalOpen(true)} className="mt-5">
+              <UserPlus className="h-4 w-4" /> Registrar guardia
             </Button>
           )}
         </div>
       ) : viewMode === 'cards' ? (
-        /* ================= CARDS VIEW (Tarjetas del perfil del guardia) ================= */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {filteredData.map((item: any) => {
-            let hasFicha = false;
-            let fotoUrl: string | null = null;
-            if (item.ficha_tecnica_json) {
-              try {
-                const parsed = JSON.parse(item.ficha_tecnica_json);
-                hasFicha = true;
-                fotoUrl = parsed.fotoUrl || null;
-              } catch {}
-            }
-
-            const initials = item.nombre
-              ? item.nombre
-                  .split(' ')
-                  .filter(Boolean)
-                  .slice(0, 2)
-                  .map((w: string) => w[0])
-                  .join('')
-                  .toUpperCase()
-              : 'G';
-
-            const isActivo = item.estado === 'Activo';
-            const isBajaPendiente = item.estado === 'Baja Pendiente';
-            const isEnBaja = item.estado === 'En Baja';
-
-            return (
-              <div
-                key={item.id}
-                onContextMenu={(e) => abrirMenuContextual(e, item)}
-                className="group relative bg-card hover:bg-card/90 border border-border/80 hover:border-primary/50 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
-              >
-                <div>
-                  {/* Card Top: Photo/Initials + Badges */}
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-3">
-                      {/* Avatar / Photo */}
-                      <div className="relative flex-shrink-0">
-                        {fotoUrl ? (
-                          <img
-                            src={fotoUrl}
-                            alt={item.nombre}
-                            className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl object-cover border-2 border-primary/20 shadow-sm group-hover:scale-105 transition-transform"
-                          />
-                        ) : (
-                          <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-muted border-2 border-primary/20 flex items-center justify-center text-primary font-black text-lg tracking-wider shadow-sm group-hover:scale-105 transition-transform">
-                            {initials}
-                          </div>
-                        )}
-                        <span
-                          className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-card ${
-                            isActivo ? 'bg-emerald-500 ring-2 ring-emerald-500/20' : isBajaPendiente ? 'bg-amber-500' : 'bg-red-500'
-                          }`}
-                          title={`Estado: ${item.estado}`}
-                        />
-                      </div>
-
-                      {/* Header Info */}
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                            {item.numero_elemento || 'Sin folio'}
-                          </span>
-                        </div>
-                        <h2
-                          onClick={() => openPerfil(item, 'datos')}
-                          className="font-bold text-foreground text-base mt-1 line-clamp-1 group-hover:text-primary cursor-pointer transition-colors"
-                          title={item.nombre}
-                        >
-                          {item.nombre}
-                        </h2>
-                      </div>
-                    </div>
-
-                    {/* Status Badge */}
-                    <div>
-                      <Badge
-                        variant={isActivo ? 'success' : isBajaPendiente ? 'destructive' : 'secondary'}
-                        className="text-[11px] font-semibold tracking-wide"
-                      >
-                        {item.estado}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Contact & General Details */}
-                  <div className="space-y-2 py-2 border-t border-border/60 text-xs text-muted-foreground">
-                    {item.telefono ? (
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-3.5 h-3.5 text-primary/80 flex-shrink-0" />
-                        <a
-                          href={`tel:${item.telefono}`}
-                          className="hover:text-primary transition-colors truncate"
-                          title="Llamar al guardia"
-                        >
-                          {item.telefono}
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-muted-foreground/60 italic">
-                        <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>Sin teléfono registrado</span>
-                      </div>
-                    )}
-
-                    {item.direccion ? (
-                      <div className="flex items-start gap-2">
-                        <MapPin className="w-3.5 h-3.5 text-primary/80 flex-shrink-0 mt-0.5" />
-                        <span className="line-clamp-1" title={item.direccion}>
-                          {item.direccion}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-muted-foreground/60 italic">
-                        <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>Sin dirección registrada</span>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5 text-primary/80 flex-shrink-0" />
-                      <span>Alta: {fmtDate(item.fecha_alta)}</span>
-                    </div>
-                  </div>
-
-                  {/* Ficha Técnica Status Pill */}
-                  <div className="mt-2.5">
-                    {hasFicha ? (
-                      <div
-                        onClick={() => openPerfil(item, 'ficha')}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-medium cursor-pointer hover:bg-emerald-500/20 transition-colors w-full"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                        <span className="truncate">Ficha Técnica en PDF Guardada</span>
-                      </div>
-                    ) : (
-                      <div
-                        onClick={() => openPerfil(item, 'editFicha')}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 text-[11px] font-medium cursor-pointer hover:bg-amber-500/20 transition-colors w-full"
-                      >
-                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                        <span className="truncate">Ficha Técnica pendiente de llenar</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card Footer Actions */}
-                <div className="pt-4 mt-3 border-t border-border/60 flex items-center justify-between gap-2">
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="flex-1 h-9 rounded-xl font-semibold text-xs shadow-sm"
-                    onClick={() => openPerfil(item, 'datos')}
-                  >
-                    <User className="w-3.5 h-3.5 mr-1.5" /> Ver Perfil
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 px-2.5 rounded-xl text-xs"
-                    onClick={() => openPerfil(item, 'ficha')}
-                    title="Ver Ficha Técnica en PDF"
-                  >
-                    <IdCard className="w-4 h-4 text-primary" />
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 px-2.5 rounded-xl text-xs"
-                    onClick={() => descargarFichaPdf(item.id, item.numero_elemento)}
-                    title="Descargar Ficha Técnica en PDF"
-                  >
-                    <Download className="w-4 h-4" />
-                  </Button>
-
-                  {isEditor && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 px-2.5 rounded-xl text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => startEdit(item)}
-                      title="Editar Datos Generales"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filteredData.map((item: any) => (
+            <TarjetaPersona
+              key={item.id}
+              nombre={item.nombre}
+              codigo={item.numero_elemento}
+              codigoEtiqueta="Elemento"
+              estado={item.estado}
+              telefono={item.telefono}
+              direccion={item.direccion}
+              fechaAlta={item.fecha_alta}
+              fichaTecnicaJson={item.ficha_tecnica_json}
+              isEditor={isEditor}
+              onPerfil={() => openPerfil(item, 'datos')}
+              onFicha={() => openPerfil(item, 'ficha')}
+              onEditarFicha={() => openPerfil(item, 'editFicha')}
+              onDescargar={() => descargarFichaPdf(item.id, item.numero_elemento)}
+              onEditar={() => startEdit(item)}
+              onContextMenu={(e) => abrirMenuContextual(e, item)}
+            />
+          ))}
         </div>
       ) : (
-        /* ================= TABLE VIEW ================= */
-        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Número</TableHead>
-                <TableHead>Nombre del Guardia</TableHead>
+                <TableHead>Guardia</TableHead>
                 <TableHead>Contacto</TableHead>
-                <TableHead>Fecha Alta</TableHead>
+                <TableHead>Alta</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Ficha Técnica</TableHead>
+                <TableHead>Ficha técnica</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredData.map((item: any) => {
-                const hasFicha = !!item.ficha_tecnica_json;
+                const { hasFicha, fotoUrl } = datosFicha(item);
                 return (
-                  <TableRow key={item.id} onContextMenu={(e) => abrirMenuContextual(e, item)} className="hover:bg-muted/30">
-                    <TableCell className="font-mono font-bold text-primary">
-                      {item.numero_elemento || 'Sin folio'}
+                  <TableRow key={item.id} onContextMenu={(e) => abrirMenuContextual(e, item)}>
+                    <TableCell>
+                      <button type="button" onClick={() => openPerfil(item, 'datos')} className="flex items-center gap-3 text-left">
+                        <Avatar name={item.nombre} src={fotoUrl} size="sm" shape="rounded" status={puntoEstado(item.estado)} />
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-foreground transition-colors hover:text-primary">{item.nombre}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {item.numero_elemento ? `Elemento ${item.numero_elemento}` : 'Sin número de elemento'}
+                          </span>
+                        </span>
+                      </button>
                     </TableCell>
                     <TableCell>
-                      <div
-                        onClick={() => openPerfil(item, 'datos')}
-                        className="font-medium text-foreground hover:text-primary cursor-pointer transition-colors"
-                      >
-                        {item.nombre}
+                      <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+                        {item.telefono && <span className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> {item.telefono}</span>}
+                        {item.direccion && (
+                          <span className="flex max-w-[220px] items-center gap-1.5" title={item.direccion}>
+                            <MapPin className="h-3 w-3 shrink-0" /> <span className="truncate">{item.direccion}</span>
+                          </span>
+                        )}
+                        {!item.telefono && !item.direccion && <span className="italic text-muted-foreground/70">Sin datos de contacto</span>}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="text-xs text-muted-foreground flex flex-col gap-0.5">
-                        {item.telefono && <span>📞 {item.telefono}</span>}
-                        {item.direccion && <span className="truncate max-w-[200px]" title={item.direccion}>📍 {item.direccion}</span>}
-                        {!item.telefono && !item.direccion && <span className="italic">—</span>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs">{fmtDate(item.fecha_alta)}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={item.estado === 'Activo' ? 'success' : item.estado === 'En Baja' || item.estado === 'Baja Pendiente' ? 'destructive' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {item.estado}
-                      </Badge>
-                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{fmtDate(item.fecha_alta)}</TableCell>
+                    <TableCell><Badge variant={variantEstado(item.estado)} dot>{item.estado}</Badge></TableCell>
                     <TableCell>
                       {hasFicha ? (
-                        <span className="inline-flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> PDF Listo
-                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Lista</span>
                       ) : (
-                        <span className="inline-flex items-center text-xs text-amber-600 dark:text-amber-400">
-                          <AlertCircle className="w-3.5 h-3.5 mr-1" /> Pendiente
-                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700"><AlertCircle className="h-3.5 w-3.5" /> Pendiente</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end items-center gap-1.5">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="h-8 rounded-lg text-xs"
-                          onClick={() => openPerfil(item, 'datos')}
-                        >
-                          <Eye className="w-3.5 h-3.5 mr-1" /> Perfil
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="soft" size="sm" onClick={() => openPerfil(item, 'datos')}>
+                          <Eye className="h-3.5 w-3.5" /> Perfil
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 rounded-lg text-xs text-primary font-medium"
-                          onClick={() => openPerfil(item, 'ficha')}
-                          title="Ficha Técnica en PDF"
-                        >
-                          <IdCard className="w-3.5 h-3.5 mr-1" /> Ficha
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openPerfil(item, 'ficha')} title="Ficha técnica en PDF" aria-label="Ficha técnica en PDF">
+                          <IdCard className="h-4 w-4 text-primary" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 rounded-lg text-muted-foreground"
-                          onClick={() => descargarFichaPdf(item.id, item.numero_elemento)}
-                          title="Descargar PDF"
-                        >
-                          <Download className="w-3.5 h-3.5" />
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => descargarFichaPdf(item.id, item.numero_elemento)} title="Descargar PDF" aria-label="Descargar PDF">
+                          <Download className="h-4 w-4" />
                         </Button>
                         {isEditor && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 rounded-lg text-muted-foreground"
-                            onClick={() => startEdit(item)}
-                            title="Editar Datos"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => startEdit(item)} title="Editar datos" aria-label="Editar datos">
+                            <Edit className="h-4 w-4" />
                           </Button>
                         )}
                       </div>
@@ -858,348 +610,285 @@ export default function GuardiasApp({ initialGuardiaId }: { initialGuardiaId?: n
           onCerrar={() => setCtxMenu(null)}
           onVerPerfil={(g) => openPerfil(g, 'datos')}
           onEditar={(g) => startEdit(g)}
-          onDarBaja={(g) => { setSelectedGuardia(g); setFechaBaja(new Date().toISOString().split('T')[0]); setIsBajaModalOpen(true); }}
+          onDarBaja={(g) => { setSelectedGuardia(g); setFechaBaja(fechaMexico()); setIsBajaModalOpen(true); }}
           onEliminar={(g) => { setSelectedGuardia(g); setIsDeleteModalOpen(true); }}
         />
       )}
 
+      {/* ================= FORMULARIO: REGISTRAR NUEVO GUARDIA ================= */}
+      <FormDialog
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        size="xl"
+        icon={UserPlus}
+        title="Registrar nuevo guardia"
+        description="Datos iniciales del elemento para habilitar su expediente, dotaciones y ficha técnica."
+        submitLabel="Guardar guardia"
+        submitting={createMutation.isPending}
+        footerNote={<span><span className="text-destructive">*</span> Campo obligatorio</span>}
+        onSubmit={() =>
+          createMutation.mutate({
+            numero_elemento: numeroElemento,
+            nombre: nombreAlta,
+            fecha_alta: fechaAlta,
+            telefono,
+            ...fichaExtra,
+          })
+        }
+        aside={
+          <div className="space-y-5">
+            <div className="rounded-xl border border-border bg-card p-4 text-center shadow-xs">
+              {nombreAlta ? (
+                <Avatar name={nombreAlta} size="xl" shape="rounded" className="mx-auto" />
+              ) : (
+                <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <UserPlus className="h-8 w-8" />
+                </span>
+              )}
+              <p className="mt-3 truncate text-sm font-bold text-foreground">{nombreAlta || 'Nuevo guardia'}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{numeroElemento ? `Elemento ${numeroElemento}` : 'Número por asignar'}</p>
+              <p className="text-xs text-muted-foreground">Alta: {fmtDate(fechaAlta)}</p>
+            </div>
 
-      {/* ================= MODAL REGISTRAR NUEVO GUARDIA ================= */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen} className="max-w-6xl">
-        <DialogContent className="rounded-2xl">
-          <form
-            onSubmit={e => {
-              e.preventDefault();
-              createMutation.mutate({
-                numero_elemento: numeroElemento,
-                nombre,
-                fecha_alta: fechaAlta,
-                telefono,
-                ...fichaExtra,
-                fechaNacimiento: fechaNacimientoTexto,
-              });
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-primary" /> Registrar Nuevo Guardia
-              </DialogTitle>
-              <DialogDescription>
-                Añade los datos iniciales del elemento para habilitar su expediente, dotaciones y ficha técnica.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="py-3 space-y-3">
-              {/* ---------- Datos básicos ---------- */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="space-y-0.5 col-span-2">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Nombre Completo</label>
-                  <Input
-                    value={nombre}
-                    onChange={e => setNombre(e.target.value)}
-                    placeholder="Nombre y apellidos"
-                    required
-                    className="rounded-lg h-9"
-                  />
-                </div>
-                <div className="space-y-0.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">No. Elemento (opcional)</label>
-                  <Input
-                    value={numeroElemento}
-                    onChange={e => setNumeroElemento(e.target.value)}
-                    placeholder="Asignable después"
-                    className="rounded-lg h-9"
-                  />
-                </div>
-                <div className="space-y-0.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Fecha de Alta</label>
-                  <Input
-                    type="date"
-                    value={fechaAlta}
-                    onChange={e => setFechaAlta(e.target.value)}
-                    required
-                    className="rounded-lg h-9"
-                  />
-                </div>
-                <div className="space-y-0.5 col-span-2 sm:col-span-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Teléfono de Contacto</label>
-                  <Input
-                    value={telefono}
-                    onChange={e => setTelefono(e.target.value)}
-                    placeholder="Ej. 5512345678"
-                    className="rounded-lg h-9"
-                  />
-                </div>
-                <div className="space-y-0.5 col-span-2">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Fecha de Nacimiento</label>
-                  <div className="grid grid-cols-[1fr_1.6fr_1fr] gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={31}
-                      value={diaNac}
-                      onChange={e => setDiaNac(e.target.value)}
-                      placeholder="Día"
-                      className="rounded-lg h-9"
-                    />
-                    <select
-                      value={mesNac}
-                      onChange={e => setMesNac(e.target.value)}
-                      className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
-                    >
-                      <option value="">Mes</option>
-                      {MESES.map((m) => (
-                        <option key={m} value={m} className="capitalize">{m}</option>
-                      ))}
-                    </select>
-                    <Input
-                      type="number"
-                      min={1940}
-                      max={new Date().getFullYear()}
-                      value={anioNac}
-                      onChange={e => setAnioNac(e.target.value)}
-                      placeholder="Año"
-                      className="rounded-lg h-9"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* ---------- Datos Personales y Domicilio: una sola cuadrícula compacta ---------- */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Datos Personales</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <CampoCompacto label="Edad" value={fichaExtra.edad} onChange={v => actualizarFichaExtra('edad', v)} placeholder="Ej. 35" />
-                  <CampoCompacto label="Sexo" value={fichaExtra.sexo} onChange={v => actualizarFichaExtra('sexo', v)} placeholder="Masculino / Femenino" />
-                  <CampoCompacto label="Estado Civil" value={fichaExtra.estadoCivil} onChange={v => actualizarFichaExtra('estadoCivil', v)} placeholder="Soltero / Casado" />
-                  <CampoCompacto label="Estudios" value={fichaExtra.estudios} onChange={v => actualizarFichaExtra('estudios', v)} placeholder="Nivel académico" />
-                  <CampoCompacto label="RFC" value={fichaExtra.rfc} onChange={v => actualizarFichaExtra('rfc', v.toUpperCase())} placeholder="13 posiciones" className="uppercase" />
-                  <CampoCompacto label="CURP" value={fichaExtra.curp} onChange={v => actualizarFichaExtra('curp', v.toUpperCase())} placeholder="18 posiciones" className="uppercase" />
-                  <CampoCompacto label="Afiliación IMSS" value={fichaExtra.imss} onChange={v => actualizarFichaExtra('imss', v)} placeholder="NSS 11 dígitos" />
-                  <CampoCompacto label="Estatura" value={fichaExtra.estatura} onChange={v => actualizarFichaExtra('estatura', v)} placeholder="Ej. 1.75 m" />
-                  <CampoCompacto label="Peso Aproximado" value={fichaExtra.peso} onChange={v => actualizarFichaExtra('peso', v)} placeholder="Ej. 78 kg" />
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-border">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Domicilio</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <CampoCompacto label="Calle y Número" value={fichaExtra.calleNumero} onChange={v => actualizarFichaExtra('calleNumero', v)} placeholder="Calle, no. ext. e int." className="col-span-2" />
-                  <CampoCompacto label="Colonia" value={fichaExtra.colonia} onChange={v => actualizarFichaExtra('colonia', v)} placeholder="Colonia / fracc." />
-                  <CampoCompacto label="C.P." value={fichaExtra.cp} onChange={v => actualizarFichaExtra('cp', v)} placeholder="Código postal" />
-                  <CampoCompacto label="Entre las Calles" value={fichaExtra.entreCalles} onChange={v => actualizarFichaExtra('entreCalles', v)} placeholder="Calles aledañas" className="col-span-2" />
-                  <CampoCompacto label="Delegación / Municipio" value={fichaExtra.delegacionMunicipio} onChange={v => actualizarFichaExtra('delegacionMunicipio', v)} placeholder="Alcaldía o municipio" />
-                  <CampoCompacto label="Estado" value={fichaExtra.estado} onChange={v => actualizarFichaExtra('estado', v)} placeholder="Estado de México / CDMX" />
-                  <CampoCompacto label="Tiempo de Residencia" value={fichaExtra.tiempoResidencia} onChange={v => actualizarFichaExtra('tiempoResidencia', v)} placeholder="Ej. 5 años" />
-                  <CampoCompacto label="Tiempo de Radicar en el Estado" value={fichaExtra.tiempoRadicarEstado} onChange={v => actualizarFichaExtra('tiempoRadicarEstado', v)} placeholder="Ej. 10 años" />
-                  <CampoCompacto label="Teléfono de Emergencia" value={fichaExtra.telefonoEmergencia} onChange={v => actualizarFichaExtra('telefonoEmergencia', v)} placeholder="Contacto familiar" />
-                  <CampoCompacto label="Celular" value={fichaExtra.celular} onChange={v => actualizarFichaExtra('celular', v)} placeholder="10 dígitos" />
-                </div>
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-xs">
+              <ProgressRing value={avanceAlta} size={46} stroke={5} tone={avanceAlta === 100 ? 'success' : 'primary'}>
+                <span className="text-[11px] font-bold text-foreground">{avanceAlta}%</span>
+              </ProgressRing>
+              <div className="min-w-0 leading-tight">
+                <p className="text-[13px] font-semibold text-foreground">Datos capturados</p>
+                <p className="text-xs text-muted-foreground">{capturadosAlta} de {totalCamposAlta} campos</p>
               </div>
             </div>
 
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl">
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={createMutation.isPending} className="rounded-xl font-bold">
-                {createMutation.isPending ? 'Guardando...' : 'Guardar Guardia'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ================= MODAL EDITAR DATOS DEL GUARDIA ================= */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="rounded-2xl max-w-lg">
-          <form
-            onSubmit={e => {
-              e.preventDefault();
-              if (selectedGuardia) {
-                editMutation.mutate({
-                  id: selectedGuardia.id,
-                  numero_elemento: editNumeroElemento,
-                  nombre: editNombre,
-                  fecha_alta: editFechaAlta,
-                  telefono: editTelefono,
-                  direccion: editDireccion,
-                  estado: editEstado,
-                });
-              }
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Edit className="w-5 h-5 text-primary" /> Editar Datos del Guardia
-              </DialogTitle>
-              <DialogDescription>
-                Modifica los datos operativos y de contacto directo de <b>{selectedGuardia?.nombre}</b>.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="grid gap-4 py-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Número de Elemento</label>
-                <Input
-                  value={editNumeroElemento}
-                  onChange={e => setEditNumeroElemento(e.target.value)}
-                  required
-                  className="rounded-xl font-mono font-bold"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Nombre Completo</label>
-                <Input
-                  value={editNombre}
-                  onChange={e => setEditNombre(e.target.value)}
-                  required
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
-                <Input
-                  type="date"
-                  value={editFechaAlta}
-                  onChange={e => setEditFechaAlta(e.target.value)}
-                  required
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Teléfono de Contacto</label>
-                <Input
-                  value={editTelefono}
-                  onChange={e => setEditTelefono(e.target.value)}
-                  placeholder="Ej. 5512345678"
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Dirección de Domicilio</label>
-                <Input
-                  value={editDireccion}
-                  onChange={e => setEditDireccion(e.target.value)}
-                  placeholder="Calle, Número, Colonia, Alcaldía o Municipio"
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Estado Operativo</label>
-                <select
-                  value={editEstado}
-                  onChange={e => setEditEstado(e.target.value)}
-                  className="flex h-10 w-full rounded-xl border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-medium"
+            <nav aria-label="Secciones del formulario" className="space-y-0.5">
+              <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Secciones</p>
+              {SECCIONES_ALTA.map((s, i) => (
+                <button
+                  type="button"
+                  key={s.id}
+                  onClick={() => irASeccion(s.id)}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-[13px] font-medium text-slate-600 transition-colors hover:bg-card hover:text-foreground"
                 >
-                  <option value="Activo">Activo</option>
-                  <option value="Baja Pendiente">Baja Pendiente</option>
-                  <option value="En Baja">En Baja</option>
-                </select>
-              </div>
-            </div>
-
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} className="rounded-xl">
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={editMutation.isPending} className="rounded-xl font-bold">
-                {editMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ================= MODAL PROCESAR BAJA ================= */}
-      <Dialog open={isBajaModalOpen} onOpenChange={setIsBajaModalOpen}>
-        <DialogContent className="rounded-2xl max-w-md">
-          <form
-            onSubmit={e => {
-              e.preventDefault();
-              if (selectedGuardia) {
-                bajaMutation.mutate({ id: selectedGuardia.id, fecha: fechaBaja });
-              }
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-destructive">
-                <LogOut className="w-5 h-5" /> Iniciar Proceso de Baja
-              </DialogTitle>
-              <DialogDescription>
-                Para el elemento <b>{selectedGuardia?.nombre}</b> (#{selectedGuardia?.numero_elemento}).
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="py-4 space-y-4">
-              <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-xl text-xs leading-relaxed">
-                El guardia cambiará a estado <b>Baja Pendiente</b> para permitir la devolución del equipo y uniformes en posesión en el módulo de Bajas.
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Fecha Efectiva de Baja</label>
-                <Input
-                  type="date"
-                  value={fechaBaja}
-                  onChange={e => setFechaBaja(e.target.value)}
-                  required
-                  className="rounded-xl"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsBajaModalOpen(false)} className="rounded-xl">
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                variant="destructive"
-                disabled={bajaMutation.isPending}
-                className="rounded-xl font-bold"
-              >
-                {bajaMutation.isPending ? 'Procesando...' : 'Confirmar Baja'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ================= MODAL ELIMINAR GUARDIA PERMANENTEMENTE ================= */}
-      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <DialogContent className="rounded-2xl max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="w-5 h-5" /> Eliminar Guardia Permanentemente
-            </DialogTitle>
-            <DialogDescription>
-              Para el elemento <b>{selectedGuardia?.nombre}</b> (#{selectedGuardia?.numero_elemento}).
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-2">
-            <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-xl text-xs leading-relaxed space-y-1.5">
-              <p><b>Esta acción no se puede deshacer.</b> Se borrará el perfil, expediente, documentos, bitácora y fichas técnicas del guardia.</p>
-              <p>El historial de uniformes, movimientos financieros, incidencias en el calendario y reclutamiento asociado se conserva, pero quedará sin vincular a este guardia.</p>
-              <p>Si solo necesitas desactivarlo conservando su historial, usa <b>Dar de Baja</b> en vez de esto.</p>
-            </div>
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-card text-[11px] font-bold text-muted-foreground ring-1 ring-border">{i + 1}</span>
+                  {s.label}
+                </button>
+              ))}
+            </nav>
           </div>
+        }
+      >
+        <div className="space-y-6">
+          <FormSection id="alta-identidad" title="Identidad" description="Nombre por partes, nacimiento, sexo y lugar de nacimiento: con ellos se calculan la CURP y el RFC." icon={User}>
+            <IdentidadPersonal
+              autoFocus
+              value={fichaExtra}
+              onChange={(cambios) => setFichaExtra((f) => ({ ...f, ...cambios }))}
+            />
+          </FormSection>
 
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsDeleteModalOpen(false)} className="rounded-xl">
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleteMutation.isPending}
-              onClick={() => selectedGuardia && deleteMutation.mutate(selectedGuardia.id)}
-              className="rounded-xl font-bold"
-            >
-              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar Permanentemente'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <FormSection id="alta-empresa" title="Alta en la empresa" description="Lo que identifica al elemento dentro de U3." icon={Briefcase}>
+            <FieldGrid cols={3}>
+              <Field label="Número de elemento" hint="Se puede asignar después.">
+                <Input value={numeroElemento} onChange={e => setNumeroElemento(e.target.value)} placeholder="Ej. 1024" />
+              </Field>
+              <Field label="Fecha de alta" required>
+                <Input type="date" value={fechaAlta} onChange={e => setFechaAlta(e.target.value)} required />
+              </Field>
+            </FieldGrid>
+          </FormSection>
+
+          <FormSection id="alta-contacto" title="Contacto" description="Cómo localizar al elemento y a su contacto de emergencia." icon={Phone}>
+            <FieldGrid cols={3}>
+              <Field label="Teléfono de contacto">
+                <InputGroup icon={Phone}>
+                  <Input type="tel" inputMode="tel" value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="5512345678" />
+                </InputGroup>
+              </Field>
+              <Field label="Celular">
+                <InputGroup icon={Phone}>
+                  <Input type="tel" inputMode="tel" value={fichaExtra.celular} onChange={e => actualizarFichaExtra('celular', e.target.value)} placeholder="10 dígitos" />
+                </InputGroup>
+              </Field>
+              <Field label="Teléfono de emergencia">
+                <InputGroup icon={Phone}>
+                  <Input type="tel" inputMode="tel" value={fichaExtra.telefonoEmergencia} onChange={e => actualizarFichaExtra('telefonoEmergencia', e.target.value)} placeholder="Contacto familiar" />
+                </InputGroup>
+              </Field>
+            </FieldGrid>
+          </FormSection>
+
+          <FormSection id="alta-personales" title="Datos personales" description="Se precargan en la ficha técnica oficial." icon={IdCard}>
+            <FieldGrid cols={3}>
+              <Field label="Estado civil">
+                <Select value={fichaExtra.estadoCivil} onChange={e => actualizarFichaExtra('estadoCivil', e.target.value)}>
+                  <option value="">Seleccionar</option>
+                  {OPCIONES_ESTADO_CIVIL.map(o => <option key={o} value={o}>{o}</option>)}
+                </Select>
+              </Field>
+              <Field label="Escolaridad">
+                <Select value={fichaExtra.estudios} onChange={e => actualizarFichaExtra('estudios', e.target.value)}>
+                  <option value="">Seleccionar</option>
+                  {OPCIONES_ESTUDIOS.map(o => <option key={o} value={o}>{o}</option>)}
+                </Select>
+              </Field>
+              <Field label="Afiliación IMSS (NSS)" hint="11 dígitos" error={errorNss}>
+                <Input inputMode="numeric" value={fichaExtra.imss} onChange={e => actualizarFichaExtra('imss', e.target.value.replace(/[^\d\s-]/g, ''))} placeholder="00000000000" className="font-mono tracking-wide" />
+              </Field>
+              <Field label="Estatura">
+                <InputGroup suffix="m"><Input inputMode="decimal" value={fichaExtra.estatura} onChange={e => actualizarFichaExtra('estatura', e.target.value)} placeholder="1.75" /></InputGroup>
+              </Field>
+              <Field label="Peso aproximado">
+                <InputGroup suffix="kg"><Input inputMode="decimal" value={fichaExtra.peso} onChange={e => actualizarFichaExtra('peso', e.target.value)} placeholder="78" /></InputGroup>
+              </Field>
+            </FieldGrid>
+          </FormSection>
+
+          <FormSection id="alta-domicilio" title="Domicilio" description="Donde vive actualmente el elemento." icon={MapPin}>
+            <FieldGrid cols={3}>
+              <Field label="Calle y número" span={2}>
+                <Input value={fichaExtra.calleNumero} onChange={e => actualizarFichaExtra('calleNumero', e.target.value)} placeholder="Calle, no. exterior e interior" />
+              </Field>
+              <Field label="Código postal">
+                <Input inputMode="numeric" value={fichaExtra.cp} onChange={e => actualizarFichaExtra('cp', e.target.value)} placeholder="00000" />
+              </Field>
+              <Field label="Colonia">
+                <Input value={fichaExtra.colonia} onChange={e => actualizarFichaExtra('colonia', e.target.value)} placeholder="Colonia o fraccionamiento" />
+              </Field>
+              <Field label="Entre las calles" span={2}>
+                <Input value={fichaExtra.entreCalles} onChange={e => actualizarFichaExtra('entreCalles', e.target.value)} placeholder="Calles aledañas" />
+              </Field>
+              <Field label="Alcaldía o municipio">
+                <Input value={fichaExtra.delegacionMunicipio} onChange={e => actualizarFichaExtra('delegacionMunicipio', e.target.value)} placeholder="Ej. Iztapalapa" />
+              </Field>
+              <Field label="Estado">
+                <Input value={fichaExtra.estado} onChange={e => actualizarFichaExtra('estado', e.target.value)} placeholder="Ej. Ciudad de México" />
+              </Field>
+              <Field label="Tiempo de residencia">
+                <Input value={fichaExtra.tiempoResidencia} onChange={e => actualizarFichaExtra('tiempoResidencia', e.target.value)} placeholder="Ej. 5 años" />
+              </Field>
+              <Field label="Tiempo de radicar en el estado">
+                <Input value={fichaExtra.tiempoRadicarEstado} onChange={e => actualizarFichaExtra('tiempoRadicarEstado', e.target.value)} placeholder="Ej. 10 años" />
+              </Field>
+            </FieldGrid>
+          </FormSection>
+        </div>
+      </FormDialog>
+
+      {/* ================= FORMULARIO: EDITAR DATOS DEL GUARDIA ================= */}
+      <FormDialog
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        size="lg"
+        icon={Edit}
+        title="Editar datos del guardia"
+        description={<>Identidad, datos operativos y de contacto de <b className="font-semibold text-foreground">{selectedGuardia?.nombre}</b>.</>}
+        submitLabel="Guardar cambios"
+        submitting={editMutation.isPending}
+        footerNote={<span><span className="text-destructive">*</span> Campo obligatorio</span>}
+        onSubmit={() => {
+          if (selectedGuardia) {
+            editMutation.mutate({
+              id: selectedGuardia.id,
+              numero_elemento: editNumeroElemento,
+              nombre: unirNombreCompleto(editFichaExtra),
+              fecha_alta: editFechaAlta,
+              telefono: editTelefono,
+              direccion: editDireccion,
+              estado: editEstado,
+              fichaExtra: editFichaExtra,
+            });
+          }
+        }}
+      >
+        <div className="space-y-6">
+          <FormSection title="Identidad" description="Con el nombre por partes, el nacimiento, el sexo y el lugar de nacimiento se calculan la CURP y el RFC." icon={User}>
+            <IdentidadPersonal
+              value={editFichaExtra}
+              onChange={(cambios) => setEditFichaExtra((f) => ({ ...f, ...cambios }))}
+            />
+          </FormSection>
+
+          <FormSection title="Identificación" icon={IdCard}>
+            <FieldGrid cols={2}>
+              <Field label="Número de elemento" required>
+                <Input value={editNumeroElemento} onChange={e => setEditNumeroElemento(e.target.value)} required className="font-mono font-semibold" />
+              </Field>
+              <Field label="Fecha de alta" required>
+                <Input type="date" value={editFechaAlta} onChange={e => setEditFechaAlta(e.target.value)} required />
+              </Field>
+            </FieldGrid>
+          </FormSection>
+
+          <FormSection title="Contacto" icon={Phone}>
+            <FieldGrid cols={1}>
+              <Field label="Teléfono de contacto">
+                <InputGroup icon={Phone}>
+                  <Input type="tel" inputMode="tel" value={editTelefono} onChange={e => setEditTelefono(e.target.value)} placeholder="5512345678" />
+                </InputGroup>
+              </Field>
+              <Field label="Dirección de domicilio">
+                <InputGroup icon={MapPin}>
+                  <Input value={editDireccion} onChange={e => setEditDireccion(e.target.value)} placeholder="Calle, número, colonia, alcaldía o municipio" />
+                </InputGroup>
+              </Field>
+            </FieldGrid>
+          </FormSection>
+
+          <FormSection title="Situación" icon={Shield}>
+            <Field label="Estado operativo">
+              <Select value={editEstado} onChange={e => setEditEstado(e.target.value)}>
+                <option value="Activo">Activo</option>
+                <option value="Baja Pendiente">Baja pendiente</option>
+                <option value="En Baja">En baja</option>
+              </Select>
+            </Field>
+          </FormSection>
+        </div>
+      </FormDialog>
+
+      {/* ================= FORMULARIO: PROCESAR BAJA ================= */}
+      <FormDialog
+        open={isBajaModalOpen}
+        onOpenChange={setIsBajaModalOpen}
+        size="sm"
+        tone="danger"
+        icon={LogOut}
+        title="Iniciar proceso de baja"
+        description={<>Elemento <b className="font-semibold text-foreground">{selectedGuardia?.nombre}</b>{selectedGuardia?.numero_elemento ? ` (#${selectedGuardia.numero_elemento})` : ''}.</>}
+        submitLabel="Confirmar baja"
+        submittingLabel="Procesando..."
+        submitting={bajaMutation.isPending}
+        onSubmit={() => {
+          if (selectedGuardia) bajaMutation.mutate({ id: selectedGuardia.id, fecha: fechaBaja });
+        }}
+      >
+        <div className="space-y-4">
+          <Callout tone="warning" title="Qué va a pasar">
+            El guardia cambiará a estado <b>Baja Pendiente</b> para permitir la devolución del equipo y uniformes en posesión en el módulo de Bajas. Si no tiene equipo asignado, la baja se completa de inmediato.
+          </Callout>
+          <Field label="Fecha efectiva de baja" required>
+            <Input type="date" value={fechaBaja} onChange={e => setFechaBaja(e.target.value)} required />
+          </Field>
+        </div>
+      </FormDialog>
+
+      {/* ================= CONFIRMAR: ELIMINAR GUARDIA PERMANENTEMENTE ================= */}
+      <ConfirmDialog
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        title="Eliminar guardia permanentemente"
+        description={<>Elemento <b className="font-semibold text-foreground">{selectedGuardia?.nombre}</b>{selectedGuardia?.numero_elemento ? ` (#${selectedGuardia.numero_elemento})` : ''}.</>}
+        confirmLabel="Eliminar permanentemente"
+        confirmingLabel="Eliminando..."
+        confirming={deleteMutation.isPending}
+        onConfirm={() => selectedGuardia && deleteMutation.mutate(selectedGuardia.id)}
+      >
+        <Callout tone="danger" title="Esta acción no se puede deshacer">
+          <p>Se borrará el perfil, expediente, documentos, bitácora y fichas técnicas del guardia.</p>
+          <p>El historial de uniformes, movimientos financieros, incidencias en el calendario y reclutamiento asociado se conserva, pero quedará sin vincular a este guardia.</p>
+          <p>Si solo necesitas desactivarlo conservando su historial, usa <b>Dar de baja</b> en lugar de esto.</p>
+        </Callout>
+      </ConfirmDialog>
     </div>
   );
 }

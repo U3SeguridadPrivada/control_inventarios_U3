@@ -9,12 +9,15 @@ import { Button } from '@/src/components/ui/button';
 import { Badge } from '@/src/components/ui/badge';
 import { Input } from '@/src/components/ui/input';
 import { Textarea } from '@/src/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
+import { PageHeader } from '@/src/components/ui/page-header';
+import { KpiCard } from '@/src/components/ui/kpi-card';
+import { Field } from '@/src/components/ui/field';
+import { FormDialog } from '@/src/components/ui/form-dialog';
 import {
   Mail, Calendar, ClipboardList, AlertTriangle, CheckCircle2, Clock,
   Plus, ArrowRight, ShieldCheck, Users, Search, ExternalLink,
   Package, FileSpreadsheet, MessageCircle, MapPin, Landmark, Settings,
-  Sparkles, Bell, ArrowUpRight, Flame, ShieldAlert,
+  LayoutGrid, Bell, ArrowUpRight, Flame, ShieldAlert,
 } from 'lucide-react';
 import { fmtDate, cn } from '@/src/lib/utils';
 import { toast } from 'sonner';
@@ -222,154 +225,61 @@ export default function DashboardApp() {
   ].filter((m) => puedeVer(m.id));
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-10">
-      {/* 1. Header de Bienvenida Personalizado */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary/15 via-primary/5 to-accent/15 border border-primary/20 p-6 sm:p-8">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-primary text-xs font-semibold">
-                <Sparkles className="w-3.5 h-3.5" /> Panel Personal
-              </span>
-              <Badge variant="outline" className="text-xs bg-background/80 font-medium">
-                {roleDisplay}
-              </Badge>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              {greeting}, <span className="text-primary">{username}</span>
-            </h1>
-            <p className="text-sm text-muted-foreground max-w-xl">
-              Aquí tienes el resumen de tus correos, tareas del día, protocolos operativos y estado general del sistema.
-            </p>
-          </div>
+    <div className="space-y-6 pb-10">
+      {/* 1. Encabezado */}
+      <PageHeader
+        title={<>{greeting}, <span className="text-primary">{username}</span></>}
+        description={`${roleDisplay} · Resumen de tus correos, tareas del día, protocolos operativos y estado general del sistema.`}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => router.push('/protocolos')}>
+              <ClipboardList className="h-4 w-4" /> Protocolos
+            </Button>
+            <Button variant="outline" onClick={() => router.push('/correo')}>
+              <Mail className="h-4 w-4" /> Ver buzón
+            </Button>
+            <Button onClick={() => setTaskModalOpen(true)}>
+              <Plus className="h-4 w-4" /> Nueva tarea
+            </Button>
+          </>
+        }
+      />
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Button size="sm" onClick={() => setTaskModalOpen(true)} className="shadow-sm">
-              <Plus className="w-4 h-4 mr-1.5" /> Nueva Tarea
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => router.push('/correo')} className="bg-background/80">
-              <Mail className="w-4 h-4 mr-1.5" /> Ver Buzón
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => router.push('/protocolos')} className="bg-background/80">
-              <ClipboardList className="w-4 h-4 mr-1.5" /> Protocolos
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Tarjetas KPI de Estado Personal y Operativo */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card Correo */}
-        <Card
-          className="hover:shadow-md transition-all cursor-pointer border-l-4 border-l-indigo-500 hover:border-indigo-400"
+      {/* 2. Indicadores de estado personal y operativo */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Correos sin leer"
+          icon={Mail}
+          value={metrics.unreadEmailsCount}
+          badge={metrics.unreadEmailsCount > 0 ? <Badge variant="info">Nuevos</Badge> : undefined}
+          hint={userData.hasImapConfigured ? 'Buzón IMAP conectado' : 'Configura tu buzón en Ajustes'}
           onClick={() => router.push('/correo')}
-        >
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Correos Sin Leer</p>
-                <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold tracking-tight text-foreground">
-                    {metrics.unreadEmailsCount}
-                  </p>
-                  {metrics.unreadEmailsCount > 0 && (
-                    <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-full">
-                      Nuevos
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  {userData.hasImapConfigured ? 'Buzón IMAP conectado' : 'Configura tu buzón en Ajustes'}
-                </p>
-              </div>
-              <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600">
-                <Mail className="w-5 h-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card Tareas de Hoy */}
-        <Card
-          className="hover:shadow-md transition-all cursor-pointer border-l-4 border-l-amber-500 hover:border-amber-400"
+        />
+        <KpiCard
+          label="Tareas de hoy"
+          icon={Calendar}
+          value={metrics.todayTasksCount}
+          badge={<Badge variant="secondary">Agenda</Badge>}
+          hint={`${upcomingEvents.length} eventos programados`}
           onClick={() => router.push('/calendario')}
-        >
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tareas de Hoy</p>
-                <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold tracking-tight text-foreground">
-                    {metrics.todayTasksCount}
-                  </p>
-                  <span className="text-xs font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-full">
-                    Agenda
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  {upcomingEvents.length} eventos programados
-                </p>
-              </div>
-              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600">
-                <Calendar className="w-5 h-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card Protocolos Activos */}
-        <Card
-          className="hover:shadow-md transition-all cursor-pointer border-l-4 border-l-rose-500 hover:border-rose-400"
+        />
+        <KpiCard
+          label="Protocolos activos"
+          icon={ClipboardList}
+          value={metrics.activeProtocolsCount}
+          badge={emergencyProtocols.length > 0 ? <Badge variant="destructive"><Flame className="h-3 w-3" /> {emergencyProtocols.length} clave</Badge> : undefined}
+          hint="Procedimientos y emergencias"
           onClick={() => router.push('/protocolos')}
-        >
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Protocolos Activos</p>
-                <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold tracking-tight text-foreground">
-                    {metrics.activeProtocolsCount}
-                  </p>
-                  {emergencyProtocols.length > 0 && (
-                    <span className="text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Flame className="w-3 h-3" /> {emergencyProtocols.length} clave
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-muted-foreground">Procedimientos y emergencias</p>
-              </div>
-              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600">
-                <ClipboardList className="w-5 h-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card Incidencias Abiertas / Alertas */}
-        <Card
-          className="hover:shadow-md transition-all cursor-pointer border-l-4 border-l-orange-500 hover:border-orange-400"
+        />
+        <KpiCard
+          label="Incidencias recientes"
+          icon={AlertTriangle}
+          tone={metrics.openIncidenciasCount > 0 ? 'warning' : 'primary'}
+          value={metrics.openIncidenciasCount}
+          badge={<Badge variant="secondary">{metrics.guardiasActivosCount} guardias</Badge>}
+          hint="Reportes de campo y servicio"
           onClick={() => router.push('/calendario')}
-        >
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Incidencias Recientes</p>
-                <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold tracking-tight text-foreground">
-                    {metrics.openIncidenciasCount}
-                  </p>
-                  <span className="text-xs font-semibold text-orange-600 bg-orange-50 dark:bg-orange-950/50 px-2 py-0.5 rounded-full">
-                    {metrics.guardiasActivosCount} Guardias
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">Reportes de campo y servicio</p>
-              </div>
-              <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-600">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        />
       </div>
 
       {/* 3. Grid Principal de Contenido */}
@@ -381,7 +291,7 @@ export default function DashboardApp() {
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-amber-600" />
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
                   Agenda y Tareas de Hoy
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
@@ -447,7 +357,7 @@ export default function DashboardApp() {
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 gap-3">
               <div>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <ClipboardList className="w-4 h-4 text-rose-600" />
+                  <ClipboardList className="w-4 h-4 text-muted-foreground" />
                   Protocolos Operativos y Emergencias
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
@@ -543,7 +453,7 @@ export default function DashboardApp() {
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-indigo-600" />
+                  <Mail className="w-4 h-4 text-muted-foreground" />
                   Bandeja de Entrada Reciente
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
@@ -616,7 +526,7 @@ export default function DashboardApp() {
           <Card className="shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
+                <LayoutGrid className="w-4 h-4 text-muted-foreground" />
                 Mis Módulos Rápidos
               </CardTitle>
               <CardDescription className="text-xs">
@@ -631,13 +541,10 @@ export default function DashboardApp() {
                     <button
                       key={m.id}
                       onClick={() => router.push(m.href)}
-                      className={cn(
-                        'flex flex-col items-start p-3 rounded-xl border transition-all text-left group hover:shadow-sm',
-                        m.bg
-                      )}
+                      className="group flex flex-col items-start rounded-xl border border-border bg-card p-3 text-left transition-[border-color,background-color] hover:border-primary/30 hover:bg-primary/[0.03]"
                     >
                       <div className="flex items-center justify-between w-full mb-2">
-                        <Icon className={cn('w-5 h-5', m.color)} />
+                        <Icon className="h-5 w-5 text-primary" />
                         <ArrowUpRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
                       </div>
                       <span className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
@@ -655,7 +562,7 @@ export default function DashboardApp() {
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-orange-600" />
+                  <AlertTriangle className="w-4 h-4 text-muted-foreground" />
                   Incidencias Recientes
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
@@ -696,10 +603,10 @@ export default function DashboardApp() {
           </Card>
 
           {/* Widget 3: Resumen de Guardia y Operaciones */}
-          <Card className="shadow-sm bg-gradient-to-br from-card to-muted/30">
+          <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-600">
+                <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
@@ -722,173 +629,127 @@ export default function DashboardApp() {
         </div>
       </div>
 
-      {/* MODAL 1: NUEVA TAREA / EVENTO RÁPIDO */}
-      <Dialog open={taskModalOpen} onOpenChange={setTaskModalOpen}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Calendar className="w-4 h-4 text-primary" />
-              Nueva Tarea o Compromiso
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Agrega una tarea o recordatorio directo a tu calendario.
-            </DialogDescription>
-          </DialogHeader>
+      {/* FORMULARIO: NUEVA TAREA O COMPROMISO */}
+      <FormDialog
+        open={taskModalOpen}
+        onOpenChange={setTaskModalOpen}
+        size="sm"
+        icon={Calendar}
+        title="Nueva tarea o compromiso"
+        description="Agrega una tarea o recordatorio directo a tu calendario."
+        submitLabel="Guardar tarea"
+        submitting={createTaskMutation.isPending}
+        footerNote={<span><span className="text-destructive">*</span> Campo obligatorio</span>}
+        onSubmit={() => {
+          if (!newTaskForm.titulo.trim()) {
+            toast.error('Ingresa el título de la tarea');
+            return;
+          }
+          createTaskMutation.mutate(newTaskForm);
+        }}
+      >
+        <div className="space-y-4">
+          <Field label="Título o asunto" required>
+            <Input
+              placeholder="Ej. Revisión de puesto, llamada con cliente..."
+              value={newTaskForm.titulo}
+              onChange={(e) => setNewTaskForm({ ...newTaskForm, titulo: e.target.value })}
+              required
+            />
+          </Field>
+          <Field label="Fecha y hora" required>
+            <Input
+              type="datetime-local"
+              value={newTaskForm.fecha_inicio}
+              onChange={(e) => setNewTaskForm({ ...newTaskForm, fecha_inicio: e.target.value })}
+              required
+            />
+          </Field>
+          <Field label="Notas o detalles">
+            <Textarea
+              placeholder="Detalles adicionales sobre la tarea..."
+              value={newTaskForm.descripcion}
+              onChange={(e) => setNewTaskForm({ ...newTaskForm, descripcion: e.target.value })}
+              rows={3}
+            />
+          </Field>
+        </div>
+      </FormDialog>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!newTaskForm.titulo.trim()) {
-                toast.error('Ingresa el título de la tarea');
-                return;
-              }
-              createTaskMutation.mutate(newTaskForm);
-            }}
-            className="space-y-4 py-2"
-          >
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground">Título o Asunto *</label>
-              <Input
-                placeholder="Ej. Revisión de puesto, Llamada con cliente..."
-                value={newTaskForm.titulo}
-                onChange={(e) => setNewTaskForm({ ...newTaskForm, titulo: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground">Fecha y Hora *</label>
-              <Input
-                type="datetime-local"
-                value={newTaskForm.fecha_inicio}
-                onChange={(e) => setNewTaskForm({ ...newTaskForm, fecha_inicio: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground">Notas / Detalles</label>
-              <Textarea
-                placeholder="Detalles adicionales sobre la tarea..."
-                value={newTaskForm.descripcion}
-                onChange={(e) => setNewTaskForm({ ...newTaskForm, descripcion: e.target.value })}
-                rows={3}
-              />
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setTaskModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" size="sm" disabled={createTaskMutation.isPending}>
-                {createTaskMutation.isPending ? 'Guardando...' : 'Guardar Tarea'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* MODAL 2: VISUALIZADOR DE PROTOCOLO PASO A PASO */}
-      <Dialog open={Boolean(selectedProtocol)} onOpenChange={(open) => !open && setSelectedProtocol(null)}>
-        <DialogContent className="sm:max-w-[620px] max-h-[85vh] flex flex-col">
-          <DialogHeader>
-            <div className="flex items-center gap-2 mb-1">
-              <Badge
-                variant={selectedProtocol?.categoria === 'Emergencia' ? 'destructive' : 'secondary'}
-                className="text-xs"
-              >
-                {selectedProtocol?.categoria}
-              </Badge>
-              <Badge variant="outline" className="text-xs">
-                Prioridad: {selectedProtocol?.prioridad}
-              </Badge>
-            </div>
-            <DialogTitle className="text-lg font-bold text-foreground">
-              {selectedProtocol?.titulo}
-            </DialogTitle>
-            {selectedProtocol?.descripcion && (
-              <DialogDescription className="text-xs text-muted-foreground">
-                {selectedProtocol?.descripcion}
-              </DialogDescription>
-            )}
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto pr-1 space-y-4 py-2">
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Lista de Pasos del Procedimiento:
-              </h4>
-
-              {selectedProtocol?.pasos && selectedProtocol.pasos.length > 0 ? (
-                <div className="space-y-2">
-                  {selectedProtocol.pasos.map((paso: string, idx: number) => {
-                    const isChecked = Boolean(protocolStepsChecked[idx]);
-                    return (
-                      <div
-                        key={idx}
-                        onClick={() => toggleProtocolStep(idx)}
-                        className={cn(
-                          'p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3',
-                          isChecked
-                            ? 'bg-emerald-500/10 border-emerald-500/30'
-                            : 'bg-card/70 border-border hover:bg-muted/30'
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            'w-5 h-5 rounded-md flex items-center justify-center border text-xs font-bold shrink-0 mt-0.5 transition-colors',
-                            isChecked
-                              ? 'bg-emerald-600 border-emerald-600 text-white'
-                              : 'border-muted-foreground/40 text-muted-foreground'
-                          )}
-                        >
-                          {isChecked ? '✓' : idx + 1}
-                        </div>
-                        <p
-                          className={cn(
-                            'text-sm leading-relaxed select-none',
-                            isChecked ? 'line-through text-muted-foreground' : 'text-foreground'
-                          )}
-                        >
-                          {paso}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground italic">Este protocolo no contiene pasos detallados.</p>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter className="flex items-center justify-between border-t border-border pt-3">
+      {/* VISOR DE PROTOCOLO PASO A PASO */}
+      <FormDialog
+        open={Boolean(selectedProtocol)}
+        onOpenChange={(open) => !open && setSelectedProtocol(null)}
+        size="lg"
+        icon={ClipboardList}
+        tone={selectedProtocol?.categoria === 'Emergencia' ? 'danger' : 'default'}
+        title={selectedProtocol?.titulo ?? ''}
+        description={selectedProtocol?.descripcion || undefined}
+        footerNote={
+          <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setProtocolStepsChecked({})}>
+            Reiniciar checklist
+          </Button>
+        }
+        footer={
+          <>
             <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground"
-              onClick={() => setProtocolStepsChecked({})}
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setSelectedProtocol(null);
+                router.push('/protocolos');
+              }}
             >
-              Reiniciar Checklist
+              Abrir en Protocolos
             </Button>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSelectedProtocol(null);
-                  router.push('/protocolos');
-                }}
-              >
-                Abrir en Protocolos
-              </Button>
-              <Button size="sm" onClick={() => setSelectedProtocol(null)}>
-                Entendido
-              </Button>
+            <Button type="button" onClick={() => setSelectedProtocol(null)}>
+              Entendido
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={selectedProtocol?.categoria === 'Emergencia' ? 'destructive' : 'secondary'}>{selectedProtocol?.categoria}</Badge>
+            <Badge variant="outline">Prioridad: {selectedProtocol?.prioridad}</Badge>
+          </div>
+          <h4 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Pasos del procedimiento
+          </h4>
+          {selectedProtocol?.pasos && selectedProtocol.pasos.length > 0 ? (
+            <div className="space-y-2">
+              {selectedProtocol.pasos.map((paso: string, idx: number) => {
+                const isChecked = Boolean(protocolStepsChecked[idx]);
+                return (
+                  <button
+                    type="button"
+                    key={idx}
+                    onClick={() => toggleProtocolStep(idx)}
+                    className={cn(
+                      'flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors',
+                      isChecked ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-border bg-card hover:bg-muted/40'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors',
+                        isChecked ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-muted-foreground/40 text-muted-foreground'
+                      )}
+                    >
+                      {isChecked ? <CheckCircle2 className="h-3.5 w-3.5" /> : idx + 1}
+                    </span>
+                    <span className={cn('select-none text-sm leading-relaxed', isChecked ? 'text-muted-foreground line-through' : 'text-foreground')}>
+                      {paso}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          ) : (
+            <p className="text-xs italic text-muted-foreground">Este protocolo no contiene pasos detallados.</p>
+          )}
+        </div>
+      </FormDialog>
     </div>
   );
 }

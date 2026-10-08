@@ -1,8 +1,11 @@
 'use client';
 import { useState, Suspense, type FormEvent } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { KeyRound } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { AuthShell } from '@/src/components/auth/AuthShell';
 import { PasswordInput } from '@/src/components/ui/password-input';
+import { Field, Callout } from '@/src/components/ui/field';
+import { Button } from '@/src/components/ui/button';
 
 function RestablecerForm() {
   const searchParams = useSearchParams();
@@ -35,7 +38,7 @@ function RestablecerForm() {
 
   if (!token) {
     return (
-      <div className="bg-card border border-border rounded-2xl shadow-sm p-8 text-center space-y-3">
+      <div className="space-y-3 rounded-xl border border-border bg-muted/50 p-6 text-center">
         <p className="text-sm text-destructive">El enlace no es válido — falta el token de recuperación.</p>
         <a href="/recuperar" className="inline-block text-sm font-semibold text-primary hover:underline">Solicitar uno nuevo</a>
       </div>
@@ -43,47 +46,36 @@ function RestablecerForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-card border border-border rounded-2xl shadow-sm p-8 space-y-5">
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium" htmlFor="password">Nueva contraseña</label>
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <Field label="Nueva contraseña" htmlFor="password">
         <PasswordInput
           id="password" required minLength={6} autoFocus autoComplete="new-password"
           value={password} onChange={(e) => setPassword(e.target.value)}
           placeholder="Mínimo 6 caracteres"
         />
-      </div>
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium" htmlFor="confirmar">Confirmar contraseña</label>
+      </Field>
+      <Field label="Confirmar contraseña" htmlFor="confirmar">
         <PasswordInput
           id="confirmar" required minLength={6} autoComplete="new-password"
           value={confirmar} onChange={(e) => setConfirmar(e.target.value)}
           placeholder="Repite la contraseña"
         />
-      </div>
-      {error && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>}
-      <button type="submit" disabled={loading}
-        className="w-full py-2.5 px-4 text-sm font-semibold text-white rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-60 transition">
+      </Field>
+      {error && <Callout tone="danger">{error}</Callout>}
+      <Button type="submit" disabled={loading} className="h-11 w-full text-sm">
+        {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
         {loading ? 'Guardando...' : 'Guardar nueva contraseña'}
-      </button>
+      </Button>
     </form>
   );
 }
 
 export default function RestablecerPage() {
   return (
-    <div className="min-h-[100svh] flex items-center justify-center bg-background px-4 py-8 pt-[calc(2rem+var(--safe-top))] pb-[calc(2rem+var(--safe-bottom))]">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-8 gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center"><KeyRound className="w-7 h-7 text-primary" /></div>
-          <div className="text-center">
-            <h1 className="text-xl font-bold tracking-tight">Nueva contraseña</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Crea tu nueva contraseña de acceso</p>
-          </div>
-        </div>
-        <Suspense fallback={null}>
-          <RestablecerForm />
-        </Suspense>
-      </div>
-    </div>
+    <AuthShell title="Nueva contraseña" subtitle="Crea tu nueva contraseña de acceso.">
+      <Suspense fallback={null}>
+        <RestablecerForm />
+      </Suspense>
+    </AuthShell>
   );
 }

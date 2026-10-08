@@ -148,16 +148,16 @@ export default function VentasApp() {
             <DialogHeader><DialogTitle className="flex items-center gap-2"><ShoppingCart className="w-5 h-5 text-primary" /> Nueva venta</DialogTitle><DialogDescription>El folio se genera automáticamente.</DialogDescription></DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Cliente</label>
+                <label className="field-label">Cliente</label>
                 <Select value={form.cliente_id} onChange={(e) => setForm((f) => ({ ...f, cliente_id: e.target.value }))} required>
                   <option value="">Selecciona un cliente...</option>
                   {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.empresa ? ` (${c.empresa})` : ''}</option>)}
                 </Select>
               </div>
-              <div className="space-y-2"><label className="text-sm font-medium">Fecha</label><Input type="date" value={form.fecha} onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Monto total</label><Input type="number" min={0} step="0.01" value={form.monto_total} onChange={(e) => setForm((f) => ({ ...f, monto_total: e.target.value }))} required /></div>
+              <div className="space-y-2"><label className="field-label">Fecha</label><Input type="date" value={form.fecha} onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))} required /></div>
+              <div className="space-y-2"><label className="field-label">Monto total</label><Input type="number" min={0} step="0.01" value={form.monto_total} onChange={(e) => setForm((f) => ({ ...f, monto_total: e.target.value }))} required /></div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Método de pago</label>
+                <label className="field-label">Método de pago</label>
                 <Select value={form.metodo_pago} onChange={(e) => setForm((f) => ({ ...f, metodo_pago: e.target.value }))}>
                   <option value="">Sin especificar</option>
                   <option value="Transferencia">Transferencia</option>
@@ -166,7 +166,7 @@ export default function VentasApp() {
                   <option value="Cheque">Cheque</option>
                 </Select>
               </div>
-              <div className="space-y-2"><label className="text-sm font-medium">Notas</label><Textarea value={form.notas} onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))} rows={2} /></div>
+              <div className="space-y-2"><label className="field-label">Notas</label><Textarea value={form.notas} onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))} rows={2} /></div>
             </div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button><Button type="submit" disabled={createMutation.isPending}>Registrar venta</Button></DialogFooter>
           </form>

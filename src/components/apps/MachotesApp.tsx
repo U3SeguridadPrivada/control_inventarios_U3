@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/src/components/ui/card';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
-import { FileStack, ClipboardList, Printer, PackageCheck, IdCard, FileCheck, Sparkles, type LucideIcon } from 'lucide-react';
+import { FileStack, ClipboardList, Printer, PackageCheck, IdCard, FileCheck, type LucideIcon } from 'lucide-react';
 import MachoteControlAcceso from '@/src/components/machotes/MachoteControlAcceso';
 import MachotePaqueteria from '@/src/components/machotes/MachotePaqueteria';
 import MachoteFichaTecnica from '@/src/components/machotes/MachoteFichaTecnica';

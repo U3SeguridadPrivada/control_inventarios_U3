@@ -1,50 +1,40 @@
+import { validarPayload } from '@/src/lib/inventarioValidacion';
 import { NextRequest } from 'next/server';
-import { db } from '@/src/db';
-import { salidas, entradas, guardias } from '@/src/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
-import { verifyAuth, unauthorized } from '@/src/lib/auth';
+import { salidas, entradas } from '@/src/db/schema';
 import { validarStockLote } from '@/src/lib/stock';
+import { moverAsignacion } from '@/src/lib/asignaciones';
+import { autorizarInventario, operarInventario } from '@/src/lib/inventarioOperacion';
+import { cantidadEntera, estadoFisico, errorInventario, InventarioError, validarArticulo, validarGuardia, validarItems, validarFecha } from '@/src/lib/inventarioValidacion';
 
 export async function POST(req: NextRequest) {
-  const authUser = verifyAuth(req);
-  if (!authUser) return unauthorized();
-  if (authUser.role === 'viewer') return Response.json({ error: 'Sin permisos' }, { status: 403 });
-
   try {
-    const { items, estadoDevolucion, estadoEntregado } = await req.json();
-    if (!Array.isArray(items) || items.length === 0) return Response.json({ error: 'Se requiere un array de artículos' }, { status: 400 });
-
-    const guardiaId = Number(items[0]?.guardia_id);
-    if (!guardiaId) return Response.json({ error: 'Se requiere guardia_id' }, { status: 400 });
-
-    const guardia = db.select().from(guardias).where(eq(guardias.id, guardiaId)).get();
-
-    const errorStock = validarStockLote(items, estadoEntregado || 'Nuevo');
-    if (errorStock) return Response.json({ error: errorStock }, { status: 400 });
-
-    db.transaction((tx) => {
-      for (const item of items) {
-        const { articulo, talla, cantidad, fecha, nombre_guardia } = item;
-        const qty = Number(cantidad);
-        const estadoEntregadoReq = item.estado_fisico || estadoEntregado || 'Nuevo';
-        const itemEstadoDevuelto = item.estado_devuelto || estadoDevolucion || 'Usado';
-
-        const conds: any[] = [eq(salidas.guardia_id, guardiaId), eq(salidas.articulo, articulo), eq(salidas.estado_asignacion, 'Uniforme en Campo')];
-        if (talla) conds.push(eq(salidas.talla, talla));
-
-        const oldRows = tx.select({ id: salidas.id }).from(salidas).where(and(...conds)).orderBy(desc(salidas.fecha), desc(salidas.id)).limit(qty).all();
-        for (const row of oldRows) {
-          tx.update(salidas).set({ estado_asignacion: 'Devuelto', estado_devuelto: itemEstadoDevuelto, estado_actualizado_en: fecha }).where(eq(salidas.id, row.id)).run();
+    const user = autorizarInventario(req, 'uniformes-campo', 'editar');
+    const p = validarPayload(await req.json()); validarItems(p.items);
+    const result = operarInventario(req, user, p, p.items[0].fecha, 'Reposición', (tx, operacionId) => {
+      const guardia = validarGuardia(p.items[0].guardia_id, true);
+      const items = p.items.map((i: any) => {
+        validarFecha(i.fecha);
+        if (Number(i.guardia_id) !== guardia.id || i.fecha !== p.items[0].fecha) throw new InventarioError('El lote debe corresponder a un solo guardia y fecha');
+        const anterior = validarArticulo(i.articulo, i.talla);
+        const nuevo = validarArticulo(i.articulo, i.talla_nueva === undefined ? i.talla : i.talla_nueva);
+        return { ...i, articulo: anterior.articulo, talla_anterior: anterior.talla, talla: nuevo.talla,
+          cantidad: cantidadEntera(i.cantidad), estado_fisico: estadoFisico(i.estado_fisico || p.estadoEntregado || 'Nuevo', true),
+          devuelto: estadoFisico(i.estado_devuelto || p.estadoDevolucion || 'Usado') };
+      });
+      const error = validarStockLote(items); if (error) throw new InventarioError(error);
+      for (const i of items) {
+        const movidas = moverAsignacion(tx, { guardiaId: guardia.id, articulo: i.articulo, talla: i.talla_anterior, cantidad: i.cantidad,
+          salidaId: i.salida_id ? cantidadEntera(i.salida_id) : undefined,
+          cambios: { estado_asignacion: 'Devuelto', estado_devuelto: i.devuelto, estado_actualizado_en: i.fecha } });
+        for (const s of movidas) {
+          tx.insert(entradas).values({ fecha: i.fecha, articulo: s.articulo, talla: s.talla, cantidad: s.cantidad, estado: i.devuelto,
+            motivo: 'Reposición (Entrada Múltiple)', origen_devolucion: guardia.nombre, guardia_id: guardia.id, registrado_por: user.username, operacion_id: operacionId, salida_origen_id: s.id }).run();
+          tx.insert(salidas).values({ fecha: i.fecha, concepto: 'Reposición', articulo: i.articulo, talla: i.talla, cantidad: s.cantidad, nombre_guardia: guardia.nombre,
+            guardia_id: guardia.id, estado_asignacion: 'Uniforme en Campo', estado_fisico: i.estado_fisico, registrado_por: user.username, operacion_id: operacionId, salida_origen_id: s.id }).run();
         }
-
-        const estadoEntranteFisico = (itemEstadoDevuelto === 'Para Baja' || itemEstadoDevuelto === 'Inutilizable') ? 'Inutilizable' : itemEstadoDevuelto;
-        tx.insert(entradas).values({ fecha, articulo, talla: talla || null, cantidad: qty, estado: estadoEntranteFisico, motivo: 'Reposición (Entrada Múltiple)', origen_devolucion: guardia?.nombre || nombre_guardia, guardia_id: guardiaId, registrado_por: authUser.username }).run();
-        tx.insert(salidas).values({ fecha, concepto: 'Reposición', articulo, talla: talla || null, cantidad: qty, nombre_guardia: nombre_guardia || null, guardia_id: guardiaId, estado_asignacion: 'Uniforme en Campo', estado_fisico: estadoEntregadoReq, registrado_por: authUser.username }).run();
       }
+      return { ok: true };
     });
-
-    return Response.json({ ok: true }, { status: 201 });
-  } catch {
-    return Response.json({ error: 'Error al procesar la reposición' }, { status: 500 });
-  }
+    return Response.json(result, { status: 201 });
+  } catch (err) { return errorInventario(err); }
 }

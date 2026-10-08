@@ -9,11 +9,12 @@ import { Input } from '@/src/components/ui/input';
 import { Select } from '@/src/components/ui/select';
 import { Badge } from '@/src/components/ui/badge';
 import {
-  FileCheck, Sparkles, User, Building2, DollarSign, Calendar,
+  FileCheck, FilePlus2, User, Building2, DollarSign, Calendar,
   Shield, Check, Loader2, ArrowRight, Info
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DATOS_CONTRATO_DEFAULT, extraerDatosDeGuardia, numeroALetrasPesos, formatearFechaLegal } from '@/src/lib/generadorContrato';
+import { validarCURP, validarRFC } from '@/src/lib/rfcCurp';
 
 interface Props {
   open: boolean;
@@ -73,12 +74,15 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
         ...prev,
         nombreTrabajador: extraidos.nombreTrabajador || g.nombre || prev.nombreTrabajador,
         puesto: extraidos.puesto || prev.puesto,
-        rfcTrabajador: extraidos.rfcTrabajador || prev.rfcTrabajador,
-        curpTrabajador: extraidos.curpTrabajador || prev.curpTrabajador,
-        edad: extraidos.edad || prev.edad,
+        // Los datos personales del guardia elegido salen solo de su ficha: si falta alguno queda en
+        // blanco (y se avisa abajo). Nunca se rellena con el ejemplo de la plantilla, que traería la
+        // CURP, el RFC o el domicilio de otra persona al contrato.
+        rfcTrabajador: extraidos.rfcTrabajador ?? '',
+        curpTrabajador: extraidos.curpTrabajador ?? '',
+        edad: extraidos.edad ?? '',
         estadoCivil: extraidos.estadoCivil || prev.estadoCivil,
         nacionalidad: extraidos.nacionalidad || prev.nacionalidad,
-        domicilioTrabajador: extraidos.domicilioTrabajador || g.direccion || prev.domicilioTrabajador,
+        domicilioTrabajador: extraidos.domicilioTrabajador || g.direccion || '',
         fechaInicioVigencia: extraidos.fechaInicioVigencia || prev.fechaInicioVigencia,
         fechaContrato: extraidos.fechaInicioVigencia || prev.fechaContrato,
       }));
@@ -127,9 +131,21 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
 
   const salarioLetras = numeroALetrasPesos(Number(form.salarioMensualNumero) || 0);
 
+  // Datos que el contrato necesita del trabajador y que la ficha del guardia aún no tiene.
+  const faltantesFicha = guardiaId
+    ? ([
+        ['CURP', form.curpTrabajador],
+        ['RFC', form.rfcTrabajador],
+        ['edad', form.edad],
+        ['domicilio', form.domicilioTrabajador],
+      ] as const).filter(([, valor]) => !String(valor || '').trim()).map(([nombre]) => nombre)
+    : [];
+  const avisoCurp = form.curpTrabajador.trim() ? validarCURP(form.curpTrabajador) : null;
+  const avisoRfc = form.rfcTrabajador.trim() ? validarRFC(form.rfcTrabajador) : null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={onOpenChange} className="max-w-3xl">
+      <DialogContent>
         <form onSubmit={handleGenerar} className="space-y-4">
           <DialogHeader>
             <div className="flex items-center gap-3">
@@ -147,8 +163,8 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
 
           {/* Selector de Guardia existente */}
           <div className="p-3.5 rounded-xl bg-muted/50 border border-border space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <label className="field-label flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-primary" /> Seleccionar Guardia para Auto-llenar
               </label>
               <span className="text-[11px] text-muted-foreground">O llena los datos a mano</span>
@@ -168,7 +184,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
           </div>
 
           {/* Pestañas de sección */}
-          <div className="flex border-b border-border text-xs">
+          <div className="flex overflow-x-auto border-b border-border text-xs [&>button]:shrink-0 [&>button]:whitespace-nowrap">
             <button
               type="button"
               onClick={() => setTab('trabajador')}
@@ -207,9 +223,15 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
           {/* TAB 1: TRABAJADOR */}
           {tab === 'trabajador' && (
             <div className="space-y-3 pt-1">
+              {faltantesFicha.length > 0 && (
+                <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900">
+                  A este guardia le falta en su ficha: <b>{faltantesFicha.join(', ')}</b>. Quedan en blanco en el contrato.
+                  Conviene capturarlos antes en <b>Guardias → Editar datos</b>: con su fecha de nacimiento, sexo y lugar de nacimiento la CURP y el RFC se calculan solos.
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-semibold">Nombre Completo del Trabajador *</label>
+                  <label className="field-label">Nombre Completo del Trabajador *</label>
                   <Input
                     value={form.nombreTrabajador}
                     onChange={(e) => setForm({ ...form, nombreTrabajador: e.target.value })}
@@ -218,7 +240,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold">Puesto a Desempeñar</label>
+                  <label className="field-label">Puesto a Desempeñar</label>
                   <Input
                     value={form.puesto}
                     onChange={(e) => setForm({ ...form, puesto: e.target.value })}
@@ -226,24 +248,28 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold">R.F.C.</label>
+                  <label className="field-label">R.F.C.</label>
                   <Input
                     value={form.rfcTrabajador}
                     onChange={(e) => setForm({ ...form, rfcTrabajador: e.target.value.toUpperCase() })}
                     placeholder="MOSI891125H59"
+                    aria-invalid={avisoRfc && !avisoRfc.ok ? true : undefined}
                   />
+                  {avisoRfc && !avisoRfc.ok && <p className="text-[11px] font-medium leading-snug text-destructive">{avisoRfc.motivo}</p>}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold">C.U.R.P.</label>
+                  <label className="field-label">C.U.R.P.</label>
                   <Input
                     value={form.curpTrabajador}
                     onChange={(e) => setForm({ ...form, curpTrabajador: e.target.value.toUpperCase() })}
                     placeholder="MOSI891125HMCNNS02"
+                    aria-invalid={avisoCurp && !avisoCurp.ok ? true : undefined}
                   />
+                  {avisoCurp && !avisoCurp.ok && <p className="text-[11px] font-medium leading-snug text-destructive">{avisoCurp.motivo}</p>}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold">Edad</label>
+                    <label className="field-label">Edad</label>
                     <Input
                       value={form.edad}
                       onChange={(e) => setForm({ ...form, edad: e.target.value })}
@@ -251,7 +277,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold">Estado Civil</label>
+                    <label className="field-label">Estado Civil</label>
                     <Select
                       value={form.estadoCivil}
                       onChange={(e) => setForm({ ...form, estadoCivil: e.target.value })}
@@ -263,7 +289,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold">Nacionalidad</label>
+                    <label className="field-label">Nacionalidad</label>
                     <Input
                       value={form.nacionalidad}
                       onChange={(e) => setForm({ ...form, nacionalidad: e.target.value })}
@@ -272,7 +298,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                   </div>
                 </div>
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-semibold">Domicilio Particular Completo</label>
+                  <label className="field-label">Domicilio Particular Completo</label>
                   <Input
                     value={form.domicilioTrabajador}
                     onChange={(e) => setForm({ ...form, domicilioTrabajador: e.target.value })}
@@ -288,7 +314,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
             <div className="space-y-3 pt-1">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold">Sueldo Mensual Bruto ($ MXN)</label>
+                  <label className="field-label">Sueldo Mensual Bruto ($ MXN)</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -302,7 +328,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold">Periodicidad de Pago</label>
+                  <label className="field-label">Periodicidad de Pago</label>
                   <Select
                     value={form.periodicidadPago}
                     onChange={(e) => setForm({ ...form, periodicidadPago: e.target.value })}
@@ -314,7 +340,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold">Días Laborales por Semana</label>
+                  <label className="field-label">Días Laborales por Semana</label>
                   <Select
                     value={String(form.diasLaboralesSemana)}
                     onChange={(e) => setForm({ ...form, diasLaboralesSemana: parseInt(e.target.value, 10) || 6 })}
@@ -324,7 +350,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold">Periodo de Prueba Inicial</label>
+                  <label className="field-label">Periodo de Prueba Inicial</label>
                   <Select
                     value={String(form.diasPruebaInicial)}
                     onChange={(e) => setForm({ ...form, diasPruebaInicial: parseInt(e.target.value, 10) || 30 })}
@@ -336,7 +362,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold">Fecha de Inicio de Vigencia y Antigüedad</label>
+                  <label className="field-label">Fecha de Inicio de Vigencia y Antigüedad</label>
                   <Input
                     value={form.fechaInicioVigencia}
                     onChange={(e) => setForm({ ...form, fechaInicioVigencia: e.target.value, fechaContrato: e.target.value })}
@@ -356,7 +382,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="sm:col-span-2 space-y-1">
-                    <label className="text-[11px] font-medium">Nombre Completo del Beneficiario</label>
+                    <label className="field-label">Nombre Completo del Beneficiario</label>
                     <Input
                       value={form.beneficiarioNombre}
                       onChange={(e) => setForm({ ...form, beneficiarioNombre: e.target.value })}
@@ -364,7 +390,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[11px] font-medium">Parentesco</label>
+                    <label className="field-label">Parentesco</label>
                     <Input
                       value={form.beneficiarioParentesco}
                       onChange={(e) => setForm({ ...form, beneficiarioParentesco: e.target.value })}
@@ -415,7 +441,7 @@ export default function ModalGenerarContrato({ open, onOpenChange, guardiaIdInic
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4" /> Generar y Abrir en Editor
+                  <FilePlus2 className="w-4 h-4" /> Generar y Abrir en Editor
                 </>
               )}
             </Button>

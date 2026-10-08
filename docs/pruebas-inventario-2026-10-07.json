@@ -1,0 +1,184 @@
+{
+  "fecha": "2026-10-07T21:55:21.121Z",
+  "entorno": "SQLite en memoria; JWT real; sin datos productivos",
+  "total": 44,
+  "aprobadas": 44,
+  "resultados": [
+    {
+      "name": "Compra, asignación y devolución conservan piezas y autor",
+      "ok": true
+    },
+    {
+      "name": "Devolución libre rechazada y procedencia externa explícita",
+      "ok": true
+    },
+    {
+      "name": "Talla obligatoria, exacta y stock atómico",
+      "ok": true
+    },
+    {
+      "name": "Lotes inválidos revierten todos los renglones",
+      "ok": true
+    },
+    {
+      "name": "Asignaciones sin guardia, inactivas o ficticias rechazadas",
+      "ok": true
+    },
+    {
+      "name": "Cantidades enteras, fechas, artículo, talla y estados validados",
+      "ok": true
+    },
+    {
+      "name": "Reposición cambia talla y enlaza entrada con salida correcta",
+      "ok": true
+    },
+    {
+      "name": "Recuperar extravío específico no consume asignación activa",
+      "ok": true
+    },
+    {
+      "name": "Devoluciones de prendas archivadas y conservación de históricos",
+      "ok": true
+    },
+    {
+      "name": "Extravío genérico rechazado; daño físico permanece al archivar",
+      "ok": true
+    },
+    {
+      "name": "Baja parcial deja el resto pendiente y completa en segunda entrega",
+      "ok": true
+    },
+    {
+      "name": "Baja vacía termina y no acepta devolución por ruta paralela",
+      "ok": true
+    },
+    {
+      "name": "Carga inicial atómica y equipo previo mantienen stock físico",
+      "ok": true
+    },
+    {
+      "name": "Idempotencia de entradas: reintento, conflicto y clave requerida",
+      "ok": true
+    },
+    {
+      "name": "Catálogo no cambia regla ni retira tallas usadas; renombra checklist",
+      "ok": true
+    },
+    {
+      "name": "Catálogo renombra ajustes sin perder el saldo",
+      "ok": true
+    },
+    {
+      "name": "Saldos negativos y equipo huérfano son visibles",
+      "ok": true
+    },
+    {
+      "name": "Expedientes de homónimos se separan por ID",
+      "ok": true
+    },
+    {
+      "name": "Gráfica conserva el año y recientes incluye cambios de estado",
+      "ok": true
+    },
+    {
+      "name": "JWT real y permisos en base prevalecen sobre token antiguo",
+      "ok": true
+    },
+    {
+      "name": "Anulación de operación emparejada restaura stock y campo",
+      "ok": true
+    },
+    {
+      "name": "Anulación rechaza saldo negativo y, desde una fila, deshace primero su última operación",
+      "ok": true
+    },
+    {
+      "name": "Conteo registra diferencia y rechaza saldo desactualizado",
+      "ok": true
+    },
+    {
+      "name": "Corte reconstruye estados, conserva autor y rechaza antes de base",
+      "ok": true
+    },
+    {
+      "name": "Excel real contiene filtros, tallas y fórmulas con total calculado",
+      "ok": true
+    },
+    {
+      "name": "Formulario rechaza 1.5 sin expandirlo a dos piezas",
+      "ok": true
+    },
+    {
+      "name": "WhatsApp solo elimina chats, preserva inventario",
+      "ok": true
+    },
+    {
+      "name": "Fecha operativa México evita adelanto de UTC",
+      "ok": true
+    },
+    {
+      "name": "JSON nulo se rechaza sin errores internos",
+      "ok": true
+    },
+    {
+      "name": "Permisos de captura permiten referencias sin conceder edición",
+      "ok": true
+    },
+    {
+      "name": "Anular devolución de baja no desajusta checklist ni estado",
+      "ok": true
+    },
+    {
+      "name": "Fecha de transición anterior a entrega se rechaza",
+      "ok": true
+    },
+    {
+      "name": "Cliente conserva clave tras fallo de red y la renueva al confirmar",
+      "ok": true
+    },
+    {
+      "name": "Anular deshace un extravío y después la asignación; la vista previa lo explica",
+      "ok": true
+    },
+    {
+      "name": "Corregir cantidad, talla y estado respeta existencias y deja a Anular el valor original",
+      "ok": true
+    },
+    {
+      "name": "Corregir un renglón de la carga inicial no toca los demás; anular revierte toda la carga",
+      "ok": true
+    },
+    {
+      "name": "Corregir equipo previo mantiene emparejadas la entrada y la salida",
+      "ok": true
+    },
+    {
+      "name": "Corregir se rechaza si hubo cambios posteriores, si es compuesto o si es anterior a la bitácora",
+      "ok": true
+    },
+    {
+      "name": "Renombrar un guardia o una prenda no bloquea anular ni corregir ni pisa el nombre nuevo",
+      "ok": true
+    },
+    {
+      "name": "Anular exige deshacer primero lo posterior dentro de una misma captura",
+      "ok": true
+    },
+    {
+      "name": "Corregir y anular respetan los permisos del rol personalizado",
+      "ok": true
+    },
+    {
+      "name": "Anular no toca piezas de un proceso de baja abierto",
+      "ok": true
+    },
+    {
+      "name": "Corregir una baja por daño ajusta pérdidas y existencias",
+      "ok": true
+    },
+    {
+      "name": "Bitácora anterior sin deshecho_por: el arranque la actualiza y, si no, anular y corregir la agregan",
+      "ok": true
+    }
+  ]
+}

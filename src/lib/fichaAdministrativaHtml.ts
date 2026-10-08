@@ -29,6 +29,8 @@ export interface FichaTecnicaData {
   fechaNacimiento?: string;
   edad?: string;
   lugarNacimiento?: string;
+  /** Entidad de nacimiento capturada en el alta (la de la CURP); valor inicial de lugarNacimiento. */
+  entidadNacimiento?: string;
   nacionalidad?: string;
   estadoCivil?: string;
   estudios?: string;

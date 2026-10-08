@@ -1,4 +1,5 @@
 'use client';
+import { fechaMexico } from '@/src/lib/fecha';
 import { useState, useMemo, useEffect } from 'react';
 import { apiFetch } from '@/src/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,25 +12,28 @@ import { ArrowUpFromLine, Search, AlertCircle, Download, Check, ShieldCheck } fr
 import { fmtDate, downloadCSV } from '@/src/lib/utils';
 import { ARTICULOS, CONCEPTOS_SALIDA, getEstadoAsignacion, requiereTalla as articuloRequiereTalla, validarTalla } from '@/src/lib/constants';
 import { toast } from 'sonner';
+import AnularMovimiento from '@/src/components/apps/AnularMovimiento';
+import CorregirMovimiento, { puedeCorregir } from '@/src/components/apps/CorregirMovimiento';
 import { useAuth } from '@/src/context/AuthContext';
 
 type ArticuloSeleccion = { cantidad: number; talla: string; estadoFisico?: 'Nuevo' | 'Usado'; estadoDevolucion?: string };
 type Seleccion = Record<string, ArticuloSeleccion>;
 
 export default function SalidasApp() {
-  const { isEditor } = useAuth();
+  const { puede } = useAuth();
+  const isEditor = puede('salidas', 'crear');
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const { data: salidas = [], isLoading } = useQuery({ queryKey: ['salidas'], queryFn: () => apiFetch<any[]>('/api/salidas') });
-  const { data: inventarioDetalle = [], refetch: refetchDetalle } = useQuery({ queryKey: ['inventarioDetalle'], queryFn: () => apiFetch<any[]>('/api/inventario/detalle'), staleTime: 0 });
-  const { data: guardias = [] } = useQuery({ queryKey: ['guardias'], queryFn: () => apiFetch<any[]>('/api/guardias') });
-  const { data: catalogoPrendas = [] } = useQuery({ queryKey: ['prendas'], queryFn: () => apiFetch<any[]>('/api/prendas?solo_activas=1') });
+  const { data: salidas = [], isLoading, error, refetch } = useQuery({ queryKey: ['salidas'], queryFn: () => apiFetch<any[]>('/api/salidas') });
+  const { data: inventarioDetalle = [], refetch: refetchDetalle, error: errorDetalle } = useQuery({ queryKey: ['inventarioDetalle'], queryFn: () => apiFetch<any[]>('/api/inventario/detalle'), staleTime: 0 });
+  const { data: guardias = [], error: errorGuardias } = useQuery({ queryKey: ['guardias'], queryFn: () => apiFetch<any[]>('/api/guardias') });
+  const { data: catalogoPrendas = [], error: errorCatalogo } = useQuery({ queryKey: ['catalogoPrendas'], queryFn: () => apiFetch<any[]>('/api/prendas') });
 
-  const [estadoFisico, setEstadoFisico] = useState<'Nuevo' | 'Usado'>('Nuevo');
+  const [estadoFisico, setEstadoFisico] = useState<'Nuevo' | 'Usado' | 'Inutilizable'>('Nuevo');
   const [concepto, setConcepto] = useState('Uniforme en Campo');
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha] = useState(fechaMexico());
   const [guardiaId, setGuardiaId] = useState('');
   const [articulo, setArticulo] = useState('');
   const [talla, setTalla] = useState('');
@@ -38,23 +42,24 @@ export default function SalidasApp() {
   const [observaciones, setObservaciones] = useState('');
 
   const stockPorArticulo = useMemo(() => {
-    const mapN: Record<string, number> = {}, mapU: Record<string, number> = {};
-    (inventarioDetalle as any[]).forEach((i: any) => { mapN[i.articulo] = (mapN[i.articulo] ?? 0) + (i.almacenNuevo ?? 0); mapU[i.articulo] = (mapU[i.articulo] ?? 0) + (i.almacenUsado ?? 0); });
-    return { Nuevo: mapN, Usado: mapU };
+    const mapN: Record<string, number> = {}, mapU: Record<string, number> = {}, mapI: Record<string, number> = {};
+    (inventarioDetalle as any[]).forEach((i: any) => { mapN[i.articulo] = (mapN[i.articulo] ?? 0) + (i.almacenNuevo ?? 0); mapU[i.articulo] = (mapU[i.articulo] ?? 0) + (i.almacenUsado ?? 0); mapI[i.articulo] = (mapI[i.articulo] ?? 0) + (i.almacenInutilizable ?? 0); });
+    return { Nuevo: mapN, Usado: mapU, Inutilizable: mapI };
   }, [inventarioDetalle]);
 
   const stockPorTalla = useMemo(() => {
-    const mapN: Record<string, Record<string, number>> = {}, mapU: Record<string, Record<string, number>> = {};
-    (inventarioDetalle as any[]).forEach((i: any) => { if (!mapN[i.articulo]) mapN[i.articulo] = {}; if (!mapU[i.articulo]) mapU[i.articulo] = {}; mapN[i.articulo][i.talla ?? ''] = (i.almacenNuevo ?? 0); mapU[i.articulo][i.talla ?? ''] = (i.almacenUsado ?? 0); });
-    return { Nuevo: mapN, Usado: mapU };
+    const mapN: Record<string, Record<string, number>> = {}, mapU: Record<string, Record<string, number>> = {}, mapI: Record<string, Record<string, number>> = {};
+    (inventarioDetalle as any[]).forEach((i: any) => { if (!mapN[i.articulo]) mapN[i.articulo] = {}; if (!mapU[i.articulo]) mapU[i.articulo] = {}; if (!mapI[i.articulo]) mapI[i.articulo] = {}; mapN[i.articulo][i.talla ?? ''] = (i.almacenNuevo ?? 0); mapU[i.articulo][i.talla ?? ''] = (i.almacenUsado ?? 0); mapI[i.articulo][i.talla ?? ''] = (i.almacenInutilizable ?? 0); });
+    return { Nuevo: mapN, Usado: mapU, Inutilizable: mapI };
   }, [inventarioDetalle]);
 
   const listaArticulosTotal = useMemo(() => {
     return Array.from(new Set([
-      ...catalogoPrendas.map(p => p.nombre),
+      ...catalogoPrendas.filter(p => p.activo).map(p => p.nombre),
       ...Object.keys(stockPorArticulo.Nuevo),
       ...Object.keys(stockPorArticulo.Usado),
-      ...ARTICULOS,
+      ...Object.keys(stockPorArticulo.Inutilizable),
+      ...(catalogoPrendas.length === 0 ? ARTICULOS : []),
     ]));
   }, [catalogoPrendas, stockPorArticulo]);
 
@@ -67,16 +72,16 @@ export default function SalidasApp() {
   const guardiasActivos = useMemo(() => (guardias as any[]).filter((g: any) => g.estado === 'Activo'), [guardias]);
 
   useEffect(() => {
-    if (isModalOpen) { refetchDetalle(); setFecha(new Date().toISOString().split('T')[0]); setConcepto('Uniforme en Campo'); setGuardiaId(''); setArticulo(''); setTalla(''); setCantidad(1); setSeleccion({}); setObservaciones(''); setEstadoFisico('Nuevo'); }
+    if (isModalOpen) { refetchDetalle(); setFecha(fechaMexico()); setConcepto('Uniforme en Campo'); setGuardiaId(''); setArticulo(''); setTalla(''); setCantidad(1); setSeleccion({}); setObservaciones(''); setEstadoFisico('Nuevo'); }
   }, [isModalOpen]);
-  useEffect(() => { setSeleccion({}); setArticulo(''); setTalla(''); setCantidad(1); }, [concepto]);
+  useEffect(() => { setSeleccion({}); setArticulo(''); setTalla(''); setCantidad(1); setEstadoFisico('Nuevo'); }, [concepto]);
   useEffect(() => { setTalla(''); setCantidad(1); }, [articulo]);
   const isCampo = concepto === 'Uniforme en Campo';
   const isMultiArticle = isCampo || concepto === 'Extravío';
   const isInutilizable = concepto === 'Inutilizable';
   useEffect(() => { if (!isCampo) setSeleccion({}); }, [guardiaId]);
 
-  const invalidateAll = () => { ['salidas','inventario','inventarioDetalle','dashboardMetrics','uniformesCampo','expediente'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] })); };
+  const invalidateAll = () => { ['salidas','inventario','inventarioDetalle','dashboardMetrics','uniformesCampo','expediente','inventarioHistorial'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] })); };
 
   const simpleMutation = useMutation({ mutationFn: (p: any) => apiFetch('/api/salidas', { method: 'POST', body: JSON.stringify(p) }), onSuccess: () => { invalidateAll(); toast.success('Salida registrada'); setIsModalOpen(false); }, onError: (e: Error) => toast.error(e.message) });
   const bulkMutation = useMutation({ mutationFn: (items: any[]) => apiFetch<{ created: number }>('/api/salidas/bulk', { method: 'POST', body: JSON.stringify({ items }) }), onSuccess: (d) => { invalidateAll(); toast.success(`Asignación: ${d.created} pieza(s)`); setIsModalOpen(false); }, onError: (e: Error) => toast.error(e.message) });
@@ -95,7 +100,7 @@ export default function SalidasApp() {
   const articulosEnCampoDelGuardia = useMemo(() => {
     if (!guardiaId || isCampo) return [];
     const mapa: Record<string, { articulo: string; talla: string | null; cantidad: number }> = {};
-    (salidas as any[]).filter((s: any) => s.guardia_id?.toString() === guardiaId && s.estado_asignacion === 'Uniforme en Campo').forEach((s: any) => { const key = `${s.articulo}|||${s.talla ?? ''}`; if (!mapa[key]) mapa[key] = { articulo: s.articulo, talla: s.talla ?? null, cantidad: 0 }; mapa[key].cantidad += s.cantidad; });
+    (salidas as any[]).filter((s: any) => s.guardia_id?.toString() === guardiaId && !s.anulado && s.estado_asignacion === 'Uniforme en Campo').forEach((s: any) => { const key = `${s.articulo}|||${s.talla ?? ''}`; if (!mapa[key]) mapa[key] = { articulo: s.articulo, talla: s.talla ?? null, cantidad: 0 }; mapa[key].cantidad += s.cantidad; });
     return Object.values(mapa).filter(v => v.cantidad > 0);
   }, [salidas, guardiaId, isCampo]);
 
@@ -106,8 +111,10 @@ export default function SalidasApp() {
     if (!guardiaId) { toast.error('Debes seleccionar un guardia'); return; }
     const artSeleccionados = Object.entries(seleccion);
     if (artSeleccionados.length === 0) { toast.error('Selecciona al menos un artículo'); return; }
+    if (artSeleccionados.some(([, v]) => !Number.isSafeInteger(v.cantidad) || v.cantidad < 1)) { toast.error('La cantidad debe ser un entero mayor a cero'); return; }
     if (isCampo) {
       for (const [art, vals] of artSeleccionados) {
+        if (!Number.isSafeInteger(vals.cantidad) || vals.cantidad < 1) { toast.error('La cantidad debe ser un entero mayor a cero'); return; }
         const errorTalla = validarTalla(art, vals.talla, art, itemRequiereTalla(art));
         if (errorTalla) { toast.error(errorTalla); return; }
         const estadoSelect = vals.estadoFisico || 'Nuevo';
@@ -116,7 +123,7 @@ export default function SalidasApp() {
       }
       const expanded: any[] = [];
       for (const [art, vals] of artSeleccionados) {
-        for (let i = 0; i < vals.cantidad; i++) expanded.push({ fecha, concepto, articulo: art, talla: vals.talla || null, cantidad: 1, nombre_guardia: guardia?.nombre ?? null, guardia_id: guardia?.id ?? null, estado_asignacion: getEstadoAsignacion(concepto), estado_fisico: vals.estadoFisico || 'Nuevo' });
+        expanded.push({ fecha, concepto, articulo: art, talla: vals.talla || null, cantidad: vals.cantidad, nombre_guardia: guardia?.nombre ?? null, guardia_id: guardia?.id ?? null, estado_asignacion: getEstadoAsignacion(concepto), estado_fisico: vals.estadoFisico || 'Nuevo' });
       }
       bulkMutation.mutate(expanded);
     } else {
@@ -129,31 +136,34 @@ export default function SalidasApp() {
     if (!articulo) { toast.error('Selecciona un artículo'); return; }
     const errorTalla = validarTalla(articulo, talla, articulo, itemRequiereTalla(articulo));
     if (errorTalla) { toast.error(errorTalla); return; }
+    if (!Number.isSafeInteger(Number(cantidad)) || Number(cantidad) < 1) { toast.error('La cantidad debe ser un entero mayor a cero'); return; }
     if (cantidad > maxCantidadSimple) { toast.error(`Stock insuficiente. Disponible: ${maxCantidadSimple}`); return; }
-    simpleMutation.mutate({ fecha, concepto, articulo, talla: talla || null, cantidad: Number(cantidad), nombre_guardia: guardia?.nombre ?? null, guardia_id: guardia?.id ?? null, estado_asignacion: getEstadoAsignacion(concepto), estado_fisico: estadoFisico });
+    simpleMutation.mutate({ fecha, concepto, articulo, talla: talla || null, cantidad: Number(cantidad), nombre_guardia: guardia?.nombre ?? null, guardia_id: guardia?.id ?? null, estado_asignacion: getEstadoAsignacion(concepto), estado_fisico: estadoFisico, observaciones: observaciones || undefined });
   };
 
   const filteredData = useMemo(() => { const term = searchTerm.toLowerCase(); return (salidas as any[]).filter((s: any) => s.articulo.toLowerCase().includes(term) || s.concepto.toLowerCase().includes(term) || (s.nombre_guardia && s.nombre_guardia.toLowerCase().includes(term))); }, [salidas, searchTerm]);
-  const isPending = simpleMutation.isPending || bulkMutation.isPending || extravioMutation.isPending;
+  const opcionesError = errorDetalle || errorGuardias || errorCatalogo;
+  const isPending = !!opcionesError || simpleMutation.isPending || bulkMutation.isPending || extravioMutation.isPending;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h1 className="text-2xl font-bold tracking-tight">Salidas de Equipo</h1><p className="text-muted-foreground mt-0.5 text-sm">Registro de dotaciones, asignaciones a campo y extravíos.</p></div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => { const rows = (salidas as any[]).map((s: any) => [fmtDate(s.fecha), s.concepto, s.articulo, s.talla || '—', s.cantidad, s.nombre_guardia || '—', s.estado_asignacion]); downloadCSV(`salidas_${new Date().toISOString().split('T')[0]}.csv`, ['Fecha','Concepto','Artículo','Talla','Cantidad','Guardia','Estado'], rows); }}><Download className="w-4 h-4 mr-1.5" /> Exportar</Button>
-          {isEditor && <Button onClick={() => setIsModalOpen(true)} className="bg-accent hover:bg-accent/90 text-white"><ArrowUpFromLine className="w-4 h-4 mr-2" /> Nueva Salida</Button>}
+          <Button variant="outline" size="sm" onClick={() => { const rows = filteredData.map((s: any) => [fmtDate(s.fecha), s.concepto, s.articulo, s.talla || '—', s.cantidad, s.nombre_guardia || '—', s.estado_asignacion, s.estado_actualizado_en || '', s.registrado_por || '', s.anulado ? 'Anulado' : 'Vigente']); downloadCSV(`salidas_${fechaMexico()}.csv`, ['Fecha','Concepto','Artículo','Talla','Cantidad','Guardia','Estado','Última actualización','Registró','Registro'], rows); }}><Download className="w-4 h-4 mr-1.5" /> CSV filtrado</Button>
+          {isEditor && <Button onClick={() => setIsModalOpen(true)}><ArrowUpFromLine className="w-4 h-4 mr-2" /> Nueva Salida</Button>}
         </div>
       </div>
       <div className="relative max-w-sm"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-9" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+        {error && <p role="alert" className="p-3 text-red-600">{error.message} <Button onClick={() => refetch()}>Reintentar</Button></p>}
         <Table>
-          <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Tipo</TableHead><TableHead>Artículo</TableHead><TableHead>Talla</TableHead><TableHead className="text-right">Cant.</TableHead><TableHead>Guardia</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Tipo</TableHead><TableHead>Artículo</TableHead><TableHead>Talla</TableHead><TableHead className="text-right">Cant.</TableHead><TableHead>Guardia</TableHead><TableHead>Estado</TableHead><TableHead>Acción</TableHead></TableRow></TableHeader>
           <TableBody>
-            {isLoading ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Cargando...</TableCell></TableRow>
-              : filteredData.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No hay registros.</TableCell></TableRow>
+            {isLoading ? <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Cargando...</TableCell></TableRow>
+              : filteredData.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No hay registros.</TableCell></TableRow>
               : filteredData.map((item: any) => {
-                const est = item.estado_asignacion;
+                const est = item.anulado ? 'Anulado' : item.estado_asignacion;
                 const cfg: Record<string, string> = { 'Uniforme en Campo': 'bg-blue-100 text-blue-700 border-blue-200', 'Uniforme en Bajas': 'bg-amber-100 text-amber-700 border-amber-200', 'Entregado Definitivo': 'bg-emerald-100 text-emerald-700 border-emerald-200', 'Devuelto': 'bg-emerald-50 text-emerald-600 border-emerald-200', 'Extraviado': 'bg-orange-100 text-orange-700 border-orange-200', 'N/A': 'bg-red-100 text-red-700 border-red-200' };
                 const cls = cfg[est] ?? 'bg-secondary text-secondary-foreground border-border';
                 const label = est === 'N/A' ? (item.concepto === 'Inutilizable' ? 'Dado de Baja' : 'Extravío') : (est || '—');
@@ -169,6 +179,7 @@ export default function SalidasApp() {
                       <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${cls}`}>{label}</span>
                       {item.estado_actualizado_en && <div className="text-[10px] text-muted-foreground mt-0.5">Actualizado: {fmtDate(item.estado_actualizado_en)}</div>}
                     </TableCell>
+                    <TableCell><div className="flex gap-1">{puede('salidas','editar') && puedeCorregir('salidas', item) && <CorregirMovimiento tabla="salidas" fila={item} />}{!item.anulado && puede('salidas','eliminar') && <AnularMovimiento tabla="salidas" id={item.id} />}</div></TableCell>
                   </TableRow>
                 );
               })}
@@ -179,9 +190,9 @@ export default function SalidasApp() {
         <DialogContent className={isMultiArticle ? 'max-h-[90vh] overflow-y-auto' : ''}>
           <DialogHeader><DialogTitle>Registrar Salida de Equipo</DialogTitle><DialogDescription>Elige el tipo de movimiento y completa los datos</DialogDescription></DialogHeader>
           <div className="space-y-2 mt-2">
-            <label className="text-sm font-medium">Tipo de Movimiento</label>
+            <label className="field-label">Tipo de Movimiento</label>
             <div className="grid grid-cols-2 gap-2">
-              {CONCEPTOS_SALIDA.map(c => (
+              {CONCEPTOS_SALIDA.filter(c => c.value !== 'Extravío' || puede('uniformes-campo','editar')).map(c => (
                 <button key={c.value} type="button" onClick={() => setConcepto(c.value)}
                   className={`text-left p-3 rounded-xl border-2 transition-all ${concepto === c.value ? (c.value === 'Inutilizable' ? 'border-red-500 bg-red-50' : 'border-primary bg-primary/5') : 'border-border hover:border-primary/30 bg-card'}`}>
                   <p className={`text-xs font-bold ${concepto === c.value ? (c.value === 'Inutilizable' ? 'text-red-700' : 'text-primary') : 'text-foreground'}`}>{c.label}</p>
@@ -194,14 +205,14 @@ export default function SalidasApp() {
           {isMultiArticle ? (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5"><label className="text-sm font-medium">Guardia <span className="text-destructive">*</span></label>
+                <div className="space-y-1.5"><label className="field-label">Guardia <span className="text-destructive">*</span></label>
                   <Select value={guardiaId} onChange={e => setGuardiaId(e.target.value)} required><option value="">— Seleccionar —</option>{guardiasActivos.map((g: any) => <option key={g.id} value={g.id}>{g.nombre} · {g.numero_elemento}</option>)}</Select>
                 </div>
-                <div className="space-y-1.5"><label className="text-sm font-medium">Fecha</label><Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></div>
+                <div className="space-y-1.5"><label className="field-label">Fecha</label><Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></div>
               </div>
-              {concepto === 'Extravío' && <div className="space-y-1.5"><label className="text-sm font-medium">Observaciones</label><Input value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Ej. Se descuenta de nómina" /></div>}
+              {concepto === 'Extravío' && <div className="space-y-1.5"><label className="field-label">Observaciones</label><Input value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Ej. Se descuenta de nómina" /></div>}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between"><label className="text-sm font-medium">{isCampo ? 'Artículos a Asignar' : 'Artículos Extraviados'}</label>{totalPiezas > 0 && <span className="text-xs text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">{Object.keys(seleccion).length} artículo(s) · {totalPiezas} pieza(s)</span>}</div>
+                <div className="flex items-center justify-between"><label className="field-label">{isCampo ? 'Artículos a Asignar' : 'Artículos Extraviados'}</label>{totalPiezas > 0 && <span className="text-xs text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">{Object.keys(seleccion).length} artículo(s) · {totalPiezas} pieza(s)</span>}</div>
                 {isCampo ? (
                   <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
                     {listaArticulosTotal.map(art => {
@@ -308,8 +319,8 @@ export default function SalidasApp() {
           ) : (
             <form onSubmit={handleSubmitSimple} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5"><label className="text-sm font-medium">Fecha</label><Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required /></div>
-                <div className="space-y-1.5"><label className="text-sm font-medium">Artículo</label>
+                <div className="space-y-1.5"><label className="field-label">Fecha</label><Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required /></div>
+                <div className="space-y-1.5"><label className="field-label">Artículo</label>
                   <Select value={articulo} onChange={e => setArticulo(e.target.value)} required>
                     <option value="" disabled>Seleccionar...</option>
                     {articlesSimple.map(art => <option key={art} value={art}>{art} — Disp: {stockPorArticulo[estadoFisico][art] ?? 0}</option>)}
@@ -317,18 +328,19 @@ export default function SalidasApp() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5"><label className="text-sm font-medium">Estado Físico</label><Select value={estadoFisico} onChange={e => setEstadoFisico(e.target.value as any)}><option value="Nuevo">Nuevo</option><option value="Usado">Usado</option></Select></div>
-                {articulo && articuloRequiereTalla(articulo) && (
-                  <div className="space-y-1.5"><label className="text-sm font-medium">Talla</label>
+                <div className="space-y-1.5"><label className="field-label">Estado Físico</label><Select value={estadoFisico} onChange={e => { setEstadoFisico(e.target.value as any); setArticulo(''); setTalla(''); }}><option value="Nuevo">Nuevo</option><option value="Usado">Usado</option>{isInutilizable && <option value="Inutilizable">Inutilizable</option>}</Select></div>
+                {articulo && itemRequiereTalla(articulo) && (
+                  <div className="space-y-1.5"><label className="field-label">Talla</label>
                     <Select value={talla} onChange={e => setTalla(e.target.value)} required>
                       <option value="" disabled>Seleccionar...</option>
                       {tallasConStock.map((t: string) => <option key={t} value={t}>{t} — {stockPorTalla[estadoFisico]?.[articulo]?.[t] ?? 0} disp.</option>)}
                     </Select>
                   </div>
                 )}
-                <div className="space-y-1.5"><label className="text-sm font-medium">Cantidad{maxCantidadSimple > 0 && <span className="text-muted-foreground font-normal ml-1">(máx: {maxCantidadSimple})</span>}</label><Input type="number" min="1" max={maxCantidadSimple || undefined} value={cantidad} onChange={e => setCantidad(Number(e.target.value))} required /></div>
+                <div className="space-y-1.5"><label className="field-label">Cantidad{maxCantidadSimple > 0 && <span className="text-muted-foreground font-normal ml-1">(máx: {maxCantidadSimple})</span>}</label><Input type="number" min="1" max={maxCantidadSimple || undefined} value={cantidad} onChange={e => setCantidad(Number(e.target.value))} required /></div>
               </div>
-              <div className="space-y-1.5"><label className="text-sm font-medium">Guardia <span className="text-muted-foreground font-normal">(opcional)</span></label>
+              <div className="space-y-1.5"><label className="field-label">Motivo / observaciones <span className="text-muted-foreground font-normal">(opcional)</span></label><Input value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Ej. Desgaste por uso, rasgada, caducado" /></div>
+              <div className="space-y-1.5"><label className="field-label">Guardia <span className="text-muted-foreground font-normal">(opcional, solo de referencia)</span></label>
                 <Select value={guardiaId} onChange={e => setGuardiaId(e.target.value)}>
                   <option value="">— Sin asignar —</option>
                   {guardiasActivos.map((g: any) => <option key={g.id} value={g.id}>{g.nombre} · {g.numero_elemento}</option>)}

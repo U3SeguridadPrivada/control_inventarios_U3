@@ -11,7 +11,9 @@
     "pwa-icons": "node scripts/generate-pwa-icons.mjs",
     "prospectar": "node scripts/prospectar-denue.mjs",
     "importar-prospectos": "node scripts/importar-prospectos.mjs",
-    "exportar-prospectos": "node scripts/exportar-prospectos-excel.mjs"
+    "exportar-prospectos": "node scripts/exportar-prospectos-excel.mjs",
+    "test:inventario": "node scripts/auditar-inventario.cjs",
+    "test:rfc-curp": "node scripts/probar-rfc-curp.cjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

@@ -102,7 +102,17 @@ export const administrativo_bitacora = sqliteTable('administrativo_bitacora', {
   created_at: text('created_at').default(sql`(datetime('now'))`),
 });
 
+export const inventario_ajustes = sqliteTable('inventario_ajustes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  fecha: text('fecha').notNull(), articulo: text('articulo').notNull(), talla: text('talla'),
+  estado: text('estado').notNull(), cantidad: integer('cantidad').notNull(),
+  motivo: text('motivo').notNull(), registrado_por: text('registrado_por').notNull(), operacion_id: text('operacion_id'),
+});
+
 export const entradas = sqliteTable('entradas', {
+  anulado: integer('anulado').notNull().default(0),
+  operacion_id: text('operacion_id'),
+  salida_origen_id: integer('salida_origen_id'),
   id: integer('id').primaryKey({ autoIncrement: true }),
   fecha: text('fecha').notNull(),
   articulo: text('articulo').notNull(),
@@ -116,6 +126,9 @@ export const entradas = sqliteTable('entradas', {
 });
 
 export const salidas = sqliteTable('salidas', {
+  anulado: integer('anulado').notNull().default(0),
+  operacion_id: text('operacion_id'),
+  salida_origen_id: integer('salida_origen_id'),
   id: integer('id').primaryKey({ autoIncrement: true }),
   fecha: text('fecha').notNull(),
   concepto: text('concepto').notNull(),

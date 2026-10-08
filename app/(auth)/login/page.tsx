@@ -2,7 +2,11 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '@/src/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { AuthShell } from '@/src/components/auth/AuthShell';
+import { Field, Callout } from '@/src/components/ui/field';
+import { Input } from '@/src/components/ui/input';
+import { Button } from '@/src/components/ui/button';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -28,65 +32,50 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-[100svh] flex items-center justify-center bg-background px-4 py-8 pt-[calc(2rem+var(--safe-top))] pb-[calc(2rem+var(--safe-bottom))]">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-8 gap-3">
-          <img src="/logo_b.png" alt="Logo U3" className="w-14 h-14 object-contain" />
-          <div className="text-center">
-            <h1 className="text-xl font-bold tracking-tight">Suite U3</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Inicia sesión para continuar</p>
-          </div>
-        </div>
-        <form onSubmit={handleSubmit} className="bg-card border border-border rounded-2xl shadow-sm p-6 sm:p-8 space-y-5">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="username">Usuario o correo</label>
-            <input
-              id="username" type="text" autoComplete="username" required
-              autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="next"
-              value={username} onChange={e => setUsername(e.target.value)}
-              className="w-full h-11 px-3 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition"
-              placeholder="tu_usuario o correo@dominio.com"
+    <AuthShell title="Inicia sesión" subtitle="Ingresa con tu usuario o correo institucional.">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <Field label="Usuario o correo">
+          <Input
+            type="text" autoComplete="username" required
+            autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="next"
+            value={username} onChange={e => setUsername(e.target.value)}
+            className="h-11"
+            placeholder="tu_usuario o correo@dominio.com"
+          />
+        </Field>
+        <Field label="Contraseña" htmlFor="password">
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              required
+              enterKeyHint="go"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="h-11 pr-11"
+              placeholder="••••••••"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20"
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="password">Contraseña</label>
-            <div className="relative">
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                required
-                enterKeyHint="go"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="w-full h-11 pl-3 pr-10 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition"
-                placeholder="••••••••"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-0 top-0 h-11 w-10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
-                aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
-                tabIndex={-1}
-              >
-                {showPassword ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-          </div>
-          {error && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full min-h-11 px-4 text-sm font-semibold text-white rounded-lg bg-primary hover:bg-primary/90 active:bg-primary/80 disabled:opacity-60 transition">
-            {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
-          </button>
-          <p className="text-center">
-            <a href="/recuperar" className="text-xs text-muted-foreground hover:text-primary transition-colors">¿Olvidaste tu contraseña?</a>
-          </p>
-        </form>
-      </div>
-    </div>
+        </Field>
+        {error && <Callout tone="danger">{error}</Callout>}
+        <Button type="submit" disabled={loading} className="h-11 w-full text-sm">
+          {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+          {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+        </Button>
+        <p className="text-center">
+          <a href="/recuperar" className="text-xs font-medium text-muted-foreground transition-colors hover:text-primary">¿Olvidaste tu contraseña?</a>
+        </p>
+      </form>
+    </AuthShell>
   );
 }

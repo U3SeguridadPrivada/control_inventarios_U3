@@ -134,10 +134,10 @@ export default function RolesApp() {
           <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
             <DialogHeader><DialogTitle>{editing ? 'Editar rol' : 'Nuevo rol personalizado'}</DialogTitle><DialogDescription>Define el nombre y la matriz de permisos por módulo.</DialogDescription></DialogHeader>
             <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
-              <div className="space-y-2"><label className="text-sm font-medium">Nombre del rol</label><Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej. Supervisor de Ventas" required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Descripción</label><Textarea value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} rows={2} /></div>
+              <div className="space-y-2"><label className="field-label">Nombre del rol</label><Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej. Supervisor de Ventas" required /></div>
+              <div className="space-y-2"><label className="field-label">Descripción</label><Textarea value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} rows={2} /></div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Permisos por módulo</label>
+                <label className="field-label">Permisos por módulo</label>
                 <div className="rounded-xl border border-border overflow-hidden">
                   <table className="w-full text-xs">
                     <thead><tr className="bg-muted/40"><th className="text-left px-3 py-2 font-semibold">Módulo</th><th className="px-2 py-2 font-semibold">Ver</th><th className="px-2 py-2 font-semibold">Crear</th><th className="px-2 py-2 font-semibold">Editar</th><th className="px-2 py-2 font-semibold">Eliminar</th></tr></thead>

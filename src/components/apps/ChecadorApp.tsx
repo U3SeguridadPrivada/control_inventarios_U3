@@ -615,7 +615,7 @@ export default function ChecadorApp() {
             <form onSubmit={handleRegistrarSalida} className="space-y-4">
               {/* Colaborador */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="field-label block mb-1">
                   Nombre del Colaborador
                 </label>
                 <div className="relative">
@@ -692,7 +692,7 @@ export default function ChecadorApp() {
 
               {/* Selección del tipo de descanso (Reglamento vs Otro) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="field-label block mb-1.5">
                   Permiso de Descanso ({configReglamento.limite_minutos_defecto} Minutos Oficiales)
                 </label>
                 <div
@@ -755,7 +755,7 @@ export default function ChecadorApp() {
 
               {/* Motivo o destino breve */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="field-label block mb-1">
                   Motivo / Destino breve
                 </label>
                 <Input
@@ -781,7 +781,7 @@ export default function ChecadorApp() {
               {/* SECCIÓN DE FOTO DE EVIDENCIA */}
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <label className="field-label flex items-center gap-1.5">
                     <Camera className="w-3.5 h-3.5 text-slate-600" /> Foto de Evidencia
                   </label>
                   {fotoEvidencia && (

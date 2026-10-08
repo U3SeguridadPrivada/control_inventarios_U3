@@ -141,3 +141,46 @@ export function getActiveGroupId(pathname: string): string | null {
   const group = NAV_GROUPS.find((g) => g.items.some((item) => item.id === activeId));
   return group?.id ?? null;
 }
+
+/**
+ * Etiquetas del menu lateral expandido: mas descriptivas que shortLabel (pensado
+ * para la barra inferior del telefono) y mas cortas que title (encabezados).
+ */
+const NAV_LABELS: Record<string, string> = {
+  dashboard: 'Panel principal',
+  inventario: 'Almacén',
+  entradas: 'Entradas',
+  salidas: 'Salidas',
+  'uniformes-campo': 'Uniformes en campo',
+  guardias: 'Guardias',
+  administrativos: 'Personal de oficinas',
+  checador: 'Checador',
+  reclutamiento: 'Reclutamiento',
+  bajas: 'Bajas',
+  clientes: 'Clientes y prospectos',
+  'mapa-prospectos': 'Mapa de prospectos',
+  cotizaciones: 'Cotizador',
+  ventas: 'Ventas y reportes',
+  usuarios: 'Usuarios',
+  'nuevo-usuario': 'Nuevo usuario',
+  roles: 'Roles y permisos',
+  calendario: 'Agenda e incidencias',
+  finanzas: 'Finanzas',
+  correo: 'Correo',
+  whatsapp: 'WhatsApp',
+  'mapa-operaciones': 'Mapa de operaciones',
+  protocolos: 'Protocolos',
+  reglamento: 'Reglamentos',
+  machotes: 'Machotes y formatos',
+  ajustes: 'Ajustes',
+};
+
+export function navLabel(item: NavItem): string {
+  return NAV_LABELS[item.id] ?? item.shortLabel;
+}
+
+/** Grupo (Inventario, Personal...) al que pertenece la ruta, o null en las secciones sueltas. */
+export function getActiveGroup(pathname: string): NavGroup | null {
+  const id = getActiveGroupId(pathname);
+  return NAV_GROUPS.find((g) => g.id === id) ?? null;
+}

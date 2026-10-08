@@ -2,18 +2,12 @@ import { NextRequest } from 'next/server';
 import { db } from '@/src/db';
 import { guardias } from '@/src/db/schema';
 import { verifyAuth, unauthorized } from '@/src/lib/auth';
-import { reconstruirDireccion } from '@/src/lib/fichaTecnicaUtils';
+import { reconstruirDireccion, extraerFichaBasica } from '@/src/lib/fichaTecnicaUtils';
 
 export async function GET(req: NextRequest) {
   if (!verifyAuth(req)) return unauthorized();
   return Response.json(db.select().from(guardias).all());
 }
-
-const CAMPOS_FICHA = [
-  'fechaNacimiento', 'edad', 'estadoCivil', 'estudios', 'rfc', 'curp', 'imss', 'sexo', 'estatura', 'peso',
-  'calleNumero', 'colonia', 'entreCalles', 'cp', 'delegacionMunicipio', 'estado', 'tiempoResidencia',
-  'tiempoRadicarEstado', 'telefonoEmergencia', 'celular',
-] as const;
 
 export async function POST(req: NextRequest) {
   const authUser = verifyAuth(req);
@@ -23,15 +17,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { numero_elemento, nombre, fecha_alta, telefono, direccion } = body;
+    if (typeof nombre !== 'string' || !nombre.trim()) {
+      return Response.json({ error: 'El nombre es obligatorio' }, { status: 400 });
+    }
 
     // Los datos personales y de domicilio capturados en el alta rápida se
     // guardan de una vez en ficha_tecnica_json, con las mismas llaves que usa
     // la Ficha Técnica oficial — así, al abrirla después, ya vienen precargados.
-    const ficha: Record<string, string> = {};
-    for (const campo of CAMPOS_FICHA) {
-      const valor = body[campo];
-      if (typeof valor === 'string' && valor.trim()) ficha[campo] = valor.trim();
-    }
+    const ficha = extraerFichaBasica(body);
 
     const direccionReconstruida = ficha.calleNumero
       ? reconstruirDireccion({
@@ -45,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     const newGuardia = db.insert(guardias).values({
       numero_elemento: numero_elemento && String(numero_elemento).trim() ? numero_elemento.trim() : null,
-      nombre,
+      nombre: nombre.trim(),
       fecha_alta,
       telefono: telefono || ficha.celular || null,
       direccion: direccionReconstruida || null,

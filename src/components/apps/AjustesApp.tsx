@@ -40,7 +40,7 @@ function LibroConfigCard({ libro, usuarios, onGuardar, guardando }: { libro: Lib
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground"><UserCircle className="w-3.5 h-3.5" /> Responsable (usuario de la aplicación)</label>
+        <label className="field-label flex items-center gap-1.5"><UserCircle className="w-3.5 h-3.5" /> Responsable (usuario de la aplicación)</label>
         <Select value={form.usuario_id} onChange={(e) => setForm((f) => ({ ...f, usuario_id: e.target.value }))}>
           <option value="">Sin responsable</option>
           {usuarios.filter((u) => u.role !== 'viewer').map((u) => <option key={u.id} value={u.id}>{u.username}</option>)}
@@ -48,7 +48,7 @@ function LibroConfigCard({ libro, usuarios, onGuardar, guardando }: { libro: Lib
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground"><Mail className="w-3.5 h-3.5" /> Correo IMAP de la cuenta</label>
+        <label className="field-label flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> Correo IMAP de la cuenta</label>
         <Input type="email" value={form.imap_correo} onChange={(e) => setForm((f) => ({ ...f, imap_correo: e.target.value }))} placeholder="cuenta@dominio.com" />
         <div className="grid grid-cols-[1fr_90px] gap-2">
           <Input value={form.imap_host} onChange={(e) => setForm((f) => ({ ...f, imap_host: e.target.value }))} placeholder="Servidor (imap.dominio.com)" />
@@ -100,35 +100,35 @@ function SmtpConfigCard() {
     <div className="bg-card border border-border rounded-xl p-4 space-y-4 max-w-2xl">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Servidor SMTP</label>
+          <label className="field-label">Servidor SMTP</label>
           <Input value={form.smtp_host} onChange={(e) => setForm((f) => ({ ...f, smtp_host: e.target.value }))} placeholder="smtp.dominio.com" />
         </div>
         <div className="grid grid-cols-[90px_1fr] gap-2">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Puerto</label>
+            <label className="field-label">Puerto</label>
             <Input type="number" value={form.smtp_puerto} onChange={(e) => setForm((f) => ({ ...f, smtp_puerto: e.target.value }))} />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Seguridad</label>
+            <label className="field-label">Seguridad</label>
             <label className="flex items-center gap-2 h-10 text-sm cursor-pointer">
               <input type="checkbox" checked={form.smtp_ssl} onChange={(e) => setForm((f) => ({ ...f, smtp_ssl: e.target.checked }))} className="rounded border-border" /> SSL/TLS
             </label>
           </div>
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Usuario / correo remitente</label>
+          <label className="field-label">Usuario / correo remitente</label>
           <Input value={form.smtp_usuario} onChange={(e) => setForm((f) => ({ ...f, smtp_usuario: e.target.value }))} placeholder="sistema@dominio.com" />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Contraseña</label>
+          <label className="field-label">Contraseña</label>
           <PasswordInput value={form.smtp_password} onChange={(e) => setForm((f) => ({ ...f, smtp_password: e.target.value }))} placeholder={config?.tiene_password ? 'Contraseña guardada — escribe para cambiarla' : 'Contraseña'} autoComplete="new-password" />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Nombre del remitente</label>
+          <label className="field-label">Nombre del remitente</label>
           <Input value={form.smtp_from_nombre} onChange={(e) => setForm((f) => ({ ...f, smtp_from_nombre: e.target.value }))} />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">URL pública del sitio (para los enlaces de los correos)</label>
+          <label className="field-label">URL pública del sitio (para los enlaces de los correos)</label>
           <Input value={form.app_url} onChange={(e) => setForm((f) => ({ ...f, app_url: e.target.value }))} placeholder="https://miapp.up.railway.app" />
         </div>
       </div>
@@ -165,20 +165,20 @@ function BotConfigCard() {
   return (
     <div className="bg-card border border-border rounded-xl p-4 space-y-4 max-w-2xl">
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Información de la empresa (servicios que ofrece, zonas de operación, alcances)</label>
+        <label className="field-label">Información de la empresa (servicios que ofrece, zonas de operación, alcances)</label>
         <Textarea rows={4} value={form.bot_empresa_info} onChange={(e) => setForm((f) => ({ ...f, bot_empresa_info: e.target.value }))} placeholder="Ej. U3 Seguridad Privada ofrece guardias intramuros, escoltas y custodias en Yucatán y Quintana Roo. No manejamos seguridad electrónica ni traslado de valores..." />
       </div>
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Reglas adicionales del bot (qué puede decir y qué no)</label>
+        <label className="field-label">Reglas adicionales del bot (qué puede decir y qué no)</label>
         <Textarea rows={3} value={form.bot_reglas} onChange={(e) => setForm((f) => ({ ...f, bot_reglas: e.target.value }))} placeholder="Ej. Nunca prometas sueldo exacto; el pago es semanal; los cursos los paga la empresa..." />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Horario disponible para entrevistas</label>
+          <label className="field-label">Horario disponible para entrevistas</label>
           <Input value={form.bot_horario_entrevistas} onChange={(e) => setForm((f) => ({ ...f, bot_horario_entrevistas: e.target.value }))} placeholder="Lunes a viernes de 9:00 a 14:00" />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Lugar de las entrevistas</label>
+          <label className="field-label">Lugar de las entrevistas</label>
           <Input value={form.bot_direccion_entrevistas} onChange={(e) => setForm((f) => ({ ...f, bot_direccion_entrevistas: e.target.value }))} placeholder="Calle 60 #123, Centro, Mérida" />
         </div>
       </div>

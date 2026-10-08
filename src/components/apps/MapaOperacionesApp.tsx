@@ -115,8 +115,8 @@ export default function MapaOperacionesApp() {
           <form onSubmit={handleCreateSubmit}>
             <DialogHeader><DialogTitle>Nuevo servicio</DialogTitle><DialogDescription>Se registrará en la posición seleccionada del mapa</DialogDescription></DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="space-y-2"><label className="text-sm font-medium">Nombre del servicio/cliente</label><Input value={newServicioForm.nombre} onChange={(e) => setNewServicioForm((f) => ({ ...f, nombre: e.target.value }))} required /></div>
-              <div className="space-y-2"><label className="text-sm font-medium">Dirección</label><Input value={newServicioForm.direccion} onChange={(e) => setNewServicioForm((f) => ({ ...f, direccion: e.target.value }))} placeholder="Calle, colonia, alcaldía" /></div>
+              <div className="space-y-2"><label className="field-label">Nombre del servicio/cliente</label><Input value={newServicioForm.nombre} onChange={(e) => setNewServicioForm((f) => ({ ...f, nombre: e.target.value }))} required /></div>
+              <div className="space-y-2"><label className="field-label">Dirección</label><Input value={newServicioForm.direccion} onChange={(e) => setNewServicioForm((f) => ({ ...f, direccion: e.target.value }))} placeholder="Calle, colonia, alcaldía" /></div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setNewServicioPos(null)}>Cancelar</Button>
@@ -132,14 +132,14 @@ export default function MapaOperacionesApp() {
             <DialogHeader><DialogTitle>Asignar guardia</DialogTitle><DialogDescription>{manageServicio?.nombre}</DialogDescription></DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Guardia</label>
+                <label className="field-label">Guardia</label>
                 <Select value={asignarForm.guardia_id} onChange={(e) => setAsignarForm((f) => ({ ...f, guardia_id: e.target.value }))} required>
                   <option value="" disabled>Seleccionar...</option>
                   {guardias.filter((g) => g.estado === 'Activo').map((g) => <option key={g.id} value={g.id}>{g.nombre} · {g.numero_elemento}</option>)}
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Turno (opcional)</label>
+                <label className="field-label">Turno (opcional)</label>
                 <Select value={asignarForm.turno} onChange={(e) => setAsignarForm((f) => ({ ...f, turno: e.target.value }))}>
                   <option value="">Sin especificar</option>
                   <option value="Diurno">Diurno</option>

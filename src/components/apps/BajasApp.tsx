@@ -14,14 +14,17 @@ import { fmtDate } from '@/src/lib/utils';
 import { toast } from 'sonner';
 
 export default function BajasApp() {
-  const { isEditor } = useAuth();
+  const { puede } = useAuth();
+  const isEditor = puede('bajas','editar');
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<'Pendiente' | 'Completada'>('Pendiente');
   const [selectedBaja, setSelectedBaja] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [cantidades, setCantidades] = useState<Record<number, number>>({});
+  const [procesandoTodos, setProcesandoTodos] = useState(false);
   const [returnStates, setReturnStates] = useState<Record<number, string>>({});
 
-  const { data: bajas = [], isLoading } = useQuery({ queryKey: ['bajas'], queryFn: () => apiFetch<any[]>('/api/bajas') });
+  const { data: bajas = [], isLoading, error, refetch } = useQuery({ queryKey: ['bajas'], queryFn: () => apiFetch<any[]>('/api/bajas') });
 
   const filterData = useMemo(() => {
     const byTab = (bajas as any[]).filter((b: any) => tab === 'Pendiente' ? b.estado_general !== 'Completada' : b.estado_general === 'Completada');
@@ -31,28 +34,20 @@ export default function BajasApp() {
   }, [bajas, tab, searchTerm]);
 
   const processMutation = useMutation({
-    mutationFn: (payload: { bajaId: number, salida_id: number, accion: string, cantidadItem: number, estadoFisicoDevolucion?: string }) =>
-      apiFetch<{ allCompleted: boolean }>(`/api/bajas/${payload.bajaId}/process`, { method: 'POST', body: JSON.stringify({ salida_id: payload.salida_id, accion: payload.accion, cantidadItem: payload.cantidadItem, estadoFisicoDevolucion: payload.estadoFisicoDevolucion }) }),
+    mutationFn: (payload: { bajaId: number, salida_id?: number, accion: string, cantidadItem?: number, estadoFisicoDevolucion?: string }) =>
+      apiFetch<{ allCompleted: boolean; baja: any }>(`/api/bajas/${payload.bajaId}/process`, { method: 'POST', body: JSON.stringify({ salida_id: payload.salida_id, accion: payload.accion, cantidadItem: payload.cantidadItem, estadoFisicoDevolucion: payload.estadoFisicoDevolucion }) }),
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['bajas'] }); queryClient.invalidateQueries({ queryKey: ['inventario'] }); queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] }); queryClient.invalidateQueries({ queryKey: ['guardias'] });
-      if (selectedBaja) {
-        const updatedBaja = { ...selectedBaja, checklist: [...selectedBaja.checklist] };
-        const itemIndex = updatedBaja.checklist.findIndex((c: any) => c.salida_id === variables.salida_id);
-        if (itemIndex > -1) {
-          updatedBaja.checklist[itemIndex] = { ...updatedBaja.checklist[itemIndex], estado: variables.accion };
-          if (variables.accion === 'Devuelto') updatedBaja.checklist[itemIndex].cantidad_devuelta = variables.cantidadItem;
-          if (variables.accion === 'Extraviado') updatedBaja.checklist[itemIndex].cantidad_extraviada = variables.cantidadItem;
-        }
-        if (data.allCompleted) { updatedBaja.estado_general = 'Completada'; toast.success(`Proceso de baja completado`); setTimeout(() => setSelectedBaja(null), 1800); }
-        setSelectedBaja(updatedBaja);
-      }
+      ['bajas', 'inventario', 'inventarioDetalle', 'salidas', 'entradas', 'uniformesCampo', 'expediente', 'inventarioHistorial'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] })); queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] }); queryClient.invalidateQueries({ queryKey: ['guardias'] });
+      setSelectedBaja(data.baja);
+      if (data.allCompleted) toast.success('Proceso de baja completado');
       if (!data.allCompleted) toast.success(`Artículo marcado como ${variables.accion}`);
     },
-    onError: () => toast.error('Error al procesar el artículo'),
+    onError: (e: Error) => toast.error(e.message || 'Error al procesar el artículo'),
   });
 
   const handleProcessItem = (salida_id: number, accion: string, cantidadItem: number) => {
     if (!selectedBaja) return;
+    if (!Number.isSafeInteger(cantidadItem) || cantidadItem < 1) { toast.error('Captura una cantidad entera mayor a cero'); return; }
     const estadoFisicoDevolucion = accion === 'Devuelto' ? (returnStates[salida_id] || 'Usado') : undefined;
     processMutation.mutate({ bajaId: selectedBaja.id, salida_id, accion, cantidadItem, estadoFisicoDevolucion });
   };
@@ -60,9 +55,11 @@ export default function BajasApp() {
   const handleMarkAllDevuelto = async () => {
     if (!selectedBaja) return;
     const pending = (selectedBaja.checklist as any[]).filter((c: any) => c.estado === 'Pendiente');
-    for (const item of pending) {
-      await new Promise<void>(resolve => processMutation.mutate({ bajaId: selectedBaja.id, salida_id: item.salida_id, accion: 'Devuelto', cantidadItem: item.cantidad_adeudada, estadoFisicoDevolucion: returnStates[item.salida_id] || 'Usado' }, { onSettled: () => resolve() }));
-    }
+    setProcesandoTodos(true);
+    try {
+      for (const item of pending) await processMutation.mutateAsync({ bajaId: selectedBaja.id, salida_id: item.salida_id, accion: 'Devuelto', cantidadItem: item.cantidad_adeudada, estadoFisicoDevolucion: returnStates[item.salida_id] || 'Usado' });
+    } catch { /* onError muestra el error y se detiene el lote */ }
+    finally { setProcesandoTodos(false); }
   };
 
   const calculateProgress = (baja: any) => { if (!baja?.checklist?.length) return 100; const completed = (baja.checklist as any[]).filter((c: any) => c.estado !== 'Pendiente').length; return Math.round((completed / baja.checklist.length) * 100); };
@@ -83,6 +80,7 @@ export default function BajasApp() {
         </div>
         <div className="relative max-w-xs w-full"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Buscar por guardia o elemento..." className="pl-9" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
       </div>
+      {error && <p role="alert" className="text-red-600">{error.message} <Button onClick={()=>refetch()}>Reintentar</Button></p>}
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm print:hidden">
         <Table>
           <TableHeader><TableRow><TableHead>Fecha Inicio</TableHead><TableHead>Guardia</TableHead><TableHead>Nº Elemento</TableHead><TableHead>Progreso</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Acción</TableHead></TableRow></TableHeader>
@@ -127,7 +125,7 @@ export default function BajasApp() {
                 <div className="mt-4 p-3 bg-muted/50 rounded-lg flex items-center justify-between print:hidden">
                   <span className="text-sm text-muted-foreground">{(selectedBaja.checklist as any[]).filter((c: any) => c.estado !== 'Pendiente').length} de {selectedBaja.checklist.length} artículos procesados</span>
                   {isEditor && pendingItemsCount > 0 && selectedBaja.estado_general !== 'Completada' && (
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleMarkAllDevuelto} disabled={processMutation.isPending}><CheckCheck className="w-4 h-4 mr-1.5" />Marcar todos como Devuelto</Button>
+                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleMarkAllDevuelto} disabled={processMutation.isPending || procesandoTodos}><CheckCheck className="w-4 h-4 mr-1.5" />Marcar todos como Devuelto</Button>
                   )}
                 </div>
               )}
@@ -142,11 +140,12 @@ export default function BajasApp() {
                       <div className="print:hidden flex items-center gap-2 shrink-0">
                         {c.estado === 'Pendiente' && isEditor ? (
                           <>
+                            <label className="text-xs">Piezas<Input aria-label="Cantidad a resolver" className="w-20 h-8" type="number" min={1} max={c.cantidad_adeudada} step={1} value={cantidades[c.salida_id] ?? c.cantidad_adeudada} onChange={e=>setCantidades(prev=>({...prev,[c.salida_id]:Number(e.target.value)}))} /></label>
                             <Select value={returnStates[c.salida_id] || 'Usado'} onChange={e => setReturnStates(prev => ({ ...prev, [c.salida_id]: e.target.value }))} className="h-8 text-xs w-28">
-                              <option value="Nuevo">Nuevo</option><option value="Usado">Usado</option><option value="Inutilizable">Inutilizable</option><option value="Para Baja">Para Baja</option>
+                              <option value="Nuevo">Nuevo</option><option value="Usado">Usado</option><option value="Inutilizable">Inutilizable</option>
                             </Select>
-                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleProcessItem(c.salida_id, 'Devuelto', c.cantidad_adeudada)} disabled={processMutation.isPending}><Check className="w-3.5 h-3.5 mr-1" /> Devuelto</Button>
-                            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleProcessItem(c.salida_id, 'Extraviado', c.cantidad_adeudada)} disabled={processMutation.isPending}><X className="w-3.5 h-3.5 mr-1" /> Extraviado</Button>
+                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleProcessItem(c.salida_id, 'Devuelto', cantidades[c.salida_id] ?? c.cantidad_adeudada)} disabled={processMutation.isPending || procesandoTodos}><Check className="w-3.5 h-3.5 mr-1" /> Devuelto</Button>
+                            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleProcessItem(c.salida_id, 'Extraviado', cantidades[c.salida_id] ?? c.cantidad_adeudada)} disabled={processMutation.isPending || procesandoTodos}><X className="w-3.5 h-3.5 mr-1" /> Extraviado</Button>
                           </>
                         ) : (
                           <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${c.estado === 'Devuelto' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
@@ -157,7 +156,14 @@ export default function BajasApp() {
                       <div className="hidden print:block border-2 border-gray-400 p-2 text-center w-28 text-xs">{c.estado === 'Pendiente' ? '☐  Firma' : '✓ Procesado'}</div>
                     </div>
                   ))
-                ) : <p className="text-muted-foreground italic text-sm text-center py-4">Sin equipo en campo asignado.</p>}
+                ) : (
+                  <div className="text-center py-4 space-y-3">
+                    <p className="text-muted-foreground italic text-sm">Este guardia no tenía equipo en campo asignado.</p>
+                    {isEditor && selectedBaja.estado_general !== 'Completada' && (
+                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white print:hidden" onClick={() => processMutation.mutate({ bajaId: selectedBaja.id, accion: 'Cerrar' })} disabled={processMutation.isPending || procesandoTodos}><CheckCheck className="w-4 h-4 mr-1.5" />Finalizar baja</Button>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="hidden print:block mt-16 pt-8 border-t border-gray-300">
                 <div className="flex justify-between px-12">

@@ -1,4 +1,5 @@
 'use client';
+import { fechaMexico } from '@/src/lib/fecha';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/src/lib/api';
@@ -7,27 +8,33 @@ import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Select } from '@/src/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
-import { ShieldCheck, User, AlertTriangle, RotateCcw, ChevronRight } from 'lucide-react';
+import { ShieldCheck, User, AlertTriangle, RotateCcw, ChevronRight, PackagePlus } from 'lucide-react';
+import EquipoPrevioDialog from '@/src/components/apps/EquipoPrevioDialog';
 import { fmtDate } from '@/src/lib/utils';
 import { toast } from 'sonner';
 import { useAuth } from '@/src/context/AuthContext';
 
-type ItemModal = { guardiaId: number; nombreGuardia: string; articulo: string; talla: string | null; cantidadEnCampo: number; };
+type ItemModal = { salidaId: number; guardiaId: number; nombreGuardia: string; articulo: string; talla: string | null; cantidadEnCampo: number; };
 
 export default function UniformesCampoApp() {
-  const { isEditor } = useAuth();
+  const { puede } = useAuth();
+  const isEditor = puede('uniformes-campo','editar');
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<ItemModal | null>(null);
+  const [isPrevioOpen, setIsPrevioOpen] = useState(false);
   const [tipo, setTipo] = useState<'Extravío' | 'Reposición' | null>(null);
   const [estadoDevolucion, setEstadoDevolucion] = useState<'Nuevo' | 'Usado' | 'Para Baja'>('Usado');
   const [estadoEntregado, setEstadoEntregado] = useState<'Nuevo' | 'Usado'>('Nuevo');
   const [cantidad, setCantidad] = useState(1);
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [tallaNueva, setTallaNueva] = useState('');
+  const { data: prendas = [], error: errorPrendas } = useQuery({ queryKey: ['catalogoPrendas'], queryFn: () => apiFetch<any[]>('/api/prendas') });
+  const { data: detalle = [], error: errorDetalle } = useQuery({ queryKey: ['inventarioDetalle'], queryFn: () => apiFetch<any[]>('/api/inventario/detalle') });
+  const [fecha, setFecha] = useState(fechaMexico());
 
-  const { data: uniformesCampo = [], isLoading } = useQuery({ queryKey: ['uniformesCampo'], queryFn: () => apiFetch<any[]>('/api/uniformes-campo') });
+  const { data: uniformesCampo = [], isLoading, error, refetch } = useQuery({ queryKey: ['uniformesCampo'], queryFn: () => apiFetch<any[]>('/api/uniformes-campo') });
 
   const invalidateAll = (guardiaId?: number) => {
-    ['uniformesCampo', 'salidas', 'inventario', 'inventarioDetalle', 'dashboardMetrics'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
+    ['uniformesCampo', 'salidas', 'inventario', 'inventarioDetalle', 'dashboardMetrics', 'entradas', 'expediente', 'inventarioHistorial'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
     if (guardiaId) queryClient.invalidateQueries({ queryKey: ['expediente', guardiaId] });
   };
 
@@ -41,13 +48,14 @@ export default function UniformesCampoApp() {
     onSuccess: () => { invalidateAll(modal?.guardiaId); toast.success('Extravío registrado.'); setModal(null); },
     onError: (e: Error) => toast.error(e.message),
   });
-  const isPending = reposicionMutation.isPending || extravioMutation.isPending;
+  const isPending = (tipo === 'Reposición' && (!!errorPrendas || !!errorDetalle)) || reposicionMutation.isPending || extravioMutation.isPending;
 
-  const openModal = (guardia: any, item: any) => { setModal({ guardiaId: guardia.guardiaId, nombreGuardia: guardia.nombreGuardia, articulo: item.articulo, talla: item.talla ?? null, cantidadEnCampo: item.cantidad }); setTipo(null); setEstadoDevolucion('Usado'); setEstadoEntregado('Nuevo'); setCantidad(1); setFecha(new Date().toISOString().split('T')[0]); };
+  const openModal = (guardia: any, item: any) => { setTallaNueva(item.talla ?? ''); setModal({ salidaId: item.salidaId, guardiaId: guardia.guardiaId, nombreGuardia: guardia.nombreGuardia, articulo: item.articulo, talla: item.talla ?? null, cantidadEnCampo: item.cantidad }); setTipo(null); setEstadoDevolucion('Usado'); setEstadoEntregado('Nuevo'); setCantidad(1); setFecha(fechaMexico()); };
 
   const handleSubmit = () => {
     if (!modal || !tipo) { toast.error('Selecciona el tipo de movimiento'); return; }
-    const payload = { fecha, concepto: tipo, articulo: modal.articulo, talla: modal.talla, cantidad, nombre_guardia: modal.nombreGuardia, guardia_id: modal.guardiaId, estado_asignacion: tipo === 'Reposición' ? 'Reposición' : 'N/A', estado_devuelto: tipo === 'Reposición' ? estadoDevolucion : undefined, estado_fisico: tipo === 'Reposición' ? estadoEntregado : undefined };
+    if (!Number.isSafeInteger(cantidad) || cantidad < 1) { toast.error('La cantidad debe ser un entero mayor a cero'); return; }
+    const payload = { salida_id: modal.salidaId, talla_nueva: tallaNueva || null, fecha, concepto: tipo, articulo: modal.articulo, talla: modal.talla, cantidad, nombre_guardia: modal.nombreGuardia, guardia_id: modal.guardiaId, estado_asignacion: tipo === 'Reposición' ? 'Reposición' : 'N/A', estado_devuelto: tipo === 'Reposición' ? estadoDevolucion : undefined, estado_fisico: tipo === 'Reposición' ? estadoEntregado : undefined };
     if (tipo === 'Reposición') reposicionMutation.mutate({ items: [payload], estadoDevolucion });
     else extravioMutation.mutate([payload]);
   };
@@ -56,9 +64,12 @@ export default function UniformesCampoApp() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h1 className="text-2xl font-bold tracking-tight">Uniformes en Campo</h1><p className="text-muted-foreground mt-0.5 text-sm">Equipo activo asignado a elementos operativos.{isEditor && <span className="text-primary"> Haz clic en un artículo para reportar extravío o reposición.</span>}</p></div>
-        <div className="flex items-center gap-2 text-sm bg-card border border-border rounded-xl px-4 py-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /><span className="font-medium">{(uniformesCampo as any[]).length}</span><span className="text-muted-foreground">operativos con equipo</span></div>
+        <div className="flex items-center gap-2">
+          {puede('uniformes-campo','crear') && <Button variant="outline" size="sm" onClick={() => setIsPrevioOpen(true)}><PackagePlus className="w-4 h-4 mr-1.5" /> Equipo que ya traen</Button>}
+          <div className="flex items-center gap-2 text-sm bg-card border border-border rounded-xl px-4 py-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /><span className="font-medium">{(uniformesCampo as any[]).length}</span><span className="text-muted-foreground">operativos con equipo</span></div>
+        </div>
       </div>
-      {isLoading ? (
+      {error ? <p role="alert" className="text-red-600">{error.message} <Button onClick={() => refetch()}>Reintentar</Button></p> : isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{[1,2,3].map(i => <div key={i} className="h-48 rounded-xl border border-border bg-card animate-pulse" />)}</div>
       ) : (uniformesCampo as any[]).length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 mt-8 border-2 border-dashed border-border rounded-xl bg-card/50">
@@ -75,7 +86,7 @@ export default function UniformesCampoApp() {
               </CardHeader>
               <CardContent className="pt-3 flex-1 space-y-1 p-3">
                 {guardia.articulos.map((item: any, idx: number) => (
-                  <button key={idx} onClick={() => isEditor && openModal(guardia, item)} disabled={!isEditor}
+                  <button key={idx} onClick={() => isEditor && !guardia.sinResponsable && openModal(guardia, item)} disabled={!isEditor || guardia.sinResponsable}
                     className={`w-full flex items-center justify-between text-sm p-2.5 rounded-lg transition-colors text-left ${isEditor ? 'hover:bg-accent/10 hover:border-accent/30 border border-transparent cursor-pointer group' : 'cursor-default'}`}>
                     <div className="flex flex-col min-w-0"><span className="font-medium text-foreground truncate">{item.articulo}</span><span className="text-xs text-muted-foreground">{fmtDate(item.fecha)}</span></div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-2">
@@ -92,13 +103,14 @@ export default function UniformesCampoApp() {
       )}
       <Dialog open={!!modal} onOpenChange={open => { if (!open) setModal(null); }} className="max-w-md">
         <DialogContent>
+          {(errorPrendas || errorDetalle) && <p role="alert" className="text-red-600">No se pudo consultar catálogo o existencias. <Button onClick={() => queryClient.invalidateQueries()}>Reintentar</Button></p>}
           <DialogHeader>
             <DialogTitle>Gestionar artículo en campo</DialogTitle>
             <DialogDescription><span className="font-semibold text-foreground">{modal?.nombreGuardia}</span>{' · '}<span>{modal?.articulo}</span>{modal?.talla && <span> — Talla <strong>{modal.talla}</strong></span>}<span className="ml-1 text-muted-foreground">(×{modal?.cantidadEnCampo} en campo)</span></DialogDescription>
           </DialogHeader>
           <div className="space-y-5 mt-1">
             <div className="space-y-2">
-              <label className="text-sm font-medium">¿Qué ocurrió?</label>
+              <label className="field-label">¿Qué ocurrió?</label>
               <div className="grid grid-cols-2 gap-3">
                 <button type="button" onClick={() => setTipo('Extravío')} className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${tipo === 'Extravío' ? 'border-red-500 bg-red-50 text-red-700' : 'border-border bg-card hover:border-red-300 hover:bg-red-50/50'}`}>
                   <AlertTriangle className={`w-6 h-6 ${tipo === 'Extravío' ? 'text-red-600' : 'text-muted-foreground'}`} />
@@ -112,7 +124,7 @@ export default function UniformesCampoApp() {
             </div>
             {tipo === 'Reposición' && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Estado del artículo devuelto</label>
+                <label className="field-label">Estado del artículo devuelto</label>
                 <div className="grid grid-cols-3 gap-2">
                   {([{ val: 'Nuevo', label: 'Nuevo', desc: 'Sin uso', color: 'emerald' }, { val: 'Usado', label: 'Usado', desc: 'Funcional', color: 'amber' }, { val: 'Para Baja', label: 'Para Baja', desc: 'Desechar', color: 'red' }] as const).map(op => (
                     <button key={op.val} type="button" onClick={() => setEstadoDevolucion(op.val)} className={`flex flex-col items-center p-2.5 rounded-xl border-2 text-center transition-all ${estadoDevolucion === op.val ? `border-${op.color}-500 bg-${op.color}-50 text-${op.color}-700` : 'border-border bg-card hover:border-primary/30'}`}>
@@ -120,7 +132,7 @@ export default function UniformesCampoApp() {
                     </button>
                   ))}
                 </div>
-                <div className="pt-2 border-t border-border mt-3"><label className="text-sm font-medium">Estado del nuevo entregado</label>
+                <div className="pt-2 border-t border-border mt-3"><label className="field-label">Estado del nuevo entregado</label>
                   <Select value={estadoEntregado} onChange={e => setEstadoEntregado(e.target.value as any)} className="mt-1.5"><option value="Nuevo">Entregar Nuevo</option><option value="Usado">Entregar Usado</option></Select>
                 </div>
               </div>
@@ -128,14 +140,15 @@ export default function UniformesCampoApp() {
             {tipo === 'Extravío' && <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"><AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>El artículo será marcado como extraviado y se descontará del inventario permanentemente.</span></div>}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Cantidad <span className="text-muted-foreground font-normal">(máx. {modal?.cantidadEnCampo})</span></label>
+                {tipo === 'Reposición' && <div className="space-y-2 mb-3"><label className="field-label">Talla del reemplazo</label><Select value={tallaNueva} onChange={e=>setTallaNueva(e.target.value)}>{!prendas.find(p=>p.nombre===modal?.articulo)?.requiere_talla && <option value="">Sin talla</option>}{(prendas.find(p=>p.nombre===modal?.articulo)?.tallas || []).map((t: string)=><option key={t}>{t}</option>)}</Select><p className="text-xs text-muted-foreground">Disponible: {detalle.find(d=>d.articulo===modal?.articulo && (d.talla || '')===tallaNueva)?.[estadoEntregado==='Nuevo'?'almacenNuevo':'almacenUsado'] ?? 0} · Se devuelve la talla {modal?.talla || 'única'}.</p></div>}
+                <label className="field-label">Cantidad <span className="text-muted-foreground font-normal">(máx. {modal?.cantidadEnCampo})</span></label>
                 <div className="flex items-center gap-1">
                   <button type="button" className="w-8 h-9 rounded-l-lg border border-border bg-muted text-sm font-bold hover:bg-muted/70 transition-colors" onClick={() => setCantidad(c => Math.max(1, c - 1))}>−</button>
                   <Input type="number" min="1" max={modal?.cantidadEnCampo ?? 1} value={cantidad} onChange={e => setCantidad(Math.min(modal?.cantidadEnCampo ?? 1, Math.max(1, Number(e.target.value))))} className="h-9 text-center rounded-none border-x-0 px-1" />
                   <button type="button" className="w-8 h-9 rounded-r-lg border border-border bg-muted text-sm font-bold hover:bg-muted/70 transition-colors" onClick={() => setCantidad(c => Math.min(modal?.cantidadEnCampo ?? 1, c + 1))}>+</button>
                 </div>
               </div>
-              <div className="space-y-1.5"><label className="text-sm font-medium">Fecha del evento</label><Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="h-9" /></div>
+              <div className="space-y-1.5"><label className="field-label">Fecha del evento</label><Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="h-9" /></div>
             </div>
           </div>
           <DialogFooter className="gap-2 mt-2">
@@ -146,6 +159,7 @@ export default function UniformesCampoApp() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <EquipoPrevioDialog open={isPrevioOpen} onOpenChange={setIsPrevioOpen} />
     </div>
   );
 }

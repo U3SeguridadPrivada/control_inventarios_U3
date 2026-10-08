@@ -1,32 +1,27 @@
+import { validarPayload } from '@/src/lib/inventarioValidacion';
 import { NextRequest } from 'next/server';
-import { db } from '@/src/db';
-import { salidas, guardias } from '@/src/db/schema';
-import { eq } from 'drizzle-orm';
-import { verifyAuth, unauthorized } from '@/src/lib/auth';
+import { salidas } from '@/src/db/schema';
 import { validarStockLote } from '@/src/lib/stock';
+import { autorizarInventario, operarInventario } from '@/src/lib/inventarioOperacion';
+import { cantidadEntera, estadoFisico, errorInventario, InventarioError, validarArticulo, validarGuardia, validarItems, validarFecha } from '@/src/lib/inventarioValidacion';
 
 export async function POST(req: NextRequest) {
-  const authUser = verifyAuth(req);
-  if (!authUser) return unauthorized();
-  if (authUser.role === 'viewer') return Response.json({ error: 'Sin permisos' }, { status: 403 });
-
   try {
-    const { items } = await req.json();
-    if (!Array.isArray(items) || items.length === 0) return Response.json({ error: 'Se requiere un array "items"' }, { status: 400 });
-
-    const guardiaId = items[0]?.guardia_id;
-    if (!guardiaId) return Response.json({ error: 'Se requiere guardia_id' }, { status: 400 });
-
-    const guardia = db.select().from(guardias).where(eq(guardias.id, Number(guardiaId))).get();
-    if (!guardia) return Response.json({ error: 'Guardia no encontrado' }, { status: 404 });
-    if (guardia.estado !== 'Activo') return Response.json({ error: `Estado de guardia inválido: "${guardia.estado}"` }, { status: 400 });
-
-    const errorStock = validarStockLote(items);
-    if (errorStock) return Response.json({ error: errorStock }, { status: 400 });
-
-    const created = db.insert(salidas).values(items).returning().all();
-    return Response.json({ created: created.length, items: created }, { status: 201 });
-  } catch {
-    return Response.json({ error: 'Error al crear salidas en bulk' }, { status: 500 });
-  }
+    const user = autorizarInventario(req, 'salidas');
+    const p = validarPayload(await req.json()); validarItems(p.items);
+    const result = operarInventario(req, user, p, p.items[0].fecha, 'Asignación en campo', (tx, operacionId) => {
+      const guardia = validarGuardia(p.items[0].guardia_id, true);
+      const items = p.items.map((i: any) => {
+        validarFecha(i.fecha);
+        if (Number(i.guardia_id) !== guardia.id || i.fecha !== p.items[0].fecha) throw new InventarioError('El lote debe corresponder a un solo guardia y fecha');
+        const { articulo, talla } = validarArticulo(i.articulo, i.talla);
+        return { fecha: i.fecha, concepto: 'Uniforme en Campo', articulo, talla, cantidad: cantidadEntera(i.cantidad), estado_fisico: estadoFisico(i.estado_fisico || 'Nuevo', true),
+          guardia_id: guardia.id, nombre_guardia: guardia.nombre, estado_asignacion: 'Uniforme en Campo', registrado_por: user.username, operacion_id: operacionId };
+      });
+      const error = validarStockLote(items); if (error) throw new InventarioError(error);
+      const created = tx.insert(salidas).values(items).returning().all();
+      return { created: created.reduce((a, i) => a + i.cantidad, 0), items: created };
+    });
+    return Response.json(result, { status: 201 });
+  } catch (err) { return errorInventario(err); }
 }

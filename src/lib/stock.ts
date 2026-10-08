@@ -1,6 +1,7 @@
 import { db } from '@/src/db';
-import { entradas, salidas } from '@/src/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { entradas, salidas, inventario_ajustes } from '@/src/db/schema';
+import { eq, and, sql, isNull } from 'drizzle-orm';
+import { validarArticulo } from '@/src/lib/inventarioValidacion';
 
 /**
  * Columnas de agregación de `salidas` que definen qué resta del almacén disponible.
@@ -46,15 +47,14 @@ export function calcularStockDisponible(
   tallaSolicitada: string | undefined,
   estadoFisico: string
 ): number {
-  const conditions_ent: any[] = [eq(entradas.articulo, articuloNombre), eq(entradas.estado, estadoFisico)];
-  if (tallaSolicitada) conditions_ent.push(eq(entradas.talla, tallaSolicitada));
+  const conditions_ent = [eq(entradas.anulado, 0), eq(entradas.articulo, articuloNombre), eq(entradas.estado, estadoFisico), tallaSolicitada ? eq(entradas.talla, tallaSolicitada) : isNull(entradas.talla)];
   const entResult = db.select({ total: sql<number>`COALESCE(SUM(${entradas.cantidad}), 0)` }).from(entradas).where(and(...conditions_ent)).get();
 
-  const conditions_sal: any[] = [eq(salidas.articulo, articuloNombre), eq(salidas.estado_fisico, estadoFisico)];
-  if (tallaSolicitada) conditions_sal.push(eq(salidas.talla, tallaSolicitada));
+  const conditions_sal = [eq(salidas.anulado, 0), eq(salidas.articulo, articuloNombre), eq(salidas.estado_fisico, estadoFisico), tallaSolicitada ? eq(salidas.talla, tallaSolicitada) : isNull(salidas.talla)];
   const salResult = db.select(SALIDA_STOCK_COLUMNS).from(salidas).where(and(...conditions_sal)).get();
 
-  return Number(entResult!.total) - sumarSalidasQueRestan(salResult!);
+  const ajuste = db.select({ total: sql<number>`COALESCE(SUM(${inventario_ajustes.cantidad}),0)` }).from(inventario_ajustes).where(and(eq(inventario_ajustes.articulo, articuloNombre), eq(inventario_ajustes.estado, estadoFisico), tallaSolicitada ? eq(inventario_ajustes.talla, tallaSolicitada) : isNull(inventario_ajustes.talla))).get();
+  return Number(entResult!.total) - sumarSalidasQueRestan(salResult!) + Number(ajuste!.total);
 }
 
 interface ItemSolicitado {
@@ -73,6 +73,10 @@ interface ItemSolicitado {
 export function validarStockLote(items: ItemSolicitado[], estadoDefault = 'Nuevo'): string | null {
   const solicitado: Record<string, number> = {};
   for (const item of items) {
+    validarArticulo(item.articulo, item.talla);
+    if (!Number.isInteger(Number(item.cantidad)) || Number(item.cantidad) <= 0) {
+      return `Cantidad inválida para "${item.articulo}": debe ser un entero mayor a 0`;
+    }
     const estadoF = item.estado_fisico || estadoDefault;
     const key = `${item.articulo}|||${item.talla || ''}|||${estadoF}`;
     solicitado[key] = (solicitado[key] ?? 0) + Number(item.cantidad);

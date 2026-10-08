@@ -94,7 +94,7 @@ export default function UsuariosApp() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center justify-between mb-4"><div><h2 className="text-base font-bold">Cambiar contraseña</h2><p className="text-xs text-muted-foreground mt-0.5">Usuario: <span className="font-semibold text-foreground">{pwModal.username}</span></p></div><button onClick={() => setPwModal(null)} className="p-1.5 hover:bg-muted rounded-lg transition"><X className="w-4 h-4 text-muted-foreground" /></button></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Nueva contraseña</label>
+            <div className="space-y-1.5"><label className="field-label">Nueva contraseña</label>
               <PasswordInput value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mín. 8 chars, 1 mayúscula, 1 número" />
               <p className="text-xs text-muted-foreground">Mínimo 8 caracteres, una mayúscula y un número.</p>
             </div>

@@ -1,9 +1,33 @@
-/** Llaves de la ficha básica (datos personales + domicilio) que capturan tanto el alta rápida como los modales de edición de Personal Administrativo. */
+/** Partes del nombre capturadas por separado: sirven para calcular CURP y RFC sin adivinar dónde empiezan los apellidos. */
+export const CAMPOS_PARTES_NOMBRE = ['nombres', 'apellidoPaterno', 'apellidoMaterno'] as const;
+
+/** Llaves de la ficha básica (identidad + datos personales + domicilio) que capturan el alta rápida y los modales de edición de guardias y personal administrativo. */
 export const CAMPOS_FICHA_BASICA = [
+  ...CAMPOS_PARTES_NOMBRE, 'entidadNacimiento',
   'fechaNacimiento', 'edad', 'estadoCivil', 'estudios', 'rfc', 'curp', 'imss', 'sexo', 'estatura', 'peso',
   'calleNumero', 'colonia', 'entreCalles', 'cp', 'delegacionMunicipio', 'estado', 'tiempoResidencia',
   'tiempoRadicarEstado', 'telefonoEmergencia', 'celular',
 ] as const;
+
+/**
+ * Toma de `origen` solo los campos de la ficha básica, recortados y con CURP/RFC
+ * en mayúsculas sin espacios y el NSS solo con dígitos. Las partes del nombre se
+ * conservan únicamente si acompañan a otro dato: guardarlas solas haría que un
+ * expediente recién creado figure con "ficha lista" sin tener nada capturado.
+ */
+export function extraerFichaBasica(origen: Record<string, any>): Record<string, string> {
+  const ficha: Record<string, string> = {};
+  for (const campo of CAMPOS_FICHA_BASICA) {
+    const valor = origen?.[campo];
+    if (typeof valor === 'string' && valor.trim()) ficha[campo] = valor.trim();
+  }
+  if (ficha.curp) ficha.curp = ficha.curp.replace(/\s+/g, '').toUpperCase();
+  if (ficha.rfc) ficha.rfc = ficha.rfc.replace(/\s+/g, '').toUpperCase();
+  if (ficha.imss) ficha.imss = ficha.imss.replace(/[\s-]/g, '');
+  const hayOtrosDatos = Object.keys(ficha).some((k) => !(CAMPOS_PARTES_NOMBRE as readonly string[]).includes(k));
+  if (!hayOtrosDatos) for (const k of CAMPOS_PARTES_NOMBRE) delete ficha[k];
+  return ficha;
+}
 
 export interface EmpleoAnterior {
   empresa: string;
@@ -20,6 +44,8 @@ export interface FichaTecnicaData {
   fechaNacimiento?: string;
   edad?: string;
   lugarNacimiento?: string;
+  /** Entidad de nacimiento del alta (la que lleva la CURP); sirve de valor inicial de lugarNacimiento. */
+  entidadNacimiento?: string;
   nacionalidad?: string;
   estadoCivil?: string;
   estudios?: string;

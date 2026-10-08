@@ -38,10 +38,11 @@ import {
   Plus,
   Edit2,
   FileCheck,
-  Sparkles,
+  ClipboardPen,
   Check,
   Clock,
-  Pencil
+  Pencil,
+  Mail
 } from 'lucide-react';
 import { fmtDate } from '@/src/lib/utils';
 import { toast } from 'sonner';
@@ -49,6 +50,8 @@ import { useAuth } from '@/src/context/AuthContext';
 import DocumentViewerModal from '@/src/components/DocumentViewerModal';
 import MachoteFichaAdministrativo from '@/src/components/machotes/MachoteFichaAdministrativo';
 import { FichaExtraEditor, FICHA_EXTRA_VACIA, extraerFichaExtra, type FichaExtraValores } from './administrativos/FichaExtraEditor';
+import { IdentidadPersonal } from '@/src/components/forms/IdentidadPersonal';
+import { unirNombreCompleto } from '@/src/lib/rfcCurp';
 
 interface Props {
   id: number;
@@ -162,7 +165,6 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
   const [pdfVersion, setPdfVersion] = useState(Date.now());
 
   // Formulario Editar Datos Generales
-  const [editNombre, setEditNombre] = useState('');
   const [editNumeroElemento, setEditNumeroElemento] = useState('');
   const [editPuesto, setEditPuesto] = useState('');
   const [editDepartamento, setEditDepartamento] = useState('Administración');
@@ -311,7 +313,6 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
   // Helpers
   const abrirEditar = () => {
     if (!administrativo) return;
-    setEditNombre(administrativo.nombre || '');
     setEditNumeroElemento(administrativo.numero_empleado || '');
     setEditPuesto(administrativo.puesto || '');
     setEditDepartamento(administrativo.departamento || 'Administración');
@@ -321,7 +322,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
     setEditDireccion(administrativo.direccion || '');
     setEditSueldoMensual(administrativo.sueldo_mensual ? String(administrativo.sueldo_mensual) : '');
     setEditEstado(administrativo.estado || 'Activo');
-    setEditFichaExtra(extraerFichaExtra(administrativo.ficha_tecnica_json));
+    setEditFichaExtra(extraerFichaExtra(administrativo.ficha_tecnica_json, administrativo.nombre));
     setModalEditar(true);
   };
 
@@ -633,7 +634,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
               {/* Correo Electrónico */}
               <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-muted/30 border border-border/50">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-primary font-bold text-xs">✉</span>
+                  <Mail className="h-4 w-4 shrink-0 text-primary" />
                   <span className="font-medium text-xs break-all">
                     {administrativo.email || <span className="text-muted-foreground italic">Sin correo registrado</span>}
                   </span>
@@ -714,6 +715,10 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
                   <span className="font-semibold text-foreground">{fichaData.fechaNacimiento || '—'}</span>
                 </div>
                 <div className="p-2 rounded bg-muted/20 border border-border/40">
+                  <span className="text-muted-foreground block text-[11px]">Lugar de nacimiento:</span>
+                  <span className="font-semibold text-foreground">{fichaData.entidadNacimiento || '—'}</span>
+                </div>
+                <div className="p-2 rounded bg-muted/20 border border-border/40">
                   <span className="text-muted-foreground block text-[11px]">Escolaridad:</span>
                   <span className="font-semibold text-foreground">{fichaData.estudios || '—'}</span>
                 </div>
@@ -735,7 +740,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
                 {isEditor && (
                   <Link href={`/administrativos/${administrativo.id}/ficha`}>
                     <Button size="sm" className="text-xs font-semibold rounded-lg">
-                      <Sparkles className="w-3.5 h-3.5 mr-1" /> Llenar Ficha Técnica Ahora
+                      <ClipboardPen className="w-3.5 h-3.5 mr-1" /> Llenar Ficha Técnica Ahora
                     </Button>
                   </Link>
                 )}
@@ -1254,7 +1259,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
               editMutation.mutate({
                 id: administrativo.id,
                 numero_empleado: editNumeroElemento,
-                nombre: editNombre,
+                nombre: unirNombreCompleto(editFichaExtra),
                 puesto: editPuesto,
                 departamento: editDepartamento,
                 fecha_alta: editFechaAlta,
@@ -1276,18 +1281,18 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid gap-3.5 py-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Nombre Completo</label>
-                <Input
-                  value={editNombre}
-                  onChange={e => setEditNombre(e.target.value)}
-                  required
-                />
-              </div>
+            <div className="py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Identidad</p>
+              <IdentidadPersonal
+                value={editFichaExtra}
+                onChange={(cambios) => setEditFichaExtra((f) => ({ ...f, ...cambios }))}
+              />
+            </div>
+
+            <div className="grid gap-3.5 py-3 border-t border-border">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Puesto</label>
+                  <label className="field-label">Puesto</label>
                   <Input
                     value={editPuesto}
                     onChange={e => setEditPuesto(e.target.value)}
@@ -1295,7 +1300,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Departamento</label>
+                  <label className="field-label">Departamento</label>
                   <select
                     value={editDepartamento}
                     onChange={e => setEditDepartamento(e.target.value)}
@@ -1313,7 +1318,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
+                  <label className="field-label">Fecha de Alta</label>
                   <Input
                     type="date"
                     value={editFechaAlta}
@@ -1322,7 +1327,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Teléfono de Contacto</label>
+                  <label className="field-label">Teléfono de Contacto</label>
                   <Input
                     value={editTelefono}
                     onChange={e => setEditTelefono(e.target.value)}
@@ -1332,7 +1337,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Correo Electrónico</label>
+                  <label className="field-label">Correo Electrónico</label>
                   <Input
                     type="email"
                     value={editEmail}
@@ -1341,7 +1346,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Estado</label>
+                  <label className="field-label">Estado</label>
                   <select
                     value={editEstado}
                     onChange={e => setEditEstado(e.target.value)}
@@ -1355,7 +1360,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
               </div>
             </div>
 
-            <FichaExtraEditor nombreCompleto={editNombre} value={editFichaExtra} onChange={setEditFichaExtra} />
+            <FichaExtraEditor value={editFichaExtra} onChange={setEditFichaExtra} />
 
             <DialogFooter className="gap-2 mt-3">
               <Button type="button" variant="outline" onClick={() => setModalEditar(false)}>
@@ -1393,7 +1398,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
 
             <div className="grid gap-4 py-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Tipo de Documento o Papel</label>
+                <label className="field-label">Tipo de Documento o Papel</label>
                 <select
                   value={tipoPapel}
                   onChange={e => setTipoPapel(e.target.value)}
@@ -1417,7 +1422,7 @@ export default function AdministrativoPerfil({ id, onVolver, initialEditFicha, i
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Archivo Escaneado (PDF o Imagen)</label>
+                <label className="field-label">Archivo Escaneado (PDF o Imagen)</label>
                 <input
                   type="file"
                   accept=".pdf,image/*"

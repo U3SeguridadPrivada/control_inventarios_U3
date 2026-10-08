@@ -3,7 +3,7 @@ import { db } from '@/src/db';
 import { personal_administrativo, administrativo_documentos, administrativo_bitacora } from '@/src/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAuth, unauthorized, forbidden } from '@/src/lib/auth';
-import { CAMPOS_FICHA_BASICA, reconstruirDireccion } from '@/src/lib/fichaTecnicaUtils';
+import { CAMPOS_FICHA_BASICA, extraerFichaBasica, reconstruirDireccion } from '@/src/lib/fichaTecnicaUtils';
 
 export async function GET(
   req: NextRequest,
@@ -58,9 +58,9 @@ export async function PUT(
       let ficha: Record<string, any> = {};
       try { ficha = existente.ficha_tecnica_json ? JSON.parse(existente.ficha_tecnica_json) : {}; } catch { ficha = {}; }
 
+      const capturada = extraerFichaBasica(fichaExtra);
       for (const campo of CAMPOS_FICHA_BASICA) {
-        const valor = fichaExtra[campo];
-        if (typeof valor === 'string' && valor.trim()) ficha[campo] = valor.trim();
+        if (capturada[campo]) ficha[campo] = capturada[campo];
         else delete ficha[campo];
       }
       ficha.nombre = (nombre || existente.nombre || '').trim();

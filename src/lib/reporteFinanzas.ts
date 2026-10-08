@@ -1,9 +1,8 @@
-import { readFile } from 'fs/promises';
-import path from 'path';
 import { db } from '@/src/db';
 import { movimientos_financieros, libros_financieros, users } from '@/src/db/schema';
 import { and, asc, eq, gte, lte, sql } from 'drizzle-orm';
 import { htmlToPdf } from '@/src/lib/pdf';
+import { assetsDataUri } from '@/src/lib/pdfAssets';
 import {
   buildReporteFinanzasHtml,
   buildReporteHeaderTemplate,
@@ -19,32 +18,6 @@ export function normalizarSecciones(crudo: string | null | undefined): SeccionId
   const pedidas = (crudo || '').split(',').map((s) => s.trim()).filter(Boolean);
   const validas = pedidas.filter((s) => IDS_SECCIONES.includes(s));
   return (validas.length ? validas : IDS_SECCIONES) as SeccionId[];
-}
-
-/**
- * Puppeteer recibe el HTML por `setContent`, sin URL base: logo y tipografía
- * tienen que viajar dentro del documento como data URI. Se leen una sola vez
- * porque no cambian entre reportes.
- */
-let assetsCache: Promise<{ logoSrc: string; fontSrc: string }> | null = null;
-
-function assetsDataUri() {
-  if (!assetsCache) {
-    assetsCache = (async () => {
-      const [logo, font] = await Promise.all([
-        readFile(path.join(process.cwd(), 'public', 'LOGO_PDFS.png')),
-        readFile(path.join(process.cwd(), 'public', 'fonts', 'inter-latin.woff2')),
-      ]);
-      return {
-        logoSrc: `data:image/png;base64,${logo.toString('base64')}`,
-        fontSrc: `data:font/woff2;base64,${font.toString('base64')}`,
-      };
-    })().catch((e) => {
-      assetsCache = null; // un fallo puntual de lectura no debe quedar cacheado
-      throw e;
-    });
-  }
-  return assetsCache;
 }
 
 /**

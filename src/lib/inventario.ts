@@ -1,162 +1,96 @@
 import { db } from '@/src/db';
-import { entradas, salidas, catalogo_prendas } from '@/src/db/schema';
-import { sql, eq } from 'drizzle-orm';
-import { ARTICULOS_CATALOGO } from '@/src/lib/constants';
-import { SALIDA_STOCK_COLUMNS, sumarSalidasQueRestan } from '@/src/lib/stock';
+import { entradas, salidas, catalogo_prendas, inventario_ajustes } from '@/src/db/schema';
+import { sql } from 'drizzle-orm';
+import { InventarioError, validarFecha } from '@/src/lib/inventarioValidacion';
 
 export interface InventarioResumenRow {
-  id?: number;
-  articulo: string;
-  categoria?: string;
-  requiereTalla?: boolean;
-  tallas?: string[];
-  stockMinimo?: number;
-  costoEstimado?: number | null;
-  totalEntradas: number;
-  almacen: number;
-  almacenNuevo: number;
-  almacenUsado: number;
-  almacenInutilizable: number;
-  enCampo: number;
-  enBajas: number;
-  perdidas: number;
-  definitivos: number;
-  totalExistente: number;
-  stockBajo: boolean;
+  id?: number; articulo: string; categoria?: string; requiereTalla?: boolean; tallas?: string[]; stockMinimo?: number;
+  costoEstimado?: number | null; archivada?: boolean; inconsistente?: boolean; totalEntradas: number; almacen: number;
+  almacenNuevo: number; almacenUsado: number; almacenInutilizable: number; enCampo: number; enBajas: number;
+  perdidas: number; definitivos: number; totalExistente: number; stockBajo: boolean; ajusteNeto?: number;
 }
-
 export interface InventarioDetalleRow {
-  articulo: string;
-  talla: string | null;
-  almacen: number;
-  almacenNuevo: number;
-  almacenUsado: number;
+  articulo: string; talla: string | null; almacen: number; almacenNuevo: number; almacenUsado: number; almacenInutilizable: number;
 }
+type Datos = { entradas: typeof entradas.$inferSelect[]; salidas: typeof salidas.$inferSelect[]; catalogo: typeof catalogo_prendas.$inferSelect[]; ajustes: typeof inventario_ajustes.$inferSelect[] };
 
-/**
- * Resumen de inventario por artículo (sin desglosar por talla). Única fuente de verdad —
- * usada tanto por `/api/inventario` (tabla en pantalla) como por `/api/inventario/export-pdf`
- * (reporte descargable), para que ambos siempre muestren exactamente los mismos números.
- */
-export function calcularInventarioResumen(): InventarioResumenRow[] {
-  const prendasDb = db.select().from(catalogo_prendas).where(eq(catalogo_prendas.activo, 1)).all();
-  const prendaMap = new Map<string, typeof prendasDb[0]>();
-  for (const p of prendasDb) {
-    prendaMap.set(p.nombre, p);
-  }
-
-  const entradasPorArticulo = db.select({
-    articulo: entradas.articulo, estado: entradas.estado,
-    total: sql<number>`SUM(${entradas.cantidad})`,
-  }).from(entradas).groupBy(entradas.articulo, entradas.estado).all();
-
-  const salidasPorArticulo = db.select({
-    articulo: salidas.articulo, estado_fisico: salidas.estado_fisico,
-    ...SALIDA_STOCK_COLUMNS,
-  }).from(salidas).groupBy(salidas.articulo, salidas.estado_fisico).all();
-
-  const entMap: Record<string, { nuevo: number, usado: number, inutilizable: number, total: number }> = {};
-  for (const e of entradasPorArticulo) {
-    if (!entMap[e.articulo]) entMap[e.articulo] = { nuevo: 0, usado: 0, inutilizable: 0, total: 0 };
-    if (e.estado === 'Nuevo') entMap[e.articulo].nuevo += Number(e.total);
-    else if (e.estado === 'Usado') entMap[e.articulo].usado += Number(e.total);
-    else if (e.estado === 'Inutilizable' || e.estado === 'Para Baja') entMap[e.articulo].inutilizable += Number(e.total);
-    entMap[e.articulo].total += Number(e.total);
-  }
-  const salMap: Record<string, { nuevo: number, usado: number, base: any }> = {};
-  for (const s of salidasPorArticulo) {
-    if (!salMap[s.articulo]) salMap[s.articulo] = { nuevo: 0, usado: 0, base: { enCampo: 0, enBajas: 0, definitivos: 0, perdidas: 0 } };
-    const sacados = sumarSalidasQueRestan(s);
-    if (s.estado_fisico === 'Nuevo') salMap[s.articulo].nuevo += sacados;
-    else if (s.estado_fisico === 'Usado') salMap[s.articulo].usado += sacados;
-    salMap[s.articulo].base.enCampo += Number(s.enCampo); salMap[s.articulo].base.enBajas += Number(s.enBajas);
-    salMap[s.articulo].base.definitivos += Number(s.definitivos);
-    // "Pérdidas" para reporte = bajas directas de almacén (Inutilizable) + asignaciones marcadas Extraviado
-    // (venga de Uniformes en Campo o de un proceso de Baja — ambos flujos terminan en el mismo estado).
-    salMap[s.articulo].base.perdidas += Number(s.perdidas) + Number(s.extraviados);
-  }
-
-  // Combinar prendas del catálogo en BD con cualquier artículo que tenga movimientos registrados
-  const todosArticulos = Array.from(
-    new Set([
-      ...prendasDb.map(p => p.nombre),
-      ...Object.keys(entMap),
-      ...Object.keys(salMap),
-      ...ARTICULOS_CATALOGO,
-    ])
-  );
-
-  return todosArticulos.map(articulo => {
-    const prendaInfo = prendaMap.get(articulo);
-    const e = entMap[articulo] ?? { nuevo: 0, usado: 0, inutilizable: 0, total: 0 };
-    const s = salMap[articulo] ?? { nuevo: 0, usado: 0, base: { enCampo: 0, enBajas: 0, definitivos: 0, perdidas: 0 } };
-    const almacenNuevo = e.nuevo - s.nuevo;
-    const almacenUsado = e.usado - s.usado;
-    const almacenInutilizable = e.inutilizable;
-    const almacen = almacenNuevo + almacenUsado + almacenInutilizable;
-    const stockMinimo = prendaInfo?.stock_minimo ?? 5;
-
-    return {
-      id: prendaInfo?.id,
-      articulo,
-      categoria: prendaInfo?.categoria ?? 'Uniformes',
-      requiereTalla: prendaInfo ? Boolean(prendaInfo.requiere_talla) : undefined,
-      tallas: prendaInfo?.tallas ?? [],
-      stockMinimo,
-      costoEstimado: prendaInfo?.costo_estimado ?? null,
-      totalEntradas: e.total,
-      almacen,
-      almacenNuevo,
-      almacenUsado,
-      almacenInutilizable,
-      enCampo: s.base.enCampo,
-      enBajas: s.base.enBajas,
-      perdidas: s.base.perdidas,
-      definitivos: s.base.definitivos,
-      totalExistente: almacen + s.base.enCampo + s.base.enBajas,
-      stockBajo: (almacenNuevo + almacenUsado) <= stockMinimo,
-    };
-  });
+export function historialDesde(): string {
+  return db.get<{ valor: string }>(sql`SELECT valor FROM inventario_meta WHERE clave='historial_desde'`)!.valor;
 }
-
-/**
- * Detalle de inventario por artículo + talla (solo lo que queda en almacén). Única fuente
- * de verdad — usada por `/api/inventario/detalle` (UI) y `/api/inventario/export-pdf`.
- */
-export function calcularInventarioDetalle(): InventarioDetalleRow[] {
-  const entsDetalle = db.select({
-    articulo: entradas.articulo, talla: entradas.talla, estado: entradas.estado,
-    total: sql<number>`SUM(${entradas.cantidad})`,
-  }).from(entradas).groupBy(entradas.articulo, entradas.talla, entradas.estado).all();
-
-  const salsDetalle = db.select({
-    articulo: salidas.articulo, talla: salidas.talla, estado_fisico: salidas.estado_fisico,
-    ...SALIDA_STOCK_COLUMNS,
-  }).from(salidas).groupBy(salidas.articulo, salidas.talla, salidas.estado_fisico).all();
-
-  const entMap: Record<string, { nuevo: number, usado: number }> = {};
-  for (const e of entsDetalle) {
-    const key = `${e.articulo}|||${e.talla ?? ''}`;
-    if (!entMap[key]) entMap[key] = { nuevo: 0, usado: 0 };
-    if (e.estado === 'Nuevo') entMap[key].nuevo += Number(e.total);
-    else if (e.estado === 'Usado') entMap[key].usado += Number(e.total);
+export function leerInventario(corte?: string): Datos {
+  if (!corte) return { entradas: db.select().from(entradas).all(), salidas: db.select().from(salidas).all(), catalogo: db.select().from(catalogo_prendas).all(), ajustes: db.select().from(inventario_ajustes).all() };
+  validarFecha(corte);
+  const desde = historialDesde();
+  if (corte < desde) throw new InventarioError('El historial verificable comienza el ' + desde + '; no se pueden reconstruir cortes anteriores');
+  const eventos = db.all<{ tabla: string; registro_id: number; despues: string | null }>(sql`SELECT tabla,registro_id,despues FROM inventario_eventos WHERE fecha<=${corte} ORDER BY fecha,id`);
+  const tablas: Record<string, Map<number, any>> = { entradas: new Map(), salidas: new Map(), catalogo_prendas: new Map(), inventario_ajustes: new Map() };
+  for (const e of eventos) {
+    if (!tablas[e.tabla]) continue;
+    if (e.despues) {
+      const fila = JSON.parse(e.despues);
+      if (e.tabla === 'catalogo_prendas' && typeof fila.tallas === 'string') fila.tallas = JSON.parse(fila.tallas);
+      tablas[e.tabla].set(e.registro_id, fila);
+    } else tablas[e.tabla].delete(e.registro_id);
   }
-  const salMap: Record<string, { nuevo: number, usado: number }> = {};
-  for (const s of salsDetalle) {
-    const key = `${s.articulo}|||${s.talla ?? ''}`;
-    if (!salMap[key]) salMap[key] = { nuevo: 0, usado: 0 };
-    const sacados = sumarSalidasQueRestan(s);
-    if (s.estado_fisico === 'Nuevo') salMap[key].nuevo += sacados;
-    else if (s.estado_fisico === 'Usado') salMap[key].usado += sacados;
-  }
-
-  const allKeys = new Set([...Object.keys(entMap), ...Object.keys(salMap)]);
-  return Array.from(allKeys).map(key => {
-    const [articulo, tallaRaw] = key.split('|||');
-    const e = entMap[key] ?? { nuevo: 0, usado: 0 };
-    const s = salMap[key] ?? { nuevo: 0, usado: 0 };
-    const almacenNuevo = e.nuevo - s.nuevo;
-    const almacenUsado = e.usado - s.usado;
-    return { articulo, talla: tallaRaw || null, almacen: almacenNuevo + almacenUsado, almacenNuevo, almacenUsado };
-  }).filter(r => r.almacen > 0);
+  return { entradas: [...tablas.entradas.values()], salidas: [...tablas.salidas.values()], catalogo: [...tablas.catalogo_prendas.values()], ajustes: [...tablas.inventario_ajustes.values()] };
 }
+export function calcularInventario(corte?: string) {
+  const datos = leerInventario(corte);
+  const resumen = new Map<string, InventarioResumenRow>();
+  const detalle = new Map<string, InventarioDetalleRow>();
+  const prendas = new Map(datos.catalogo.map(p => [p.nombre, p]));
+  function articulo(nombre: string) {
+    let row = resumen.get(nombre);
+    if (!row) {
+      const p = prendas.get(nombre);
+      row = { id: p?.id, articulo: nombre, categoria: p?.categoria ?? 'Sin catálogo', requiereTalla: Boolean(p?.requiere_talla),
+        tallas: p?.tallas ?? [], stockMinimo: p?.stock_minimo ?? 5, costoEstimado: p?.costo_estimado, archivada: p?.activo === 0,
+        totalEntradas: 0, almacen: 0, almacenNuevo: 0, almacenUsado: 0, almacenInutilizable: 0, enCampo: 0, enBajas: 0, perdidas: 0, definitivos: 0, totalExistente: 0, stockBajo: false };
+      resumen.set(nombre, row);
+    }
+    return row;
+  }
+  function existencia(nombre: string, talla: string | null, estado: string | null, cantidad: number) {
+    const key = JSON.stringify([nombre, talla || null]);
+    if (!detalle.has(key)) detalle.set(key, { articulo: nombre, talla: talla || null, almacen: 0, almacenNuevo: 0, almacenUsado: 0, almacenInutilizable: 0 });
+    const r = articulo(nombre); const d = detalle.get(key)!;
+    const campo = estado === 'Nuevo' ? 'almacenNuevo' : estado === 'Usado' ? 'almacenUsado' : ['Inutilizable', 'Para Baja'].includes(estado || '') ? 'almacenInutilizable' : null;
+    if (campo) { r[campo] += cantidad; d[campo] += cantidad; }
+    else r.inconsistente = true;
+  }
+  for (const p of datos.catalogo) if (p.activo) articulo(p.nombre);
+  for (const e of datos.entradas) {
+    if (e.anulado) continue;
+    articulo(e.articulo).totalEntradas += e.cantidad;
+    existencia(e.articulo, e.talla, e.estado, e.cantidad);
+  }
+  for (const s of datos.salidas) {
+    if (s.anulado) continue;
+    const r = articulo(s.articulo); const estado = s.estado_asignacion;
+    if (estado === 'Uniforme en Campo') r.enCampo += s.cantidad;
+    if (estado === 'Uniforme en Bajas') r.enBajas += s.cantidad;
+    if (estado === 'Entregado Definitivo') r.definitivos += s.cantidad;
+    const baja = s.concepto === 'Inutilizable' && estado === 'N/A';
+    if (estado === 'Extraviado' || baja) r.perdidas += s.cantidad;
+    if (['Uniforme en Campo', 'Uniforme en Bajas', 'Entregado Definitivo', 'Devuelto', 'Extraviado'].includes(estado || '') || baja) existencia(s.articulo, s.talla, s.estado_fisico, -s.cantidad);
+    else r.inconsistente = true;
+    if (['Uniforme en Campo', 'Uniforme en Bajas'].includes(estado || '') && !s.guardia_id) r.inconsistente = true;
+  }
+  for (const a of datos.ajustes) {
+    existencia(a.articulo, a.talla, a.estado, a.cantidad);
+    const r = articulo(a.articulo); r.ajusteNeto = (r.ajusteNeto || 0) + a.cantidad;
+  }
+  for (const d of detalle.values()) {
+    d.almacen = d.almacenNuevo + d.almacenUsado;
+    if ([d.almacenNuevo, d.almacenUsado, d.almacenInutilizable].some(n => n < 0)) articulo(d.articulo).inconsistente = true;
+  }
+  for (const r of resumen.values()) {
+    r.almacen = r.almacenNuevo + r.almacenUsado + r.almacenInutilizable;
+    r.totalExistente = r.almacen + r.enCampo + r.enBajas;
+    r.stockBajo = !r.archivada && r.almacenNuevo + r.almacenUsado <= (r.stockMinimo ?? 5);
+  }
+  return { resumen: [...resumen.values()].sort((a,b) => a.articulo.localeCompare(b.articulo)), detalle: [...detalle.values()], desde: historialDesde() };
+}
+export function calcularInventarioResumen(corte?: string) { return calcularInventario(corte).resumen; }
+export function calcularInventarioDetalle(corte?: string) { return calcularInventario(corte).detalle; }
+

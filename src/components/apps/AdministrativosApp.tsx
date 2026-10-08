@@ -36,7 +36,6 @@ import {
   FileCheck,
   Building2,
   Clock,
-  Sparkles,
   ChevronRight,
   Maximize2
 } from 'lucide-react';
@@ -46,6 +45,8 @@ import { useAuth } from '@/src/context/AuthContext';
 import MachoteFichaAdministrativo from '@/src/components/machotes/MachoteFichaAdministrativo';
 import AdministrativoPerfil from './AdministrativoPerfil';
 import { FichaExtraEditor, FICHA_EXTRA_VACIA, extraerFichaExtra, type FichaExtraValores } from './administrativos/FichaExtraEditor';
+import { IdentidadPersonal } from '@/src/components/forms/IdentidadPersonal';
+import { unirNombreCompleto } from '@/src/lib/rfcCurp';
 
 function imprimirExpediente(administrativo: any, salidas: any[], entradas: any[]) {
   const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -251,7 +252,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
   };
 
   // Registration States
-  const [nombre, setNombre] = useState('');
   const [puesto, setPuesto] = useState('Asistente Administrativo');
   const [departamento, setDepartamento] = useState('Administración');
   const [fechaAlta, setFechaAlta] = useState(new Date().toISOString().split('T')[0]);
@@ -269,7 +269,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
   // Editing States
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editNumeroElemento, setEditNumeroElemento] = useState('');
-  const [editNombre, setEditNombre] = useState('');
   const [editPuesto, setEditPuesto] = useState('');
   const [editDepartamento, setEditDepartamento] = useState('Administración');
   const [editFechaAlta, setEditFechaAlta] = useState('');
@@ -294,7 +293,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
       queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] });
       toast.success('Administrativo registrado con éxito');
       setIsModalOpen(false);
-      setNombre('');
       setTelefono('');
       setFichaExtra(FICHA_EXTRA_VACIA);
     },
@@ -337,7 +335,6 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
   });
 
   const startEdit = (administrativo: any) => {
-    setEditNombre(administrativo.nombre);
     setEditNumeroElemento(administrativo.numero_empleado || '');
     setEditPuesto(administrativo.puesto || '');
     setEditDepartamento(administrativo.departamento || 'Administración');
@@ -347,7 +344,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
     setEditDireccion(administrativo.direccion || '');
     setEditSueldoMensual(administrativo.sueldo_mensual ? String(administrativo.sueldo_mensual) : '');
     setEditEstado(administrativo.estado || 'Activo');
-    setEditFichaExtra(extraerFichaExtra(administrativo.ficha_tecnica_json));
+    setEditFichaExtra(extraerFichaExtra(administrativo.ficha_tecnica_json, administrativo.nombre));
     setSelectedAdministrativo(administrativo);
     setIsEditModalOpen(true);
   };
@@ -852,7 +849,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
             onSubmit={e => {
               e.preventDefault();
               createMutation.mutate({
-                nombre,
+                nombre: unirNombreCompleto(fichaExtra),
                 puesto,
                 departamento,
                 fecha_alta: fechaAlta,
@@ -872,20 +869,22 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
             </DialogHeader>
 
             <div className="py-3 space-y-3">
-              {/* ---------- Datos básicos ---------- */}
+              {/* ---------- Identidad: el nombre por partes, el nacimiento y el sexo van antes que CURP y RFC ---------- */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Identidad</p>
+                <IdentidadPersonal
+                  autoFocus
+                  value={fichaExtra}
+                  onChange={(cambios) => setFichaExtra((f) => ({ ...f, ...cambios }))}
+                />
+              </div>
+
+              {/* ---------- Puesto y contacto ---------- */}
+              <div className="pt-2 border-t border-border">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Puesto y contacto</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="space-y-0.5 col-span-2">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Nombre Completo</label>
-                  <Input
-                    value={nombre}
-                    onChange={e => setNombre(e.target.value)}
-                    placeholder="Nombre y apellidos"
-                    required
-                    className="rounded-lg h-9"
-                  />
-                </div>
                 <div className="space-y-0.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Puesto</label>
+                  <label className="field-label">Puesto</label>
                   <Input
                     value={puesto}
                     onChange={e => setPuesto(e.target.value)}
@@ -895,7 +894,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   />
                 </div>
                 <div className="space-y-0.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Departamento</label>
+                  <label className="field-label">Departamento</label>
                   <select
                     value={departamento}
                     onChange={e => setDepartamento(e.target.value)}
@@ -911,7 +910,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   </select>
                 </div>
                 <div className="space-y-0.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Fecha de Alta</label>
+                  <label className="field-label">Fecha de Alta</label>
                   <Input
                     type="date"
                     value={fechaAlta}
@@ -921,7 +920,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   />
                 </div>
                 <div className="space-y-0.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Teléfono de Contacto</label>
+                  <label className="field-label">Teléfono de Contacto</label>
                   <Input
                     value={telefono}
                     onChange={e => setTelefono(e.target.value)}
@@ -930,7 +929,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   />
                 </div>
                 <div className="space-y-0.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Correo Institucional / Personal</label>
+                  <label className="field-label">Correo Institucional / Personal</label>
                   <Input
                     type="email"
                     value={email}
@@ -940,8 +939,9 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   />
                 </div>
               </div>
+              </div>
 
-              <FichaExtraEditor nombreCompleto={nombre} value={fichaExtra} onChange={setFichaExtra} />
+              <FichaExtraEditor value={fichaExtra} onChange={setFichaExtra} />
             </div>
 
             <DialogFooter className="gap-2">
@@ -966,7 +966,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                 editMutation.mutate({
                   id: selectedAdministrativo.id,
                   numero_empleado: editNumeroElemento,
-                  nombre: editNombre,
+                  nombre: unirNombreCompleto(editFichaExtra),
                   puesto: editPuesto,
                   departamento: editDepartamento,
                   fecha_alta: editFechaAlta,
@@ -989,19 +989,18 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid gap-3.5 py-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Nombre Completo</label>
-                <Input
-                  value={editNombre}
-                  onChange={e => setEditNombre(e.target.value)}
-                  required
-                  className="rounded-xl"
-                />
-              </div>
+            <div className="py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Identidad</p>
+              <IdentidadPersonal
+                value={editFichaExtra}
+                onChange={(cambios) => setEditFichaExtra((f) => ({ ...f, ...cambios }))}
+              />
+            </div>
+
+            <div className="grid gap-3.5 py-3 border-t border-border">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Puesto</label>
+                  <label className="field-label">Puesto</label>
                   <Input
                     value={editPuesto}
                     onChange={e => setEditPuesto(e.target.value)}
@@ -1010,7 +1009,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Departamento</label>
+                  <label className="field-label">Departamento</label>
                   <select
                     value={editDepartamento}
                     onChange={e => setEditDepartamento(e.target.value)}
@@ -1028,7 +1027,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Fecha de Alta</label>
+                  <label className="field-label">Fecha de Alta</label>
                   <Input
                     type="date"
                     value={editFechaAlta}
@@ -1038,7 +1037,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Teléfono</label>
+                  <label className="field-label">Teléfono</label>
                   <Input
                     value={editTelefono}
                     onChange={e => setEditTelefono(e.target.value)}
@@ -1049,7 +1048,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Correo Electrónico</label>
+                  <label className="field-label">Correo Electrónico</label>
                   <Input
                     type="email"
                     value={editEmail}
@@ -1059,7 +1058,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Estado</label>
+                  <label className="field-label">Estado</label>
                   <select
                     value={editEstado}
                     onChange={e => setEditEstado(e.target.value)}
@@ -1073,7 +1072,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
               </div>
             </div>
 
-            <FichaExtraEditor nombreCompleto={editNombre} value={editFichaExtra} onChange={setEditFichaExtra} />
+            <FichaExtraEditor value={editFichaExtra} onChange={setEditFichaExtra} />
 
             <DialogFooter className="gap-2 mt-3">
               <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} className="rounded-xl">
@@ -1112,7 +1111,7 @@ export default function AdministrativosApp({ initialAdministrativoId }: { initia
                 El administrativo cambiará a estado <b>Baja Pendiente</b> para permitir la devolución del equipo y uniformes en posesión en el módulo de Bajas.
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Fecha Efectiva de Baja</label>
+                <label className="field-label">Fecha Efectiva de Baja</label>
                 <Input
                   type="date"
                   value={fechaBaja}

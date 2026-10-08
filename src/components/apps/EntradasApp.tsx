@@ -1,166 +1,160 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
-import { apiFetch } from '@/src/lib/api';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
+import { apiFetch } from '@/src/lib/api';
+import { fechaMexico } from '@/src/lib/fecha';
+import { useAuth } from '@/src/context/AuthContext';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
-import { Badge } from '@/src/components/ui/badge';
 import { Select } from '@/src/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/src/components/ui/dialog';
-import { ArrowDownToLine, Search, Download } from 'lucide-react';
-import { fmtDate, downloadCSV } from '@/src/lib/utils';
-import { ARTICULOS, getTallas, requiereTalla as articuloRequiereTalla, validarTalla } from '@/src/lib/constants';
+import { Field, FieldGrid, FormSection, Callout } from '@/src/components/ui/field';
+import { FormDialog } from '@/src/components/ui/form-dialog';
+import { PageHeader } from '@/src/components/ui/page-header';
+import { ArrowDownToLine, Boxes, Package } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
+import { downloadCSV, fmtDate } from '@/src/lib/utils';
+import CargaInicialAlmacen from '@/src/components/apps/CargaInicialAlmacen';
+import AnularMovimiento from '@/src/components/apps/AnularMovimiento';
+import CorregirMovimiento, { puedeCorregir } from '@/src/components/apps/CorregirMovimiento';
 import { toast } from 'sonner';
-import { useAuth } from '@/src/context/AuthContext';
 
 export default function EntradasApp() {
-  const { isEditor } = useAuth();
+  const { puede } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
-  const [articulo, setArticulo] = useState<string>('');
-  const [talla, setTalla] = useState('');
-  const [cantidad, setCantidad] = useState(1);
-  const [estado, setEstado] = useState('Nuevo');
-  const [motivo, setMotivo] = useState('Compra');
-  const [origenDevolucion, setOrigenDevolucion] = useState('');
-  const [guardiaId, setGuardiaId] = useState('');
-  const [registradoPor, setRegistradoPor] = useState('');
-
-  const { data: catalogoPrendas = [] } = useQuery({
-    queryKey: ['prendas'],
-    queryFn: () => apiFetch<any[]>('/api/prendas?solo_activas=1'),
-  });
-
-  const listaArticulos = useMemo(() => {
-    if (catalogoPrendas.length > 0) {
-      return catalogoPrendas.map(p => p.nombre);
-    }
-    return [...ARTICULOS];
-  }, [catalogoPrendas]);
-
-  const prendaActual = useMemo(() => {
-    return catalogoPrendas.find(p => p.nombre === articulo);
-  }, [catalogoPrendas, articulo]);
-
-  const requiereTalla = useMemo(() => {
-    if (prendaActual) {
-      return Boolean(prendaActual.requiere_talla);
-    }
-    return articuloRequiereTalla(articulo);
-  }, [prendaActual, articulo]);
-
-  const tallasDisponibles = useMemo(() => {
-    if (prendaActual && Array.isArray(prendaActual.tallas)) {
-      return prendaActual.tallas;
-    }
-    return getTallas(articulo);
-  }, [prendaActual, articulo]);
-
-  const { data: guardias = [] } = useQuery({ queryKey: ['guardias'], queryFn: () => apiFetch<any[]>('/api/guardias') });
-  const guardiasActivos = useMemo(() => (guardias as any[]).filter((g: any) => ['Activo', 'En Baja', 'Baja Pendiente'].includes(g.estado)), [guardias]);
-
-  useEffect(() => {
-    if (isModalOpen) {
-      const defaultArticulo = listaArticulos[0] || 'Camisolas';
-      setFecha(new Date().toISOString().split('T')[0]); setArticulo(defaultArticulo); setTalla(''); setCantidad(1);
-      setEstado('Nuevo'); setMotivo('Compra'); setOrigenDevolucion(''); setGuardiaId(''); setRegistradoPor('');
-    }
-  }, [isModalOpen, listaArticulos]);
-
-  const { data: entradas = [], isLoading } = useQuery({ queryKey: ['entradas'], queryFn: () => apiFetch<any[]>('/api/entradas') });
-
+  const [open, setOpen] = useState(false);
+  const [carga, setCarga] = useState(false);
+  const [form, setForm] = useState({ fecha: fechaMexico(), articulo: '', talla: '', cantidad: 1, estado: 'Nuevo', motivo: 'Compra', origen_devolucion: '', guardia_id: '', salida_id: '' });
+  const actualizar = (datos: Partial<typeof form>) => setForm(f => ({ ...f, ...datos }));
+  const prendasQuery = useQuery({ queryKey: ['catalogoPrendas'], queryFn: () => apiFetch<any[]>('/api/prendas') });
+  const guardiasQuery = useQuery({ queryKey: ['guardias'], queryFn: () => apiFetch<any[]>('/api/guardias') });
+  const salidasQuery = useQuery({ queryKey: ['salidas'], queryFn: () => apiFetch<any[]>('/api/salidas'), enabled: open && ['Devolución de Equipo', 'Recuperado'].includes(form.motivo) });
+  const entradasQuery = useQuery({ queryKey: ['entradas'], queryFn: () => apiFetch<any[]>('/api/entradas') });
+  const prendas = prendasQuery.data ?? [];
+  const prenda = prendas.find(p => p.nombre === form.articulo);
+  const devuelve = ['Devolución de Equipo', 'Recuperado'].includes(form.motivo);
+  const asignaciones = (salidasQuery.data ?? []).filter(s => !s.anulado && String(s.guardia_id) === form.guardia_id && (s.estado_asignacion === 'Uniforme en Campo' || form.motivo === 'Recuperado' && s.estado_asignacion === 'Extraviado'));
+  const asignacion = asignaciones.find(s => String(s.id) === form.salida_id);
+  const filteredData = (entradasQuery.data ?? []).filter(e => [e.articulo, e.motivo, e.origen_devolucion, e.registrado_por].some(t => (t || '').toLowerCase().includes(searchTerm.toLowerCase())));
   const mutation = useMutation({
-    mutationFn: (payload: any) => apiFetch('/api/entradas', { method: 'POST', body: JSON.stringify(payload) }),
+    mutationFn: () => apiFetch('/api/entradas', { method: 'POST', body: JSON.stringify(form) }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['entradas'] });
-      queryClient.invalidateQueries({ queryKey: ['inventario'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] });
-      queryClient.invalidateQueries({ queryKey: ['expediente'] });
-      toast.success('Entrada registrada exitosamente'); setIsModalOpen(false);
+      ['entradas','salidas','inventario','inventarioDetalle','uniformesCampo','expediente','dashboardMetrics','inventarioHistorial'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
+      toast.success('Entrada registrada'); setOpen(false);
     },
-    onError: () => toast.error('Error al registrar la entrada'),
+    onError: (e: Error) => toast.error(e.message),
   });
-
-  const filteredData = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return (entradas as any[]).filter((e: any) => e.articulo.toLowerCase().includes(term) || e.motivo.toLowerCase().includes(term) || (e.origen_devolucion && e.origen_devolucion.toLowerCase().includes(term)));
-  }, [entradas, searchTerm]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const nueva = () => { setForm({ fecha: fechaMexico(), articulo: '', talla: '', cantidad: 1, estado: 'Nuevo', motivo: 'Compra', origen_devolucion: '', guardia_id: '', salida_id: '' }); setOpen(true); };
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const errorTalla = validarTalla(articulo, talla);
-    if (errorTalla) { toast.error(errorTalla); return; }
-    if (motivo === 'Devolución de Equipo' && !origenDevolucion) { toast.error('Debe especificar quién entregó el equipo'); return; }
-    if (motivo === 'Recuperado' && !guardiaId) { toast.error('Debe seleccionar el guardia'); return; }
-    mutation.mutate({ fecha, articulo, talla: requiereTalla ? talla : null, cantidad: Number(cantidad), estado, motivo, origen_devolucion: motivo === 'Devolución de Equipo' ? origenDevolucion : null, guardia_id: (motivo === 'Recuperado' && guardiaId) ? Number(guardiaId) : null, registrado_por: registradoPor || null });
+    if (!Number.isSafeInteger(form.cantidad) || form.cantidad <= 0) return toast.error('La cantidad debe ser un entero mayor a cero');
+    if (devuelve && (!asignacion || form.cantidad > asignacion.cantidad)) return toast.error('Selecciona una asignación y una cantidad pendiente válida');
+    mutation.mutate();
   };
+  return <div className="space-y-5">
+    <PageHeader
+      title="Entradas de equipo"
+      description="Ingresos al almacén y devolución del equipo asignado."
+      actions={<>
+        <Button variant="outline" onClick={() => downloadCSV('entradas_' + fechaMexico() + '.csv', ['Fecha','Artículo','Talla','Cantidad','Estado físico','Motivo','Origen','Registró','Registro'], filteredData.map(e => [fmtDate(e.fecha),e.articulo,e.talla || '',e.cantidad,e.estado,e.motivo,e.origen_devolucion || '',e.registrado_por || '',e.anulado ? 'Anulado' : 'Vigente']))}>Exportar CSV filtrado</Button>
+        {puede('entradas','crear') && <><Button variant="outline" onClick={() => setCarga(true)}>Carga inicial</Button><Button onClick={nueva}>Nueva entrada</Button></>}
+      </>}
+    />
+    <Input placeholder="Buscar artículo, motivo, origen o autor" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+    {entradasQuery.error ? <p role="alert" className="text-red-600">{entradasQuery.error.message} <Button onClick={() => entradasQuery.refetch()}>Reintentar</Button></p> :
+    <div className="border rounded-xl overflow-x-auto"><Table>
+      <TableHeader><TableRow>{['Fecha','Artículo / talla','Cantidad','Estado físico','Motivo / origen','Registró','Estado','Acción'].map(h => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
+      <TableBody>{entradasQuery.isLoading ? <TableRow><TableCell colSpan={8}>Cargando...</TableCell></TableRow> : !filteredData.length ? <TableRow><TableCell colSpan={8}>No hay entradas que coincidan.</TableCell></TableRow> : filteredData.map(e => <TableRow key={e.id} className={e.anulado ? 'opacity-50' : ''}>
+        <TableCell>{fmtDate(e.fecha)}</TableCell><TableCell>{e.articulo} {e.talla && '— ' + e.talla}</TableCell><TableCell>{e.cantidad}</TableCell><TableCell>{e.estado}</TableCell><TableCell>{e.motivo}<div className="text-xs">{e.origen_devolucion}</div></TableCell><TableCell>{e.registrado_por}</TableCell><TableCell>{e.anulado ? 'Anulado' : 'Vigente'}</TableCell>
+        <TableCell><div className="flex gap-1">{puede('entradas','editar') && puedeCorregir('entradas', e) && <CorregirMovimiento tabla="entradas" fila={e} />}{!e.anulado && puede('entradas','eliminar') && <AnularMovimiento tabla="entradas" id={e.id} />}</div></TableCell>
+      </TableRow>)}</TableBody>
+    </Table></div>}
+    <FormDialog
+      open={open}
+      onOpenChange={setOpen}
+      size="md"
+      icon={ArrowDownToLine}
+      title="Registrar entrada"
+      description="Las devoluciones resuelven la asignación seleccionada. El autor se registra automáticamente."
+      submitLabel="Guardar entrada"
+      submitting={mutation.isPending}
+      footerNote={<span><span className="text-destructive">*</span> Campo obligatorio</span>}
+      onSubmit={submit}
+    >
+      <div className="space-y-6">
+        <FormSection title="Movimiento" icon={ArrowDownToLine}>
+          <FieldGrid cols={2}>
+            <Field label="Fecha" required>
+              <Input type="date" value={form.fecha} max={fechaMexico()} required onChange={e => actualizar({ fecha: e.target.value })} />
+            </Field>
+            <Field label="Motivo" required>
+              <Select value={form.motivo} onChange={e => actualizar({ motivo: e.target.value, salida_id: '', guardia_id: '', cantidad: 1 })}>
+                {['Compra','Existencia Inicial','Devolución de Equipo','Recuperado','Ingreso externo'].map(m => <option key={m}>{m}</option>)}
+              </Select>
+            </Field>
+          </FieldGrid>
+        </FormSection>
 
-  return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Entradas de Equipo</h1>
-          <p className="text-muted-foreground mt-0.5 text-sm">Registro de ingresos al almacén por compra o devoluciones.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => { const rows = (entradas as any[]).map((e: any) => [fmtDate(e.fecha), e.articulo, e.talla || '—', e.cantidad, e.estado, e.motivo, e.origen_devolucion || '—']); downloadCSV(`entradas_${new Date().toISOString().split('T')[0]}.csv`, ['Fecha', 'Artículo', 'Talla', 'Cantidad', 'Estado', 'Motivo', 'Origen'], rows); }}><Download className="w-4 h-4 mr-1.5" /> Exportar</Button>
-          {isEditor && <Button onClick={() => setIsModalOpen(true)}><ArrowDownToLine className="w-4 h-4 mr-2" /> Nueva Entrada</Button>}
-        </div>
+        {devuelve ? (
+          <FormSection title="Equipo que regresa" icon={Package}>
+            <FieldGrid cols={1}>
+              <Field label="Guardia" required>
+                <Select value={form.guardia_id} required onChange={e => actualizar({ guardia_id: e.target.value, salida_id: '', cantidad: 1 })}>
+                  <option value="">Seleccionar</option>
+                  {(guardiasQuery.data ?? []).filter(g => g.estado !== 'Baja Pendiente').map(g => <option key={g.id} value={g.id}>{g.nombre} · {g.numero_elemento}</option>)}
+                </Select>
+              </Field>
+              <Field label="Asignación que regresa" required>
+                <Select value={form.salida_id} required onChange={e => actualizar({ salida_id: e.target.value, cantidad: 1 })}>
+                  <option value="">Seleccionar equipo</option>
+                  {asignaciones.map(s => <option key={s.id} value={s.id}>{s.articulo} {s.talla || ''} · {s.cantidad} pieza(s) · {s.estado_asignacion} · {fmtDate(s.fecha)} · #{s.id}</option>)}
+                </Select>
+              </Field>
+            </FieldGrid>
+            <Callout tone="info">Los guardias con baja pendiente devuelven su equipo desde Procesos de Baja. También se puede recuperar una prenda archivada.</Callout>
+          </FormSection>
+        ) : (
+          <FormSection title="Artículo" icon={Package}>
+            <FieldGrid cols={2}>
+              <Field label="Artículo" required span={prenda?.requiere_talla ? 1 : 2}>
+                <Select value={form.articulo} required onChange={e => actualizar({ articulo: e.target.value, talla: '' })}>
+                  <option value="">Seleccionar</option>
+                  {prendas.filter(p => p.activo).map(p => <option key={p.id}>{p.nombre}</option>)}
+                </Select>
+              </Field>
+              {!!prenda?.requiere_talla && (
+                <Field label="Talla" required>
+                  <Select value={form.talla} required onChange={e => actualizar({ talla: e.target.value })}>
+                    <option value="">Seleccionar talla</option>
+                    {(prenda.tallas || []).map((t: string) => <option key={t}>{t}</option>)}
+                  </Select>
+                </Field>
+              )}
+            </FieldGrid>
+          </FormSection>
+        )}
+
+        <FormSection title="Cantidad y estado" icon={Boxes}>
+          <FieldGrid cols={2}>
+            <Field label="Cantidad" required>
+              <Input type="number" min={1} step={1} max={devuelve ? asignacion?.cantidad : 1000000} required value={form.cantidad} onChange={e => actualizar({ cantidad: Number(e.target.value) })} />
+            </Field>
+            <Field label="Estado físico">
+              <Select value={form.estado} onChange={e => actualizar({ estado: e.target.value })}>{['Nuevo','Usado','Inutilizable'].map(s => <option key={s}>{s}</option>)}</Select>
+            </Field>
+            {form.motivo === 'Ingreso externo' && (
+              <Field label="Procedencia" required span={2} hint="Equipo sin asignación previa.">
+                <Input required value={form.origen_devolucion} onChange={e => actualizar({ origen_devolucion: e.target.value })} />
+              </Field>
+            )}
+          </FieldGrid>
+        </FormSection>
+
+        {(prendasQuery.error || guardiasQuery.error || salidasQuery.error) && (
+          <Callout tone="danger">No se pudieron cargar las opciones. Cierra y vuelve a abrir el formulario.</Callout>
+        )}
       </div>
-      <div className="flex items-center gap-2 max-w-sm relative">
-        <Search className="w-4 h-4 absolute left-3 text-muted-foreground" />
-        <Input placeholder="Buscar por artículo, motivo..." className="pl-9" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-      </div>
-      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-        <Table>
-          <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Artículo</TableHead><TableHead>Talla</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead>Estado</TableHead><TableHead>Motivo/Origen</TableHead></TableRow></TableHeader>
-          <TableBody>
-            {isLoading ? <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">Cargando...</TableCell></TableRow>
-              : filteredData.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">No hay registros de entradas.</TableCell></TableRow>
-              : filteredData.map((item: any) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">{fmtDate(item.fecha)}</TableCell>
-                  <TableCell>{item.articulo}</TableCell>
-                  <TableCell>{item.talla || '-'}</TableCell>
-                  <TableCell className="text-right">{item.cantidad}</TableCell>
-                  <TableCell><Badge variant="outline">{item.estado}</Badge></TableCell>
-                  <TableCell>{item.motivo}{item.origen_devolucion && <div className="text-xs text-muted-foreground mt-0.5">de: {item.origen_devolucion}</div>}</TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent>
-          <form onSubmit={handleSubmit}>
-            <DialogHeader><DialogTitle>Registrar Entrada</DialogTitle><DialogDescription>Ingresa los detalles del nuevo stock</DialogDescription></DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><label className="text-sm font-medium">Fecha</label><Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required /></div>
-                <div className="space-y-2"><label className="text-sm font-medium">Artículo</label><Select value={articulo} onChange={e => { setArticulo(e.target.value); setTalla(''); }} required>{listaArticulos.map(a => <option key={a} value={a}>{a}</option>)}</Select></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {requiereTalla && <div className="space-y-2"><label className="text-sm font-medium">Talla</label><Select value={talla} onChange={e => setTalla(e.target.value)} required><option value="" disabled>Seleccionar...</option>{tallasDisponibles.map((t: string) => <option key={t} value={t}>{t}</option>)}</Select></div>}
-                <div className="space-y-2"><label className="text-sm font-medium">Cantidad</label><Input type="number" min="1" value={cantidad} onChange={e => setCantidad(Number(e.target.value))} required /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><label className="text-sm font-medium">Estado de la Prenda</label><Select value={estado} onChange={e => setEstado(e.target.value)} required><option value="Nuevo">Nuevo</option><option value="Usado">Usado</option><option value="Inutilizable">Inutilizable</option></Select></div>
-                <div className="space-y-2"><label className="text-sm font-medium">Motivo</label><Select value={motivo} onChange={e => { setMotivo(e.target.value); if (e.target.value !== 'Devolución de Equipo') setOrigenDevolucion(''); if (e.target.value !== 'Recuperado') setGuardiaId(''); }} required><option value="Compra">Compra</option><option value="Existencia Inicial">Existencia Inicial (inventario ya en almacén)</option><option value="Devolución de Equipo">Devolución de Equipo</option><option value="Recuperado">Recuperado (de un guardia)</option></Select></div>
-              </div>
-              {motivo === 'Devolución de Equipo' && <div className="space-y-2"><label className="text-sm font-medium">Entregado por (Origen)</label><Input value={origenDevolucion} onChange={e => setOrigenDevolucion(e.target.value)} placeholder="Nombre del guardia o supervisor" required /></div>}
-              {motivo === 'Recuperado' && <div className="space-y-2"><label className="text-sm font-medium">Recuperado del Guardia</label><Select value={guardiaId} onChange={e => setGuardiaId(e.target.value)} required><option value="">— Seleccionar guardia —</option>{guardiasActivos.map((g: any) => <option key={g.id} value={g.id}>{g.nombre} · {g.numero_elemento}</option>)}</Select></div>}
-              <div className="space-y-2"><label className="text-sm font-medium">Registrado por (Opcional)</label><Input value={registradoPor} onChange={e => setRegistradoPor(e.target.value)} placeholder="Tu nombre" /></div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={mutation.isPending}>Guardar Entrada</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+    </FormDialog>
+    <CargaInicialAlmacen open={carga} onOpenChange={setCarga} />
+  </div>;
 }

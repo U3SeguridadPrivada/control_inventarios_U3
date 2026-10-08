@@ -1,4 +1,5 @@
 import { ContenidoDoc } from '@/src/lib/documentoProtocolo';
+import { calcularEdad, parsearFechaNacimiento } from '@/src/lib/rfcCurp';
 
 export interface DatosContrato {
   // Encabezado y Proemio
@@ -143,6 +144,18 @@ export function formatearFechaLegal(fechaStr?: string): string {
   return fechaStr;
 }
 
+/**
+ * Edad para el contrato: se calcula con la fecha de nacimiento de la ficha (la edad guardada en el alta
+ * envejece) y, si no hay fecha, se usa la edad capturada. Sin ninguna de las dos queda en blanco: nunca se inventa.
+ */
+function edadDeFicha(ficha: Record<string, any>): string {
+  const f = parsearFechaNacimiento(String(ficha.fechaNacimiento || ''));
+  const calculada = calcularEdad(f.dia, f.mes, f.anio);
+  if (calculada !== null) return `${calculada} AÑOS`;
+  if (!ficha.edad) return '';
+  return ficha.edad.toString().toUpperCase().includes('AÑOS') ? String(ficha.edad) : `${ficha.edad} AÑOS`;
+}
+
 export function extraerDatosDeGuardia(guardia: any): Partial<DatosContrato> {
   if (!guardia) return {};
 
@@ -161,7 +174,7 @@ export function extraerDatosDeGuardia(guardia: any): Partial<DatosContrato> {
   const puesto = (ficha.puesto || 'TÉCNICO EN SEGURIDAD PRIVADA').toUpperCase().trim();
   const rfc = (ficha.rfc || '').toUpperCase().trim();
   const curp = (ficha.curp || '').toUpperCase().trim();
-  const edad = ficha.edad ? (ficha.edad.toString().toUpperCase().includes('AÑOS') ? ficha.edad : `${ficha.edad} AÑOS`) : '35 AÑOS';
+  const edad = edadDeFicha(ficha);
   const estadoCivil = (ficha.estadoCivil || 'SOLTERO').toUpperCase().trim();
   const nacionalidad = (ficha.nacionalidad || 'MEXICANA').toUpperCase().trim();
 
@@ -176,7 +189,6 @@ export function extraerDatosDeGuardia(guardia: any): Partial<DatosContrato> {
     ].filter(Boolean);
     dom = partes.join('; ');
   }
-  if (!dom) dom = 'calle de VIRGEN MARIA #19; COL. VIRGENCITAS; CP 57300 NEZAHUALCOYOTL, ESTADO DE MÉXICO';
 
   const fechaAltaFmt = formatearFechaLegal(guardia.fecha_alta);
 
@@ -215,7 +227,7 @@ export function extraerDatosDeAdministrativo(admin: any): Partial<DatosContrato>
   const puesto = (admin.puesto || ficha.puesto || 'PERSONAL ADMINISTRATIVO').toUpperCase().trim();
   const rfc = (ficha.rfc || '').toUpperCase().trim();
   const curp = (ficha.curp || '').toUpperCase().trim();
-  const edad = ficha.edad ? (ficha.edad.toString().toUpperCase().includes('AÑOS') ? ficha.edad : `${ficha.edad} AÑOS`) : '30 AÑOS';
+  const edad = edadDeFicha(ficha);
   const estadoCivil = (ficha.estadoCivil || 'SOLTERO(A)').toUpperCase().trim();
   const nacionalidad = (ficha.nacionalidad || 'MEXICANA').toUpperCase().trim();
 
@@ -230,7 +242,6 @@ export function extraerDatosDeAdministrativo(admin: any): Partial<DatosContrato>
     ].filter(Boolean);
     dom = partes.join('; ');
   }
-  if (!dom) dom = 'CIUDAD DE MÉXICO';
 
   const fechaAltaFmt = formatearFechaLegal(admin.fecha_alta);
   const salario = admin.sueldo_mensual ? Number(admin.sueldo_mensual) : 12000;
